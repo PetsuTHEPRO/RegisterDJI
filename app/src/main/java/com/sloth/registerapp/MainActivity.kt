@@ -106,6 +106,16 @@ class MainActivity : ComponentActivity() {
                         }) {
                             Text("Tirar Foto (Simulador)")
                         }
+
+
+                        //Pega registro de camera
+                        Button(onClick = {
+                            val intent = Intent(this@MainActivity, VideoFeedActivity::class.java)
+                            startActivity(intent)
+                        }) {
+                            Text("Abrir Feed de Vídeo")
+                        }
+
                     }
                 }
             }
@@ -205,6 +215,7 @@ class MainActivity : ComponentActivity() {
         })
     }
 
+
     private fun tirarFoto() {
         val camera = mProduct?.camera ?: run {
             Toast.makeText(this, "Drone (Simulador) não conectado ou câmera indisponível!", Toast.LENGTH_SHORT).show()
@@ -236,4 +247,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+
 }

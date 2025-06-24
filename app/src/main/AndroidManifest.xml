@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissões necessárias -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -23,12 +24,14 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Recursos do hardware -->
     <uses-feature android:name="android.hardware.usb.host" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
-        android:name=".MyApplication" android:allowBackup="true"
+        android:name=".MyApplication"
+        android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -38,26 +41,42 @@
         android:theme="@style/Theme.RegisterApp"
         tools:targetApi="31">
 
+        <!-- DJI SDK API KEY -->
+        <meta-data android:name="com.dji.sdk.API_KEY" android:value="791ba3a47ec253e38bae3e76" />
+
+        <!-- Biblioteca USB necessária -->
         <uses-library
             android:name="org.apache.http.legacy"
             android:required="false" />
-        <uses-library android:name="com.android.future.usb.accessory" android:required="false" />
-        <meta-data android:name="com.dji.sdk.API_KEY" android:value="ace803c98c5f86c65bd21ac3" />
+        <uses-library
+            android:name="com.android.future.usb.accessory"
+            android:required="false" />
 
+        <!-- Tela principal -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="landscape" android:launchMode="singleTop">
+            android:screenOrientation="landscape"
+            android:launchMode="singleTop">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
             </intent-filter>
+
             <meta-data
                 android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
                 android:resource="@xml/accessory_filter" />
         </activity>
+
+        <!-- Feed de vídeo -->
+        <activity
+            android:name=".VideoFeedActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
     </application>
 </manifest>

@@ -16,7 +16,7 @@ import androidx.core.content.ContextCompat
 
 object PermissionHelper {
 
-    private const val TAG = "PermissionHelper"
+    private const val TAG = "ApplicationDJI"
 
     // A lista de permissões agora vive aqui.
     private val REQUIRED_PERMISSION_LIST: Array<String> = arrayOf(

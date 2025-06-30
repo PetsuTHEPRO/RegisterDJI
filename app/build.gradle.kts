@@ -36,6 +36,7 @@ android {
     }
     buildFeatures {
         compose = true
+        viewBinding = true
     }
     packaging {
         resources {
@@ -62,6 +63,10 @@ android {
 dependencies {
 
     implementation(libs.dji.sdk)
+    implementation(libs.material)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.navigation.fragment.ktx)
+    implementation(libs.androidx.navigation.ui.ktx)
     compileOnly(libs.dji.sdk.provided)
 
     implementation(libs.androidx.core.ktx)

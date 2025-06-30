@@ -10,7 +10,11 @@ lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
 composeBom = "2024.04.01"
 roomCompilerProcessingTesting = "2.7.1"
-constraintlayout = "2.1.4" # Use a versão mais recente estável
+constraintlayout = "2.1.4"
+material = "1.12.0"
+appcompat = "1.7.0"
+navigationFragmentKtx = "2.8.9"
+navigationUiKtx = "2.8.9" # Use a versão mais recente estável
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +36,10 @@ androidx-room-compiler-processing-testing = { group = "androidx.room", name = "r
 # Adicione as dependências do DJI SDK aqui
 dji-sdk = { group = "com.dji", name = "dji-sdk", version.ref = "dji-sdk" }
 dji-sdk-provided = { group = "com.dji", name = "dji-sdk-provided", version.ref = "dji-sdk" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-navigation-fragment-ktx = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "navigationFragmentKtx" }
+androidx-navigation-ui-ktx = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "navigationUiKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

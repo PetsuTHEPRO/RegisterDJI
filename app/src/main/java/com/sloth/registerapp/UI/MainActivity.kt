@@ -1,4 +1,4 @@
-package com.sloth.registerapp
+package com.sloth.registerapp.UI
 
 import android.Manifest
 import android.content.Intent
@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.sloth.registerapp.VideoFeedActivity
 import com.sloth.registerapp.ui.theme.RegisterAppTheme
 import dji.common.camera.SettingsDefinitions
 import dji.common.error.DJIError

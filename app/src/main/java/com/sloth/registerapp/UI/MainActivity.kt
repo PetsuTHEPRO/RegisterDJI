@@ -1,20 +1,12 @@
 package com.sloth.registerapp.UI
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -26,9 +18,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.sloth.registerapp.VideoFeedActivity
 import com.sloth.registerapp.ui.theme.RegisterAppTheme
+import com.sloth.registerapp.utils.PermissionHelper
 import dji.common.camera.SettingsDefinitions
 import dji.common.error.DJIError
 import dji.common.error.DJISDKError
@@ -41,46 +33,28 @@ class MainActivity : ComponentActivity() {
 
     private val TAG = "ApplicationDJI"
 
-    // Lista de permissões necessárias para o app
-    private val REQUIRED_PERMISSION_LIST: Array<String> = arrayOf(
-        Manifest.permission.VIBRATE,
-        Manifest.permission.INTERNET,
-        Manifest.permission.ACCESS_WIFI_STATE,
-        Manifest.permission.WAKE_LOCK,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.BLUETOOTH,
-        Manifest.permission.BLUETOOTH_ADMIN,
-        Manifest.permission.BLUETOOTH_CONNECT,
-        Manifest.permission.BLUETOOTH_SCAN,
-        Manifest.permission.BLUETOOTH_ADVERTISE,
-        Manifest.permission.READ_MEDIA_IMAGES,
-        Manifest.permission.READ_MEDIA_VIDEO,
-        Manifest.permission.READ_MEDIA_AUDIO,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.RECORD_AUDIO
-    )
-
     // Referência ao produto DJI conectado (drone/simulador)
     private var mProduct: BaseProduct? = null
 
     // Variável de estado para a UI, para mostrar o status da conexão
-    private var droneStatusText by mutableStateOf("Aguardando conexão com o simulador...")
-
-    // Launchers para gerenciar os resultados das solicitações de permissão
-    private lateinit var requestPermissionLauncher: ActivityResultLauncher<Array<String>>
-    private lateinit var systemAlertWindowLauncher: ActivityResultLauncher<Intent>
-    private lateinit var manageExternalStorageLauncher: ActivityResultLauncher<Intent>
+    private var droneStatusText by mutableStateOf("Aguardando permissões...")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Inicializa os launchers para permissões
-        initializePermissionLaunchers()
+        // 1. Inicializa os launchers do nosso Helper.
+        // A ação final a ser executada (lambda) é `startSDKRegistration`.
+        PermissionHelper.initializeLaunchers(this) {
+            startSDKRegistration()
+        }
 
-        // Inicia o processo de verificação e solicitação de permissões
-        checkAndRequestPermissions()
+        // 2. Inicia o processo de verificação.
+        // A ação final (lambda) é a mesma: `startSDKRegistration`.
+        PermissionHelper.checkAndRequestPermissions(this) {
+            startSDKRegistration()
+        }
+
 
         // Configura a interface do usuário com Jetpack Compose
         setContent {
@@ -94,88 +68,32 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Texto que exibe o status dinâmico do drone
                         Text(
                             text = droneStatusText,
                             style = MaterialTheme.typography.headlineSmall
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-
-                        // Botão para enviar o comando de tirar foto
-                        Button(onClick = {
-                            tirarFoto()
-                        }) {
+                        Button(onClick = { tirarFoto() }) {
                             Text("Tirar Foto (Simulador)")
                         }
-
-
-                        //Pega registro de camera
+                        Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = {
                             val intent = Intent(this@MainActivity, VideoFeedActivity::class.java)
                             startActivity(intent)
                         }) {
                             Text("Abrir Feed de Vídeo")
                         }
-
                     }
                 }
             }
         }
     }
 
-    private fun initializePermissionLaunchers() {
-        requestPermissionLauncher = registerForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions()
-        ) { permissionsMap ->
-            if (permissionsMap.all { it.value }) {
-                Log.d(TAG, "Todas as permissões de runtime concedidas.")
-                checkSpecialPermissionsAndRegisterSDK()
-            } else {
-                val deniedPermissions = permissionsMap.filter { !it.value }.keys
-                Log.d(TAG, "Permissões de runtime negadas: ${deniedPermissions.joinToString()}")
-                Toast.makeText(this, "Permissões necessárias negadas.", Toast.LENGTH_LONG).show()
-            }
-        }
+    // A lógica de permissões foi removida daqui.
 
-        systemAlertWindowLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            checkSpecialPermissionsAndRegisterSDK()
-        }
-
-        manageExternalStorageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            checkSpecialPermissionsAndRegisterSDK()
-        }
-    }
-
-    private fun checkAndRequestPermissions() {
-        val missingPermissions = REQUIRED_PERMISSION_LIST.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isNotEmpty()) {
-            requestPermissionLauncher.launch(missingPermissions.toTypedArray())
-        } else {
-            Log.d(TAG, "Todas as permissões de runtime já concedidas.")
-            checkSpecialPermissionsAndRegisterSDK()
-        }
-    }
-
-    private fun checkSpecialPermissionsAndRegisterSDK() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            systemAlertWindowLauncher.launch(intent)
-            return
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName"))
-            manageExternalStorageLauncher.launch(intent)
-            return
-        }
-
-        startSDKRegistration()
-    }
-
+    // A lógica de registro do SDK e de interação com o drone permanece na MainActivity.
     private fun startSDKRegistration() {
+        runOnUiThread { droneStatusText = "Aguardando conexão com o simulador..." }
         Log.d(TAG, "Iniciando o registro do SDK DJI...")
         DJISDKManager.getInstance().registerApp(this.applicationContext, object : DJISDKManager.SDKManagerCallback {
             override fun onRegister(error: DJIError?) {
@@ -216,7 +134,6 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-
     private fun tirarFoto() {
         val camera = mProduct?.camera ?: run {
             Toast.makeText(this, "Drone (Simulador) não conectado ou câmera indisponível!", Toast.LENGTH_SHORT).show()
@@ -226,9 +143,7 @@ class MainActivity : ComponentActivity() {
         camera.setMode(SettingsDefinitions.CameraMode.SHOOT_PHOTO) { error ->
             if (error == null) {
                 Log.d(TAG, "Modo da câmera alterado para 'SHOOT_PHOTO'.")
-                // Uma pequena pausa pode ajudar a garantir que a câmera trocou de modo antes do disparo
                 Thread.sleep(200)
-
                 camera.startShootPhoto { errorDisparo ->
                     runOnUiThread {
                         if (errorDisparo == null) {
@@ -248,6 +163,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-
 }

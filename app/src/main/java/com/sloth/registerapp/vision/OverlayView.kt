@@ -42,7 +42,7 @@ class OverlayView : View {
         faces: List<Face?>?, previewWidth: Int, previewHeight: Int,
         displayOrientation: Int, cameraSensorOrientation: Int, isFrontCamera: Boolean
     ) {
-        this.faces = faces
+        this.faces = faces as List<Face>?
         this.previewWidth = previewWidth
         this.previewHeight = previewHeight
         this.displayOrientation = displayOrientation

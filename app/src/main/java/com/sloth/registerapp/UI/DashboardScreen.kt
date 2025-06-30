@@ -1,14 +1,9 @@
 package com.sloth.registerapp.UI
 // No novo arquivo: UI/DashboardScreen.kt
 
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Camera
-import androidx.compose.material.icons.filled.ControlCamera
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
@@ -18,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.sloth.registerapp.VideoFeedActivity
 
 // --- COMPONENTE REUTILIZÁVEL 1: Indicador de Status ---
 @Composable

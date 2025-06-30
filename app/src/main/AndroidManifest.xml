@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Permissões necessárias -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -76,9 +77,12 @@
                 android:resource="@xml/accessory_filter" />
         </activity> <!-- Feed de vídeo -->
         <activity
-            android:name=".VideoFeedActivity"
+            android:name=".UI.VideoFeedActivity"
             android:exported="false"
             android:screenOrientation="landscape" />
+        <activity
+            android:name=".UI.PhoneCameraActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

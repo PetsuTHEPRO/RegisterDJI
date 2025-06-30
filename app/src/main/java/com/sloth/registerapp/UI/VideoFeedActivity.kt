@@ -1,4 +1,4 @@
-package com.sloth.registerapp
+package com.sloth.registerapp.UI
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -8,6 +8,7 @@ import android.util.Log
 import android.view.TextureView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.sloth.registerapp.R
 import dji.midware.usb.P3.UsbAccessoryService
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager

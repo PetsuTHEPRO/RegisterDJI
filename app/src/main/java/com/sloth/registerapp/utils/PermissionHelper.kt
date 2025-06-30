@@ -20,6 +20,7 @@ object PermissionHelper {
 
     // A lista de permissões agora vive aqui.
     private val REQUIRED_PERMISSION_LIST: Array<String> = arrayOf(
+        Manifest.permission.CAMERA, // <-- ADICIONE ESTA LINHA AQUI
         Manifest.permission.VIBRATE,
         Manifest.permission.INTERNET,
         Manifest.permission.ACCESS_WIFI_STATE,

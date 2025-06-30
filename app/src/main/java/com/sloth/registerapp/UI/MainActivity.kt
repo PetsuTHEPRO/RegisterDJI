@@ -12,7 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.sloth.registerapp.VideoFeedActivity
+import com.sloth.registerapp.UI.VideoFeedActivity
 import com.sloth.registerapp.DJI.DJIConnectionHelper
 import com.sloth.registerapp.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.utils.PermissionHelper
@@ -52,7 +52,9 @@ class MainActivity : ComponentActivity() {
                 // Chama a nossa nova tela principal, passando os dados e as ações
                 DashboardScreen(
                     droneStatus = droneStatus,
-                    onTakePhotoClick = { tirarFoto(this) },
+                    onTakePhotoClick = {
+                        val intent = Intent(this, PhoneCameraActivity::class.java)
+                        startActivity(intent) },
                     onOpenFeedClick = {
                         val intent = Intent(this, VideoFeedActivity::class.java)
                         startActivity(intent)

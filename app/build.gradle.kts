@@ -87,5 +87,6 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
 
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.mlkit:face-detection:16.1.6")
 }

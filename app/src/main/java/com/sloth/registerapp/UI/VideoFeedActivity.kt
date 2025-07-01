@@ -18,7 +18,7 @@ class VideoFeedActivity : ComponentActivity() {
     private lateinit var videoFeedView: TextureView
     private var codecManager: DJICodecManager? = null
     private var videoDataListener: VideoFeeder.VideoDataListener? = null
-    private val TAG = "VideoFeedActivity"
+    private val TAG = "ApplicationDJI"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

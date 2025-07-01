@@ -1,96 +1,75 @@
 package com.sloth.registerapp.vision
 
-import android.content.Context
 import android.util.Log
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
-import java.nio.ByteBuffer
-
 
 class FaceDetectionProcessor(
-    private val context: Context,
-    private val callback: FaceDetectionCallback?
-) {
-    private val detector: FaceDetector?
+    private val callback: FaceDetectionCallback
+) : ICameraSource.FrameListener {
 
-    // Interface de Callback para retornar os resultados
+    private val detector: FaceDetector
+
     interface FaceDetectionCallback {
-        fun onFaceDetected(
-            numberOfFaces: Int,
-            faces: List<Face?>?,
-            imageWidth: Int,
-            imageHeight: Int
-        ) // Garanta que 'faces' seja List<Face>
-
-        fun onFaceDetectionFailed(e: java.lang.Exception?)
-        fun onNoFacesDetected(imageWidth: Int, imageHeight: Int)
+        fun onFaceDetected(numberOfFaces: Int, faces: List<Face>, frameData: ICameraSource.FrameData)
+        fun onFaceDetectionFailed(e: Exception)
+        fun onNoFacesDetected(frameData: ICameraSource.FrameData)
     }
 
     init {
-        val options =
-            FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-                .build()
+        // --- MUDANÇA AQUI: TORNANDO O DETECTOR MAIS PRECISO ---
+        // Alteramos o modo de 'FAST' para 'ACCURATE' e adicionamos
+        // a detecção de contornos para ajudar o algoritmo.
+        val options = FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+            .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+            .build()
+        // --- FIM DA MUDANÇA ---
 
         detector = FaceDetection.getClient(options)
     }
 
-    // NOVO MÉTODO para processar diretamente os dados do preview
-    fun processFrame(
-        frameData: ByteArray?,
-        previewWidth: Int,
-        previewHeight: Int,
-        rotationDegrees: Int
-    ) {
-        if (frameData == null || previewWidth == 0 || previewHeight == 0) {
-            Log.e(TAG, "Dados de frame inválidos.")
-            callback?.onFaceDetectionFailed(IllegalArgumentException("Dados de frame ou dimensões inválidas."))
-            return
-        }
+    override fun onFrame(frameData: ICameraSource.FrameData) {
+        // --- LOG 1: Confirma que o frame chegou aqui ---
+        //Log.d(TAG, "onFrame: Recebido frame para processamento. Rotação: ${frameData.rotation}, Tamanho: ${frameData.width}x${frameData.height}")
 
-        // Cria um InputImage a partir do buffer YUV
-        // O ImageFormat.NV21 é o formato padrão para Câmera API 1
         val image = InputImage.fromByteBuffer(
-            ByteBuffer.wrap(frameData),
-            previewWidth,
-            previewHeight,
-            rotationDegrees,  // Rotação da imagem em relação ao dispositivo (ex: 90, 270)
+            frameData.data,
+            frameData.width,
+            frameData.height,
+            frameData.rotation,
             InputImage.IMAGE_FORMAT_NV21
         )
 
-        // Processa a imagem
-        detector!!.process(image)
-            .addOnSuccessListener { faces: List<Face?> ->
+        detector.process(image)
+            .addOnSuccessListener { faces ->
                 if (faces.isEmpty()) {
-                    // Log.d(TAG, "Nenhuma face detectada no frame.");
-                    callback?.onNoFacesDetected(previewWidth, previewHeight)
+                    // --- LOG 2: Sucesso, mas nenhum rosto encontrado ---
+                    //Log.d(TAG, "onSuccess: Nenhum rosto detectado.")
+                    callback.onNoFacesDetected(frameData)
                 } else {
-                    // Log.d(TAG, faces.size() + " face(s) detectada(s) no frame.");
-                    callback?.onFaceDetected(faces.size, faces, previewWidth, previewHeight)
+                    // --- LOG 3: Sucesso, rostos encontrados! ---
+                    //Log.d(TAG, "onSuccess: ${faces.size} rosto(s) detectado(s)!")
+                    callback.onFaceDetected(faces.size, faces, frameData)
                 }
             }
-            .addOnFailureListener { e: Exception ->
-                Log.e(
-                    TAG,
-                    "Erro na detecção de faces do frame: " + e.message
-                )
-                callback?.onFaceDetectionFailed(e)
+            .addOnFailureListener { e ->
+                // --- LOG 4: Ocorreu um erro durante o processamento ---
+                // Adicionado o 'e' para imprimir o erro completo no log
+                Log.e(TAG, "onFailure: Falha na detecção de faces.", e)
+                callback.onFaceDetectionFailed(e)
             }
     }
 
-    // O método processImage(File imageFile) antigo pode ser mantido se ainda quiser processar arquivos salvos,
-    // mas não será usado para detecção em tempo real.
-    // Ou remova-o se ele não for mais necessário para outra função.
     fun close() {
-        detector?.close()
+        detector.close()
     }
 
     companion object {
-        private const val TAG = "FaceDetectionProcessor"
+        private const val TAG = "ApplicationDJI"
     }
 }

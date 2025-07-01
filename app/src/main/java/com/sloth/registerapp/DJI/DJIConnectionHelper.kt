@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 object DJIConnectionHelper {
 
-    private const val TAG = "DJIConnectionHelper"
+    private const val TAG = "ApplicationDJI"
 
     // StateFlow para emitir o status da conexão para a UI
     private val _connectionStatus = MutableStateFlow("Aguardando inicialização...")
@@ -36,6 +36,7 @@ object DJIConnectionHelper {
             override fun onRegister(error: DJIError?) {
                 if (error == DJISDKError.REGISTRATION_SUCCESS) {
                     Log.d(TAG, "Registro do SDK bem-sucedido!")
+                    _connectionStatus.value = "Registrado com Sucesso."
                     // Não precisa de runOnUiThread aqui, o Toast já faz isso se necessário
                     Toast.makeText(context, "Registro do SDK bem-sucedido!", Toast.LENGTH_SHORT).show()
                     DJISDKManager.getInstance().startConnectionToProduct()

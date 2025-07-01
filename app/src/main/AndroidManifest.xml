@@ -82,6 +82,7 @@
             android:screenOrientation="landscape" />
         <activity
             android:name=".UI.PhoneCameraActivity"
+            android:screenOrientation="landscape"
             android:exported="false" />
     </application>
 

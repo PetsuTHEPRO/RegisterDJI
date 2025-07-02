@@ -11,8 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sloth.registerapp.DJI.DroneTelemetryData
 
 // --- COMPONENTE REUTILIZÁVEL 1: Indicador de Status ---
 @Composable
@@ -74,6 +76,7 @@ fun ActionButton(
 @Composable
 fun DashboardScreen(
     droneStatus: String,
+    telemetry: DroneTelemetryData,
     onTakePhotoClick: () -> Unit,
     onOpenFeedClick: () -> Unit
 ) {
@@ -104,13 +107,18 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Text(
+                    text = "Bateria: ${telemetry.batteryPercentage}% | Altitude: 0.0(fake)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
                 ActionButton(
-                    text = "Controlar Drone",
+                    text = "Feed de Vídeo(Celular)",
                     icon = Icons.Default.PhotoCamera,
                     onClick = onTakePhotoClick
                 )
                 ActionButton(
-                    text = "Feed de Vídeo",
+                    text = "Feed de Vídeo(Drone)",
                     icon = Icons.Default.Videocam,
                     onClick = onOpenFeedClick
                 )

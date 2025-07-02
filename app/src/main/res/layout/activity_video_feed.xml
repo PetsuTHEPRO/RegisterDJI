@@ -1,11 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    tools:context=".UI.VideoFeedActivity">
 
+    <!-- A TextureView para o vídeo do drone. Ocupa o fundo. -->
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
+
+    <!-- A OverlayView para desenhar os retângulos. Fica por cima da TextureView. -->
+    <com.sloth.registerapp.vision.OverlayView
+        android:id="@+id/overlay_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Opcional: Pode adicionar aqui um botão para ligar/desligar a deteção, se desejar -->
+    <ToggleButton
+        android:id="@+id/toggle_capture_button_drone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:textOn="Overlay: ON"
+        android:textOff="Overlay: OFF" />
 
 </FrameLayout>

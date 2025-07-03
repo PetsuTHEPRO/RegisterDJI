@@ -27,41 +27,25 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
 
     ICameraSource {
 
-
-
 // --- Variáveis de Câmera e UI ---
 
     private var camera: Camera? = null
-
     private lateinit var surfaceView: SurfaceView
-
     private lateinit var surfaceHolder: SurfaceHolder
-
     private lateinit var overlayView: OverlayView // Adicionada
-
-
 
 // --- Variáveis de Detecção e Lógica ---
 
     private var faceProcessor: FaceDetectionProcessor? = null
-
     private var frameListener: ICameraSource.FrameListener? = null
-
-
 
 // --- Variáveis de Configuração da Câmera ---
 
     private var previewWidth = 0
-
     private var previewHeight = 0
-
     private var cameraSensorOrientation = 0
-
     private var displayOrientation = 0
-
     private var isFrontCamera = false
-
-
 
 // --- Android Lifecycle ---
 
@@ -70,57 +54,29 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_phone_camera)
-
-
-
         surfaceView = findViewById(R.id.phone_camera_preview)
-
         overlayView = findViewById(R.id.overlay_view) // Inicializa a OverlayView
-
-
-
         surfaceHolder = surfaceView.holder
-
         surfaceHolder.addCallback(this)
 
-
-
         setupVisionProcessor()
-
     }
 
 
 
     private fun setupVisionProcessor() {
-
         val callback = object : FaceDetectionProcessor.FaceDetectionCallback {
-
             override fun onFaceDetected(numberOfFaces: Int, faces: List<Face>, frameData: ICameraSource.FrameData) {
-
                 runOnUiThread { overlayView.setFaces(faces, frameData) }
-
             }
-
-
-
             override fun onFaceDetectionFailed(e: Exception) {
-
                 Log.e(TAG, "Detecção de face falhou", e)
-
             }
-
-
-
             override fun onNoFacesDetected(frameData: ICameraSource.FrameData) {
-
                 runOnUiThread { overlayView.setFaces(null, frameData) }
-
             }
-
         }
-
         faceProcessor = FaceDetectionProcessor(callback)
-
     }
 
 
@@ -129,7 +85,7 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
 
         super.onResume()
 
-// A lógica de permissão agora inicia o ICameraSource
+        // A lógica de permissão agora inicia o ICameraSource
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
 

@@ -84,6 +84,10 @@
             android:name=".UI.PhoneCameraActivity"
             android:screenOrientation="landscape"
             android:exported="false" />
+        <activity
+            android:name=".UI.TelemetryActivity"
+            android:screenOrientation="landscape"
+            tools:ignore="LockedOrientationActivity" />
     </application>
 
 </manifest>

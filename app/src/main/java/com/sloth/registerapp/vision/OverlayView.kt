@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
 import com.google.mlkit.vision.face.Face
-import com.sloth.registerapp.vision.ICameraSource
 
 // @JvmOverloads permite que o Android Studio use este construtor a partir do XML
 class OverlayView @JvmOverloads constructor(

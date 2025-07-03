@@ -1,47 +1,54 @@
-package com.sloth.registerapp.UI
+package com.sloth.registerapp.UI.Screen
 // No novo arquivo: UI/DashboardScreen.kt
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.sloth.registerapp.DJI.DroneTelemetryData
 
 // --- COMPONENTE REUTILIZÁVEL 1: Indicador de Status ---
 @Composable
-fun StatusIndicator(status: String) {
+private fun StatusIndicator(status: String, onRetryClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "STATUS DO DRONE",
-                style = MaterialTheme.typography.bodySmall, // Estilo menor para o título
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = status,
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Left
-            )
+            Column(
+                modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "STATUS DA CONEXÃO",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center
+                )
+            }
+            AnimatedVisibility(visible = !status.startsWith("Conectado a:")) {
+                IconButton(onClick = onRetryClick) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Tentar novamente", modifier = Modifier.size(28.dp))
+                }
+            }
         }
     }
 }
@@ -76,9 +83,9 @@ fun ActionButton(
 @Composable
 fun DashboardScreen(
     droneStatus: String,
-    telemetry: DroneTelemetryData,
     onTakePhotoClick: () -> Unit,
-    onOpenFeedClick: () -> Unit
+    onOpenFeedClick: () -> Unit,
+    onRetryConnectionClick: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -100,25 +107,23 @@ fun DashboardScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Seção de Status
-            StatusIndicator(status = droneStatus)
+            StatusIndicator(
+                status = droneStatus,
+                onRetryClick = onRetryConnectionClick
+            )
 
             // Seção de Ações
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Bateria: ${telemetry.batteryPercentage}% | Altitude: 0.0(fake)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
                 ActionButton(
-                    text = "Feed de Vídeo(Celular)",
+                    text = "Camera de Vídeo",
                     icon = Icons.Default.PhotoCamera,
                     onClick = onTakePhotoClick
                 )
                 ActionButton(
-                    text = "Feed de Vídeo(Drone)",
+                    text = "Estatística Drone",
                     icon = Icons.Default.Videocam,
                     onClick = onOpenFeedClick
                 )

@@ -35,7 +35,7 @@ class FaceDetectionProcessor(
 
     override fun onFrame(frameData: ICameraSource.FrameData) {
         // --- LOG 1: Confirma que o frame chegou aqui ---
-        //Log.d(TAG, "onFrame: Recebido frame para processamento. Rotação: ${frameData.rotation}, Tamanho: ${frameData.width}x${frameData.height}")
+        Log.d(TAG, "onFrame: Recebido frame para processamento. Rotação: ${frameData.rotation}, Tamanho: ${frameData.width}x${frameData.height}")
 
         val image = InputImage.fromByteBuffer(
             frameData.data,

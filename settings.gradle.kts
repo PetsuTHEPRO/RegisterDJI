@@ -9,6 +9,7 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven { url = uri("https://dev.dji.com/repo/") }
     }
 }
 dependencyResolutionManagement {

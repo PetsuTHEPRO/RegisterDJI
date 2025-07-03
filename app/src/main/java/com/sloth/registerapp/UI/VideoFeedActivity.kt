@@ -1,11 +1,15 @@
 package com.sloth.registerapp.UI
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.SurfaceTexture
 import android.os.Bundle
 import android.util.Log
 import android.view.TextureView
+import android.view.View
+import android.widget.ImageButton
 import android.widget.Toast
+import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatActivity
 import com.google.mlkit.vision.face.Face
 import com.sloth.registerapp.R
@@ -14,7 +18,6 @@ import com.sloth.registerapp.vision.ICameraSource
 import com.sloth.registerapp.vision.OverlayView
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
-import java.nio.ByteBuffer
 
 // 1. A classe agora implementa a nossa interface ICameraSource
 class VideoFeedActivity : AppCompatActivity(), ICameraSource {
@@ -24,6 +27,12 @@ class VideoFeedActivity : AppCompatActivity(), ICameraSource {
     // --- Variáveis de UI e Detecção ---
     private lateinit var videoFeedView: TextureView
     private lateinit var overlayView: OverlayView
+
+    // --- Variáveis dos Botões ---
+    private lateinit var takePhotoButton: ImageButton
+    private lateinit var switchCameraButton: ImageButton
+    private lateinit var toggleOverlayButton: ToggleButton
+
     private var faceProcessor: FaceDetectionProcessor? = null
     private var frameListener: ICameraSource.FrameListener? = null
 
@@ -37,11 +46,33 @@ class VideoFeedActivity : AppCompatActivity(), ICameraSource {
 
         videoFeedView = findViewById(R.id.textureView)
         overlayView = findViewById(R.id.overlay_view)
+        switchCameraButton = findViewById(R.id.button_switch_camera)
+        takePhotoButton = findViewById(R.id.button_take_photo)
+        toggleOverlayButton = findViewById(R.id.button_toggle_overlay)
 
         setupVisionProcessor()
+        setupButtonListeners()
 
         // Inicia a fonte de câmera (o drone) e passa o processador como listener
         start(faceProcessor!!)
+    }
+
+    private fun setupButtonListeners() {
+        takePhotoButton.setOnClickListener {
+            Log.i(TAG, "Tirando foto...")
+        }
+
+        switchCameraButton.setOnClickListener {
+            // Ação para trocar para a câmera do celular
+            val intent = Intent(this, PhoneCameraActivity::class.java)
+            startActivity(intent)
+            finish() // Fecha a tela atual para não ficar empilhando
+        }
+
+        toggleOverlayButton.setOnCheckedChangeListener { _, isChecked ->
+            // Mostra ou esconde o overlay com os retângulos
+            overlayView.visibility = if (isChecked) View.VISIBLE else View.INVISIBLE
+        }
     }
 
     private fun setupVisionProcessor() {

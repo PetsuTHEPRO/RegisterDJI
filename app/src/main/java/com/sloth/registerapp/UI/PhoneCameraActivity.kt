@@ -1,6 +1,7 @@
 package com.sloth.registerapp.UI
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.hardware.Camera
@@ -9,8 +10,11 @@ import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
 import android.widget.Toast
+import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -33,6 +37,11 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
     private lateinit var surfaceView: SurfaceView
     private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var overlayView: OverlayView // Adicionada
+
+    // --- Variáveis dos Botões ---
+    private lateinit var takePhotoButton: ImageButton
+    private lateinit var switchCameraButton: ImageButton
+    private lateinit var toggleOverlayButton: ToggleButton
 
 // --- Variáveis de Detecção e Lógica ---
 
@@ -59,10 +68,31 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
         surfaceHolder = surfaceView.holder
         surfaceHolder.addCallback(this)
 
+        switchCameraButton = findViewById(R.id.button_switch_camera)
+        takePhotoButton = findViewById(R.id.button_take_photo)
+        toggleOverlayButton = findViewById(R.id.button_toggle_overlay)
+
         setupVisionProcessor()
+        setupButtonListeners()
     }
 
+    private fun setupButtonListeners() {
+        takePhotoButton.setOnClickListener {
+            Log.i(TAG, "Tirando foto...")
+        }
 
+        switchCameraButton.setOnClickListener {
+            // Ação para trocar para a câmera do celular
+            val intent = Intent(this, VideoFeedActivity::class.java)
+            startActivity(intent)
+            finish() // Fecha a tela atual para não ficar empilhando
+        }
+
+        toggleOverlayButton.setOnCheckedChangeListener { _, isChecked ->
+            // Mostra ou esconde o overlay com os retângulos
+            overlayView.visibility = if (isChecked) View.VISIBLE else View.INVISIBLE
+        }
+    }
 
     private fun setupVisionProcessor() {
         val callback = object : FaceDetectionProcessor.FaceDetectionCallback {

@@ -21,7 +21,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // --- INÍCIO DO BLOCO DE CÓDIGO PARA MODO IMERSIVO ---
         // 1. Prepara a janela para desenhar por trás das barras do sistema (edge-to-edge)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -33,7 +32,6 @@ class MainActivity : ComponentActivity() {
 
         // 4. Configura o comportamento para as barras reaparecerem com um deslize
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        // --- FIM DO BLOCO DE CÓDIGO ---
 
         PermissionHelper.initializeLaunchers(this) {
             DJIConnectionHelper.registerApp(applicationContext)

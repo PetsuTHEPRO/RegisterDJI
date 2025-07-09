@@ -1,60 +1,100 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".UI.VideoFeedActivity">
 
-    <!-- A TextureView para o vídeo do drone. Ocupa o fundo. -->
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- A OverlayView para desenhar os retângulos. Fica por cima da TextureView. -->
     <com.sloth.registerapp.vision.OverlayView
         android:id="@+id/overlay_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Painel de Controle Flutuante -->
+
     <LinearLayout
+        android:id="@+id/status_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="24dp"
-        android:gravity="center"
+        android:layout_gravity="top"
+        android:background="#80000000"
         android:orientation="horizontal"
-        android:padding="8dp">
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp">
 
-        <!-- Botão para Trocar Câmera -->
+        <TextView
+            android:id="@+id/status_connection_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Câmera Drone"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            app:drawableStartCompat="@drawable/ic_signal_wifi_4_bar"
+            app:drawableTint="@android:color/white"
+            android:drawablePadding="4dp"/>
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/status_battery_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="98%"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            app:drawableEndCompat="@drawable/ic_battery_full"
+            app:drawableTint="@android:color/white"
+            android:drawablePadding="4dp"/>
+
+    </LinearLayout>
+
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:orientation="horizontal"
+        android:gravity="center_horizontal"
+        android:layout_marginTop="50dp"
+        android:layout_marginEnd="10dp">
+
         <ImageButton
             android:id="@+id/button_switch_camera"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_marginEnd="24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/button_background_square"
             android:src="@drawable/ic_switch_camera"
-            android:scaleType="fitCenter"
+            android:scaleType="centerInside"
+            android:padding="10dp"
             android:contentDescription="Trocar Câmera" />
 
-        <!-- Botão para Tirar Foto -->
         <ImageButton
             android:id="@+id/button_take_photo"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/button_background_square"
             android:src="@drawable/ic_take_photo"
-            android:scaleType="fitCenter"
+            android:scaleType="centerInside"
+            android:padding="10dp"
             android:contentDescription="Tirar Foto" />
 
-        <!-- Botão para Ligar/Desligar Overlay -->
         <ToggleButton
             android:id="@+id/button_toggle_overlay"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_marginStart="24dp"
-            android:background="@drawable/toggle_overlay_selector"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/button_background_square"
+            android:drawableTop="@drawable/toggle_overlay_selector"
+            android:padding="10dp"
             android:textOn=""
             android:textOff=""
             android:checked="true" />

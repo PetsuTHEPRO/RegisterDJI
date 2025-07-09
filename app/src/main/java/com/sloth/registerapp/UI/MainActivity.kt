@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
                         val intent = Intent(this, VideoFeedActivity::class.java)
                         startActivity(intent) },
                     onOpenFeedClick = {
-                        val intent = Intent(this, TelemetryActivity::class.java)
+                        val intent = Intent(this, PhoneCameraActivity::class.java)
                         startActivity(intent)
                     },
                     onRetryConnectionClick = {

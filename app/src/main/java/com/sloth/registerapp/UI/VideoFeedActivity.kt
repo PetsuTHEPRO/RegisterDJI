@@ -11,6 +11,9 @@ import android.widget.ImageButton
 import android.widget.Toast
 import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.mlkit.vision.face.Face
 import com.sloth.registerapp.R
 import com.sloth.registerapp.vision.FaceDetectionProcessor
@@ -42,6 +45,19 @@ class VideoFeedActivity : AppCompatActivity(), ICameraSource {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 1. Prepara a janela para desenhar por trás das barras do sistema (edge-to-edge)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // 2. Obtém o controlador das barras do sistema
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+
+        // 3. Esconde as barras de status e de navegação
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+
+        // 4. Configura o comportamento para as barras reaparecerem com um deslize
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
         setContentView(R.layout.activity_video_feed) // Certifique-se que este layout tem OverlayView
 
         videoFeedView = findViewById(R.id.textureView)
@@ -49,6 +65,21 @@ class VideoFeedActivity : AppCompatActivity(), ICameraSource {
         switchCameraButton = findViewById(R.id.button_switch_camera)
         takePhotoButton = findViewById(R.id.button_take_photo)
         toggleOverlayButton = findViewById(R.id.button_toggle_overlay)
+
+        val toggleButton = findViewById<ToggleButton>(R.id.button_toggle_overlay)
+
+        toggleButton.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                // Botão ativado (mais visível)
+                toggleButton.alpha = 1.0f
+            } else {
+                // Botão desativado (um pouco mais transparente)
+                toggleButton.alpha = 0.7f
+            }
+        }
+
+        // Define o estado inicial
+        toggleButton.alpha = if (toggleButton.isChecked) 1.0f else 0.7f
 
         setupVisionProcessor()
         setupButtonListeners()

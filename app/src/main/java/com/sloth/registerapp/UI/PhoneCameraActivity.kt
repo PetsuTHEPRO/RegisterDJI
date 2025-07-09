@@ -1,10 +1,14 @@
 package com.sloth.registerapp.UI
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.hardware.Camera
+import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import android.view.Surface
@@ -13,11 +17,15 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import android.widget.ToggleButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.mlkit.vision.face.Face
 import com.sloth.registerapp.R
 import com.sloth.registerapp.vision.FaceDetectionProcessor
@@ -37,6 +45,7 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
     private lateinit var surfaceView: SurfaceView
     private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var overlayView: OverlayView // Adicionada
+    private lateinit var statusBatteryTextView: TextView // Declara o TextView como variável de membro
 
     // --- Variáveis dos Botões ---
     private lateinit var takePhotoButton: ImageButton
@@ -61,6 +70,17 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
+        // 1. Prepara a janela para desenhar por trás das barras do sistema (edge-to-edge)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // 2. Obtém o controlador das barras do sistema
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+
+        // 3. Esconde as barras de status e de navegação
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+
+        // 4. Configura o comportamento para as barras reaparecerem com um deslize
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         setContentView(R.layout.activity_phone_camera)
         surfaceView = findViewById(R.id.phone_camera_preview)
@@ -68,6 +88,8 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
         surfaceHolder = surfaceView.holder
         surfaceHolder.addCallback(this)
 
+        // Inicializa o TextView
+        statusBatteryTextView = findViewById(R.id.status_battery_text)
         switchCameraButton = findViewById(R.id.button_switch_camera)
         takePhotoButton = findViewById(R.id.button_take_photo)
         toggleOverlayButton = findViewById(R.id.button_toggle_overlay)
@@ -94,6 +116,20 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
         }
     }
 
+    private val batteryBroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            // Pegamos o nível e a escala da bateria do Intent recebido
+            val level: Int = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale: Int = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+
+            if (level != -1 && scale != -1) {
+                val batteryPct = (level / scale.toFloat()) * 100
+                // Atualiza o TextView com o novo nível
+                statusBatteryTextView.text = "${batteryPct.toInt()}%"
+            }
+        }
+    }
+
     private fun setupVisionProcessor() {
         val callback = object : FaceDetectionProcessor.FaceDetectionCallback {
             override fun onFaceDetected(numberOfFaces: Int, faces: List<Face>, frameData: ICameraSource.FrameData) {
@@ -115,6 +151,9 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
 
         super.onResume()
 
+        val iFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        registerReceiver(batteryBroadcastReceiver, iFilter)
+
         // A lógica de permissão agora inicia o ICameraSource
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -134,6 +173,10 @@ class PhoneCameraActivity : AppCompatActivity(), SurfaceHolder.Callback, Camera.
     override fun onPause() {
 
         super.onPause()
+
+        // Cancela o registro do ouvinte quando a activity está pausada
+        // Isso é MUITO IMPORTANTE para evitar vazamentos de memória (memory leaks)
+        unregisterReceiver(batteryBroadcastReceiver)
 
         stop() // Para o ICameraSource
 

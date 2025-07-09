@@ -68,6 +68,9 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.androidx.room.runtime.android)
+    implementation(libs.androidx.lifecycle.livedata.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.fragment.ktx)
     compileOnly(libs.dji.sdk.provided)
 
     implementation(libs.androidx.core.ktx)
@@ -89,4 +92,8 @@ dependencies {
 
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.mlkit:face-detection:16.1.6")
+
+    // COLE AS LINHAS ABAIXO
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
 }

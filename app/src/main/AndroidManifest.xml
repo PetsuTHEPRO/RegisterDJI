@@ -45,10 +45,12 @@
         android:theme="@style/Theme.RegisterApp"
         tools:targetApi="31">
         <activity
+            android:name=".UI.MainActivity2"
+            android:exported="false" />
+        <activity
             android:name=".UI.ControlActivity"
             android:exported="false"
-            android:theme="@style/Theme.RegisterApp" />
-        <!-- DJI SDK API KEY -->
+            android:theme="@style/Theme.RegisterApp" /> <!-- DJI SDK API KEY -->
         <meta-data
             android:name="com.dji.sdk.API_KEY"
             android:value="791ba3a47ec253e38bae3e76" /> <!-- Biblioteca USB necessária -->
@@ -82,12 +84,13 @@
             android:screenOrientation="landscape" />
         <activity
             android:name=".UI.PhoneCameraActivity"
-            android:screenOrientation="landscape"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="landscape" />
         <activity
             android:name=".UI.TelemetryActivity"
             android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
+        <activity android:name=".UI.ResultActivity" />
     </application>
 
 </manifest>

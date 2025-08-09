@@ -43,10 +43,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.RegisterApp"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
-        <activity
-            android:name=".UI.MainActivity2"
-            android:exported="false" />
         <activity
             android:name=".UI.ControlActivity"
             android:exported="false"
@@ -90,7 +88,7 @@
             android:name=".UI.TelemetryActivity"
             android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
-        <activity android:name=".UI.ResultActivity" />
+        <activity android:name=".UI.GalleryActivity" />
     </application>
 
 </manifest>

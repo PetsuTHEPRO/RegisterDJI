@@ -71,6 +71,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.livedata.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.fragment.ktx)
+    implementation(libs.androidx.paging.common.android)
+    implementation(libs.litert)
     compileOnly(libs.dji.sdk.provided)
 
     implementation(libs.androidx.core.ktx)
@@ -89,6 +91,14 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // Paging 3 para Runtime (Core)
+    implementation("androidx.paging:paging-runtime-ktx:3.3.0")
+    // Paging 3 para integração com Jetpack Compose
+    implementation("androidx.paging:paging-compose:3.3.0")
+    // Coil para carregamento de imagens
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
 
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.mlkit:face-detection:16.1.6")

@@ -6,9 +6,10 @@ import android.graphics.Bitmap;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.util.Log;
+import android.view.Surface;
 import android.view.TextureView;
-import android.widget.FrameLayout;
 import android.widget.Switch;
+import android.widget.FrameLayout;
 
 import com.sloth.registerapp.R;
 
@@ -19,22 +20,27 @@ public class CameraPreviewManager implements TextureView.SurfaceTextureListener 
 
     private final Context context;
     private final FrameLayout container;
+    private final Switch cameraSwitch;
     private final TextureView textureView;
     private Camera camera;
     private boolean isPreviewStarted = false;
 
     private int currentCameraId = Camera.CameraInfo.CAMERA_FACING_BACK;
-
     public CameraPreviewManager(Activity activity) {
         this.context = activity;
 
         this.container = activity.findViewById(R.id.previewContainer);
+        this.cameraSwitch = activity.findViewById(R.id.cameraSwitch);
 
         this.textureView = new TextureView(context);
         this.textureView.setSurfaceTextureListener(this);
         container.addView(textureView);
 
+        cameraSwitch.setText("Câmera Traseira");
 
+        cameraSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            switchCamera(isChecked);
+        });
     }
 
     // Novo método que retorna um frame atual da TextureView
@@ -71,9 +77,17 @@ public class CameraPreviewManager implements TextureView.SurfaceTextureListener 
     }
 
 
+    public void switchCamera(boolean useFrontCamera) {
+        currentCameraId = useFrontCamera
+                ? Camera.CameraInfo.CAMERA_FACING_FRONT
+                : Camera.CameraInfo.CAMERA_FACING_BACK;
 
+        cameraSwitch.setText(useFrontCamera ? "Câmera Frontal" : "Câmera Traseira");
 
-    private void restartCamera() {
+        restartCamera();
+    }
+
+    public void restartCamera() {
         stopCamera();
         if (textureView.isAvailable()) {
             startCamera(textureView.getSurfaceTexture());
@@ -82,7 +96,7 @@ public class CameraPreviewManager implements TextureView.SurfaceTextureListener 
         }
     }
 
-    private void startCamera(SurfaceTexture surface) {
+    public void startCamera(SurfaceTexture surface) {
         try {
             camera = Camera.open(currentCameraId);
             camera.setPreviewTexture(surface);
@@ -94,7 +108,7 @@ public class CameraPreviewManager implements TextureView.SurfaceTextureListener 
         }
     }
 
-    private void stopCamera() {
+    public void stopCamera() {
         if (camera != null) {
             try {
                 camera.stopPreview();

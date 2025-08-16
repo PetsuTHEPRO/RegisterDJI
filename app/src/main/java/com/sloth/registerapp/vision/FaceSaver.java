@@ -2,39 +2,32 @@ package com.sloth.registerapp.vision;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.os.Environment;
+import android.util.Log;
 import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 
 public class FaceSaver {
 
-    public static void saveFaceImage(Context context, String name, Bitmap bitmap) {
-        try {
-            // Salva dentro da pasta da aplicação -> Android/data/com.sloth.registerapp/files/Pictures/facesCadastradas
-            File directory = new File(
-                    context.getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-                    "facesCadastradas"
-            );
+    private static final String TAG = "FaceSaver";
 
-            if (!directory.exists()) {
-                directory.mkdirs();
-            }
+    public static void saveFaceImage(Context context, String name, Bitmap faceBitmap) {
+        File facesDir = new File(context.getExternalFilesDir(null), "faces");
+        if (!facesDir.exists()) {
+            facesDir.mkdirs();
+        }
 
-            String fileName = name + "_" + System.currentTimeMillis() + ".jpg";
-            File file = new File(directory, fileName);
+        String fileName = name.replaceAll("[^a-zA-Z0-9.-]", "_") + "_" + System.currentTimeMillis() + ".jpg";
+        File imageFile = new File(facesDir, fileName);
 
-            FileOutputStream out = new FileOutputStream(file);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out);
-            out.flush();
-            out.close();
-
-            Toast.makeText(context, "Imagem salva em: " + file.getAbsolutePath(), Toast.LENGTH_SHORT).show();
-
-        } catch (Exception e) {
-            Toast.makeText(context, "Erro ao salvar imagem: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            e.printStackTrace();
+        try (FileOutputStream out = new FileOutputStream(imageFile)) {
+            faceBitmap.compress(Bitmap.CompressFormat.JPEG, 90, out);
+            Log.d(TAG, "Imagem do rosto salva em: " + imageFile.getAbsolutePath());
+        } catch (IOException e) {
+            Log.e(TAG, "Erro ao salvar imagem do rosto: " + e.getMessage());
+            Toast.makeText(context, "Erro ao salvar imagem.", Toast.LENGTH_SHORT).show();
         }
     }
 }

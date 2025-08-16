@@ -11,10 +11,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.sloth.registerapp.DJI.DJIConnectionHelper
+import com.sloth.registerapp.R
 import com.sloth.registerapp.UI.Screen.DashboardScreen
 import com.sloth.registerapp.dji.DroneTelemetryManager
 import com.sloth.registerapp.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.utils.PermissionHelper
+import com.sloth.registerapp.vision.FaceDetectionController
+import com.sloth.registerapp.vision.Permissions
 
 class MainActivity : ComponentActivity() {
 
@@ -52,10 +55,14 @@ class MainActivity : ComponentActivity() {
                     droneStatus = droneStatus,
                     onTakePhotoClick = {
                         val intent = Intent(this, VideoFeedActivity::class.java)
-                        startActivity(intent) },
+                        startActivity(intent)
+                    },
                     onOpenFeedClick = {
                         val intent = Intent(this, GalleryActivity::class.java)
                         startActivity(intent)
+                        //Permissions.checkAndRequestPermissions(this)
+                        //setContentView(R.layout.activity_main)
+                        //FaceDetectionController(this);
                     },
                     onRetryConnectionClick = {
                         // Simplesmente chama a função de registro novamente

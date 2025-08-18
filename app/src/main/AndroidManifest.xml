@@ -89,6 +89,10 @@
             android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
         <activity android:name=".UI.GalleryActivity" />
+
+        <activity
+            android:name=".UI.JoystickActivity"
+            android:exported="false"/>
     </application>
 
 </manifest>

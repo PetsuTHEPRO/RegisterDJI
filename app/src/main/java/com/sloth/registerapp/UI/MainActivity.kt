@@ -54,17 +54,18 @@ class MainActivity : ComponentActivity() {
                 // Chama a nossa nova tela principal, passando os dados e as ações
                 DashboardScreen(
                     droneStatus = droneStatus,
-                    onTakePhotoClick = {
+                    onVideoFeedClick = {
                         val intent = Intent(this, VideoFeedActivity::class.java)
                         startActivity(intent)
                     },
-                    onOpenFeedClick = {
-                        val intent = Intent(this, AboutActivity::class.java)
+                    onGalleryClick = {
+                        val intent = Intent(this, GalleryActivity::class.java)
                         startActivity(intent)
-                        //Permissions.checkAndRequestPermissions(this)
-                        //setContentView(R.layout.activity_main)
-                        //FaceDetectionController(this);
                     },
+                    onStartMissionClick = {
+                        val intent = Intent(this, TelemetryActivity::class.java)
+                        startActivity(intent)
+                                          },
                     onRetryConnectionClick = {
                         // Simplesmente chama a função de registro novamente
                         DJIConnectionHelper.registerApp(applicationContext)
@@ -72,6 +73,13 @@ class MainActivity : ComponentActivity() {
                     onSettingsClick = {
                         val intent = Intent(this, PermissionActivity::class.java)
                         startActivity(intent)
+                    },
+                    onAboutClick = {
+                        val intent = Intent(this, AboutActivity::class.java)
+                        startActivity(intent)
+                        //Permissions.checkAndRequestPermissions(this)
+                        //setContentView(R.layout.activity_main)
+                        //FaceDetectionController(this);
                     }
                 )
             }

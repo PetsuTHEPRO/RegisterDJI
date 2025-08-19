@@ -38,11 +38,29 @@ fun GalleryScreen(viewModel: GalleryViewModel) {
     // Coleta o resultado do salvamento do ViewModel
     val saveResult by viewModel.saveResult.collectAsState()
 
-    // Efeito que reage à mudança no resultado do salvamento
-    // NOVO: Efeito que ouve o gatilho de atualização do ViewModel
+    // --- INÍCIO DA MUDANÇA ---
+    // 1. Coleta o evento de pedido de nome do ViewModel.
+    val nameRequestUri by viewModel.nameRequestEvent.collectAsState()
+
+    // 2. Se a URI não for nula, mostra o diálogo de cadastro.
+    if (nameRequestUri != null) {
+        // Passamos a URI e as funções de callback para o diálogo.
+        RegisterNameDialog(
+            onConfirm = { name ->
+                // Quando o usuário confirma, chamamos a função de registro.
+                viewModel.registerFaceFromGallery(nameRequestUri!!, name)
+                viewModel.onNameRequestCompleted() // Limpa o evento
+            },
+            onDismiss = {
+                // Quando o usuário cancela, apenas limpamos o evento.
+                viewModel.onNameRequestCompleted()
+            }
+        )
+    }
+    // --- FIM DA MUDANÇA ---
+
     LaunchedEffect(Unit) {
         viewModel.refreshTrigger.collect {
-            // Quando o gatilho é disparado, chamamos o método refresh()
             images.refresh()
         }
     }
@@ -52,17 +70,16 @@ fun GalleryScreen(viewModel: GalleryViewModel) {
             scope.launch {
                 snackbarHostState.showSnackbar(message)
             }
-            // Limpa o resultado no ViewModel para não mostrar a mensagem novamente
             viewModel.clearSaveResult()
         }
     }
 
-    // Atualiza o imagePickerLauncher para chamar a nova função
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             uri?.let {
-                viewModel.saveImageToPublicGallery(it) // <-- CHAMANDO A NOVA FUNÇÃO
+                // Esta chamada agora apenas INICIA o processo, pedindo um nome.
+                viewModel.onSaveImageClicked(it)
             }
         }
     )
@@ -79,7 +96,6 @@ fun GalleryScreen(viewModel: GalleryViewModel) {
             )
         },
         floatingActionButton = {
-            // 2. Adicionar o novo botão para "fazer upload"
             FloatingActionButton(
                 onClick = {
                     imagePickerLauncher.launch(
@@ -91,16 +107,14 @@ fun GalleryScreen(viewModel: GalleryViewModel) {
             }
         }
     ) { paddingValues ->
-        // LazyVerticalGrid é a grade que vai exibir as imagens de forma eficiente
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 120.dp), // Cria colunas adaptáveis
+            columns = GridCells.Adaptive(minSize = 120.dp),
             modifier = Modifier.padding(paddingValues).fillMaxSize(),
             contentPadding = PaddingValues(4.dp)
         ) {
-            // "items" é a função que conecta a LazyGrid aos dados da paginação
             items(
                 count = images.itemCount,
-                key = images.itemKey { it.id } // Chave única para cada item (melhora performance)
+                key = images.itemKey { it.id }
             ) { index ->
                 images[index]?.let { image ->
                     val isSelected = selectedImageIds.contains(image.id)
@@ -108,9 +122,8 @@ fun GalleryScreen(viewModel: GalleryViewModel) {
                         image = image,
                         isSelected = isSelected,
                         modifier = Modifier
-                            .animateItemPlacement() // Animação padrão para adição/remoção/movimentação
+                            .animateItemPlacement()
                             .clickable {
-                                // Lógica de seleção
                                 selectedImageIds = if (isSelected) {
                                     selectedImageIds - image.id
                                 } else {
@@ -155,4 +168,44 @@ fun GalleryItem(image: MediaStoreImage, isSelected: Boolean, modifier: Modifier 
             )
         }
     }
+}
+
+// --- NOVO COMPOSABLE PARA O DIÁLOGO ---
+@Composable
+fun RegisterNameDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Cadastrar Rosto") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("Nome da pessoa") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (text.isNotBlank()) {
+                        onConfirm(text)
+                    }
+                },
+                // O botão só fica ativo se o texto não estiver vazio.
+                enabled = text.isNotBlank()
+            ) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }

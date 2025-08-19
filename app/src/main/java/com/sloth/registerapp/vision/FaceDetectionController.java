@@ -198,7 +198,7 @@ public class FaceDetectionController {
 
             Bitmap faceBitmap = Bitmap.createBitmap(frameBitmap, safeBox.left, safeBox.top, width, height);
 
-            FaceSaver.saveFaceImage(activity, name, faceBitmap);
+            FaceSaver.saveFaceToGallery(activity, name, faceBitmap);
             float[] embedding = faceEmbedder.getEmbedding(faceBitmap);
             faceDatabase.addEmbedding(name, embedding);
             Toast.makeText(activity, "Rosto cadastrado: " + name, Toast.LENGTH_SHORT).show();

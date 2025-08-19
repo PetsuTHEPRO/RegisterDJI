@@ -13,6 +13,7 @@ import androidx.lifecycle.lifecycleScope
 import com.sloth.registerapp.DJI.DJIConnectionHelper
 import com.sloth.registerapp.R
 import com.sloth.registerapp.UI.Screen.DashboardScreen
+import com.sloth.registerapp.UI.Screen.PermissionsScreen
 import com.sloth.registerapp.dji.DroneTelemetryManager
 import com.sloth.registerapp.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.utils.PermissionHelper
@@ -58,7 +59,7 @@ class MainActivity : ComponentActivity() {
                         startActivity(intent)
                     },
                     onOpenFeedClick = {
-                        val intent = Intent(this, GalleryActivity::class.java)
+                        val intent = Intent(this, AboutActivity::class.java)
                         startActivity(intent)
                         //Permissions.checkAndRequestPermissions(this)
                         //setContentView(R.layout.activity_main)
@@ -67,6 +68,10 @@ class MainActivity : ComponentActivity() {
                     onRetryConnectionClick = {
                         // Simplesmente chama a função de registro novamente
                         DJIConnectionHelper.registerApp(applicationContext)
+                    },
+                    onSettingsClick = {
+                        val intent = Intent(this, PermissionActivity::class.java)
+                        startActivity(intent)
                     }
                 )
             }

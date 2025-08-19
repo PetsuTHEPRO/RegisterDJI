@@ -20,7 +20,8 @@ lifecycleLivedataKtx = "2.9.1"
 lifecycleViewmodelKtx = "2.9.1"
 fragmentKtx = "1.8.6"
 pagingCommonAndroid = "3.3.6"
-litert = "1.4.0" # Use a versão mais recente estável
+litert = "1.4.0"
+gamesActivity = "4.0.0" # Use a versão mais recente estável
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -52,6 +53,7 @@ androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifec
 androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragmentKtx" }
 androidx-paging-common-android = { group = "androidx.paging", name = "paging-common-android", version.ref = "pagingCommonAndroid" }
 litert = { group = "com.google.ai.edge.litert", name = "litert", version.ref = "litert" }
+androidx-games-activity = { group = "androidx.games", name = "games-activity", version.ref = "gamesActivity" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

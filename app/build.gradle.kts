@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.paging.common.android)
     implementation(libs.litert)
+    implementation(libs.androidx.games.activity)
     compileOnly(libs.dji.sdk.provided)
 
     implementation(libs.androidx.core.ktx)

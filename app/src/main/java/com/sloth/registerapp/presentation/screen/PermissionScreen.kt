@@ -33,6 +33,9 @@ import com.sloth.registerapp.presentation.theme.IFMAProjectTheme
 // Cores do tema IFMA
 private val IFMADarkGreen = Color(0xFF004D28)
 private val IFMARedError = Color(0xFFD32F2F)
+private val IFMAGreen = Color(0xFF4CAF50) // Temporário: Um verde padrão
+private val IFMALightGreen = Color(0xFFE8F5E9) // Temporário: Um verde claro
+private val IFMAYellow = Color(0xFFFFC107) // Temporário: Um amarelo padrão
 
 // ===== COMPONENTE: ITEM DE PERMISSÃO =====
 @Composable

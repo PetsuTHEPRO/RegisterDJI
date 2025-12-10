@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import com.sloth.registerapp.data.drone.DroneControllerManager
 import com.sloth.registerapp.data.drone.MissionManager
-import com.sloth.registerapp.presentation.screen.MissionScreen
+import com.sloth.registerapp.presentation.screen.MissionsTableScreen
 import com.sloth.registerapp.ui.mission.MissionViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -20,10 +20,8 @@ class MissionActivity : ComponentActivity() {
         // Define o conteúdo da tela usando Jetpack Compose
         setContent {
             MaterialTheme { // Aplica o tema do Material Design 3
-                val missionViewModel: MissionViewModel = viewModel()
-                MissionScreen(
-                    viewModel = missionViewModel,
-                    onMissionClick = {}
+                MissionsTableScreen(
+                    onBackClick = {}
                 )
             }
         }

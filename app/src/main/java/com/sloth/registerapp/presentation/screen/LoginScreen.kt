@@ -24,10 +24,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
+import androidx.navigation.NavController
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
+    navController: NavController,
     onRegisterClick: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
@@ -60,8 +66,8 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -195,7 +201,11 @@ fun LoginScreen(
 
                     // Link "Esqueceu a senha?"
                     TextButton(
-                        onClick = { /* TODO: Implementar recuperação de senha */ },
+                        onClick = {
+                            navController.navigate("mission") {
+                                popUpTo("welcome") { inclusive = true }
+                            }
+                        },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(
@@ -251,8 +261,9 @@ fun LoginScreen(
                                 password.length < 6 -> errorMessage = "Senha deve ter no mínimo 6 caracteres"
                                 else -> {
                                     isLoading = true
-                                    // Simular login
-                                    onLoginSuccess()
+                                    navController.navigate("dashboard") {
+                                        popUpTo("welcome") { inclusive = true }
+                                    }
                                 }
                             }
                         },

@@ -24,6 +24,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun RegisterScreen(
@@ -63,8 +65,8 @@ fun RegisterScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -127,7 +129,7 @@ fun RegisterScreen(
                     // Username Field
                     OutlinedTextField(
                         value = username,
-                        onValueChange = { 
+                        onValueChange = {
                             username = it
                             errorMessage = ""
                         },
@@ -157,7 +159,7 @@ fun RegisterScreen(
                     // Email Field
                     OutlinedTextField(
                         value = email,
-                        onValueChange = { 
+                        onValueChange = {
                             email = it
                             errorMessage = ""
                         },
@@ -188,7 +190,7 @@ fun RegisterScreen(
                     // Password Field
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { 
+                        onValueChange = {
                             password = it
                             errorMessage = ""
                         },
@@ -229,7 +231,7 @@ fun RegisterScreen(
                     // Confirm Password Field
                     OutlinedTextField(
                         value = confirmPassword,
-                        onValueChange = { 
+                        onValueChange = {
                             confirmPassword = it
                             errorMessage = ""
                         },
@@ -404,5 +406,4 @@ fun RegisterScreen(
                 }
             }
         }
-    }
-}
+    }}

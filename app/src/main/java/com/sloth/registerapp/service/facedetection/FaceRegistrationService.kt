@@ -1,0 +1,306 @@
+package com.sloth.deteccaofacial
+
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.util.Log
+import com.sloth.deteccaofacial.data.local.FaceDatabase
+import com.sloth.deteccaofacial.data.local.FaceEntity
+import com.sloth.deteccaofacial.data.repository.FaceRepository
+import com.sloth.deteccaofacial.domain.model.CaptureState
+import com.sloth.deteccaofacial.domain.model.FaceResult
+import com.sloth.deteccaofacial.domain.usecase.CaptureFaceUseCase
+import com.sloth.deteccaofacial.domain.usecase.SaveFaceUseCase
+import com.sloth.deteccaofacial.service.FaceEmbeddingEngine
+import com.sloth.deteccaofacial.ui.FaceRegistrationActivity
+import com.sloth.registerapp.service.facedetection.ui.RegisteredFacesActivity
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Serviço de Registro Facial
+ *
+ * API pública para capturar e registrar rostos no banco de dados
+ *
+ * Uso:
+ * ```
+ * val faceService = FaceRegistrationService.getInstance(context)
+ * faceService.openCaptureScreen(this)
+ * ```
+ *
+ * Benefícios:
+ * ✅ Desacoplado - Não depende de nada externo
+ * ✅ Thread-safe - Singleton com Double-Checked Locking
+ * ✅ Reativo - Usa Flow para observar mudanças
+ * ✅ Completo - Captura, verifica duplicatas e salva
+ */
+class FaceRegistrationService private constructor(context: Context) {
+
+    private val appContext = context.applicationContext
+
+    // Inicializa componentes internos
+    // Exponha os componentes para o ViewModel
+    internal val embeddingEngine = FaceEmbeddingEngine(appContext)
+    private val database = FaceDatabase.getInstance(appContext)
+    internal val repository = FaceRepository(database.faceDao(), embeddingEngine)
+
+    // Use cases
+    private val captureFaceUseCase = CaptureFaceUseCase(embeddingEngine, repository)
+    private val saveFaceUseCase = SaveFaceUseCase(repository)
+
+    companion object {
+        private const val TAG = "FaceRegistrationService"
+
+        // Singleton
+        @Volatile
+        private var INSTANCE: FaceRegistrationService? = null
+
+        // Constantes para Intent extras
+        const val REQUEST_CODE_FACE_CAPTURE = 1001
+        const val EXTRA_FACE_NAME = "face_name"
+        const val EXTRA_FACE_ID = "face_id"
+        const val EXTRA_IS_DUPLICATE = "is_duplicate"
+
+        /**
+         * Obtém a instância singleton do serviço
+         *
+         * @param context Contexto da aplicação
+         * @return Instância do FaceRegistrationService
+         */
+        fun getInstance(context: Context): FaceRegistrationService {
+            return INSTANCE ?: synchronized(this) {
+                Log.d(TAG, "🚀 Inicializando FaceRegistrationService")
+                val instance = FaceRegistrationService(context)
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+
+    // ========== Métodos Públicos - Captura ==========
+
+    /**
+     * Abre a tela de captura de rosto
+     *
+     * Exemplo de uso com Activity:
+     * ```
+     * faceService.openCaptureScreen(this)
+     * ```
+     *
+     * @param context Contexto para iniciar a Activity
+     */
+    fun openCaptureScreen(context: Context) {
+        Log.d(TAG, "📱 Abrindo tela de captura...")
+        val intent = createCaptureIntent(context)
+        context.startActivity(intent)
+    }
+
+    fun openRegisteredFacesScreen(context: Context) {
+        val intent = Intent(context, RegisteredFacesActivity::class.java)
+        context.startActivity(intent)
+    }
+
+    /**
+     * Cria um Intent para abrir a tela de captura
+     *
+     * Use com registerForActivityResult:
+     * ```
+     * val launcher = registerForActivityResult(
+     *     ActivityResultContracts.StartActivityForResult()
+     * ) { result ->
+     *     if (result.resultCode == RESULT_OK) {
+     *         val faceId = result.data?.getLongExtra(EXTRA_FACE_ID, -1)
+     *         val name = result.data?.getStringExtra(EXTRA_FACE_NAME)
+     *     }
+     * }
+     * launcher.launch(faceService.createCaptureIntent(this))
+     * ```
+     *
+     * @param context Contexto
+     * @return Intent para iniciar a captura
+     */
+    fun createCaptureIntent(context: Context): Intent {
+        return Intent(context, FaceRegistrationActivity::class.java)
+    }
+
+    fun createRegisteredIntent(context: Context): Intent{
+        return Intent(context, RegisteredFacesActivity::class.java)
+    }
+
+    /**
+     * Gera o embedding de um rosto a partir de um Bitmap.
+     *
+     * Este método é um atalho para acessar a funcionalidade do FaceEmbeddingEngine.
+     *
+     * @param bitmap O bitmap contendo o rosto.
+     * @return Um FloatArray representando o embedding, ou null se a geração falhar.
+     */
+    fun generateEmbedding(bitmap: Bitmap): FloatArray? {
+        Log.d(TAG, "🧠 Gerando embedding facial via serviço...")
+        return embeddingEngine.generateEmbedding(bitmap)
+    }
+
+    // ========== Métodos Públicos - Processamento ==========
+
+    /**
+     * Captura um rosto de um Bitmap e salva no banco de dados
+     *
+     * Exemplo:
+     * ```
+     * val result = faceService.registerFace(bitmap, "João Silva")
+     * when (result) {
+     *     is FaceResult.Success -> Log.d("TAG", "Salvo: ${result.id}")
+     *     is FaceResult.Duplicate -> Log.w("TAG", "Já existe")
+     *     is FaceResult.Error -> Log.e("TAG", result.message)
+     * }
+     * ```
+     *
+     * @param bitmap Imagem contendo o rosto
+     * @param name Nome da pessoa
+     * @return FaceResult com o resultado da operação
+     */
+    suspend fun registerFace(bitmap: Bitmap, name: String): FaceResult {
+        Log.d(TAG, "📸 Registrando novo rosto: $name")
+
+        // 1. Captura e gera embedding
+        val captureResult = captureFaceUseCase(bitmap)
+
+        // 2. Processa resultado da captura
+        return when (captureResult) {
+            is CaptureState.Success -> {
+                // Se for duplicata, retorna duplicata
+                if (captureResult.isDuplicate && captureResult.existingFace != null) {
+                    Log.w(TAG, "⚠️ Rosto duplicado detectado")
+                    FaceResult.Duplicate(captureResult.existingFace)
+                } else {
+                    // Salva o rosto
+                    saveFaceUseCase(name, captureResult.embedding)
+                }
+            }
+            is CaptureState.Error -> {
+                Log.e(TAG, "❌ Erro na captura: ${captureResult.message}")
+                FaceResult.Error(captureResult.message)
+            }
+            else -> {
+                FaceResult.Error("Estado inválido")
+            }
+        }
+    }
+
+    /**
+     * Verifica se um rosto já está cadastrado (sem salvar)
+     *
+     * Exemplo:
+     * ```
+     * val (isDuplicate, existingFace) = faceService.checkDuplicate(bitmap)
+     * if (isDuplicate) {
+     *     Toast.makeText(this, "Já cadastrado: ${existingFace?.name}", LENGTH_SHORT).show()
+     * }
+     * ```
+     *
+     * @param bitmap Imagem para verificar
+     * @return Pair<Boolean, FaceEntity?> - (é duplicata?, face encontrada)
+     */
+    suspend fun checkDuplicate(bitmap: Bitmap, similarityThreshold: Float? = null): Pair<Boolean, FaceEntity?> {
+        Log.d(TAG, "🔍 Verificando se é duplicata...")
+
+        val embedding = embeddingEngine.generateEmbedding(bitmap) ?: return Pair(false, null)
+
+        return if (similarityThreshold != null) {
+            repository.findSimilarFace(embedding, similarityThreshold)
+        } else {
+            // usa o valor padrão da função findSimilarFace (que tem parâmetro default)
+            repository.findSimilarFace(embedding)
+        }
+    }
+
+    // ========== Métodos Públicos - Leitura ==========
+
+    /**
+     * Retorna todas as faces cadastradas (Flow reativo)
+     *
+     * Use para observar mudanças em tempo real:
+     * ```
+     * lifecycleScope.launch {
+     *     faceService.getAllFaces().collect { faces ->
+     *         adapter.submitList(faces)
+     *     }
+     * }
+     * ```
+     *
+     * @return Flow<List<FaceEntity>>
+     */
+    fun getAllFaces(): Flow<List<FaceEntity>> {
+        Log.d(TAG, "📋 Retornando todas as faces (Flow)")
+        return repository.allFaces
+    }
+
+    /**
+     * Retorna todas as faces cadastradas (versão síncrona)
+     *
+     * @return Lista de todas as faces
+     */
+    suspend fun getAllFacesSync(): List<FaceEntity> {
+        Log.d(TAG, "📋 Retornando todas as faces (Sync)")
+        return repository.getAllFacesSync()
+    }
+
+    /**
+     * Busca uma face pelo ID
+     *
+     * @param id ID da face
+     * @return FaceEntity ou null
+     */
+    suspend fun getFaceById(id: Long): FaceEntity? {
+        return repository.getFaceById(id)
+    }
+
+    /**
+     * Retorna o número total de faces cadastradas
+     *
+     * @return Quantidade de faces
+     */
+    suspend fun getFaceCount(): Int {
+        return repository.getCount()
+    }
+
+    // ========== Métodos Públicos - Deleção ==========
+
+    /**
+     * Deleta uma face específica
+     *
+     * @param face FaceEntity a deletar
+     */
+    suspend fun deleteFace(face: FaceEntity) {
+        Log.d(TAG, "🗑️ Deletando rosto: ${face.name}")
+        repository.deleteFace(face)
+    }
+
+    /**
+     * Deleta todas as faces cadastradas
+     *
+     * ⚠️ Operação irreversível!
+     */
+    suspend fun deleteAllFaces() {
+        Log.d(TAG, "🗑️ Deletando TODAS as faces!")
+        repository.deleteAll()
+    }
+
+    // ========== Métodos Públicos - Cleanup ==========
+
+    /**
+     * Libera recursos do serviço
+     *
+     * Chame no onDestroy da sua Application:
+     * ```
+     * override fun onTerminate() {
+     *     faceService.release()
+     *     super.onTerminate()
+     * }
+     * ```
+     */
+    fun release() {
+        Log.d(TAG, "🛑 Liberando recursos do FaceRegistrationService")
+        embeddingEngine.close()
+        INSTANCE = null
+    }
+}

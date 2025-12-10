@@ -1,0 +1,12 @@
+package com.sloth.registerapp.data.drone
+
+data class DroneTelemetry(
+    val altitude: Float = 0f,              // Altitude em metros
+    val speed: Float = 0f,                 // Velocidade em km/h
+    val distanceFromHome: Float = 0f,      // Distância da base em metros
+    val gpsSatellites: Int = 0,            // Quantidade de satélites GPS
+    val batteryLevel: Int = 100,           // Bateria em %
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val isFlying: Boolean = false
+)

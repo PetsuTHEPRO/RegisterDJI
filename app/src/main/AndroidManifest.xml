@@ -59,7 +59,8 @@
             android:name=".presentation.activity.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="landscape">
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -76,17 +77,23 @@
         <activity
             android:name=".presentation.activity.VideoFeedActivity"
             android:exported="false"
-            android:screenOrientation="landscape" />
+            android:screenOrientation="landscape"
+            tools:ignore="LockedOrientationActivity" />
         <activity
             android:name=".presentation.activity.PhoneCameraActivity"
             android:exported="false"
-            android:screenOrientation="landscape" />
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
         <activity
             android:name=".presentation.activity.PermissionActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
         <activity
             android:name=".presentation.activity.AboutActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
 
 
 
@@ -99,19 +106,22 @@
             android:name="com.sloth.deteccaofacial.ui.FaceRegistrationActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.RegisterApp" />
+            android:theme="@style/Theme.RegisterApp"
+            tools:ignore="LockedOrientationActivity" />
 
         <activity
             android:name="com.sloth.registerapp.service.facedetection.ui.RegisteredFacesActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.RegisterApp" />
+            android:theme="@style/Theme.RegisterApp"
+            tools:ignore="LockedOrientationActivity" />
 
         <activity
             android:name="com.sloth.registerapp.presentation.activity.MissionActivity"
             android:exported="false"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.RegisterApp" />
+            android:theme="@style/Theme.RegisterApp"
+            tools:ignore="LockedOrientationActivity" />
 
     </application>
 

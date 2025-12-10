@@ -1,32 +1,19 @@
 package com.sloth.registerapp.presentation.activity
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import com.sloth.deteccaofacial.FaceRegistrationService
 import com.sloth.registerapp.core.utils.PermissionHelper
 import com.sloth.registerapp.data.datasource.DroneTelemetryManager
 import com.sloth.registerapp.data.sdk.DJIConnectionHelper
-import com.sloth.registerapp.presentation.screen.DashboardScreen
-import com.sloth.registerapp.presentation.theme.RegisterAppTheme
-import com.sloth.registerapp.ui.login.LoginScreen
-
-import androidx.activity.viewModels
 import com.sloth.registerapp.presentation.screen.MainScreen
+import com.sloth.registerapp.presentation.theme.RegisterAppTheme
 
 class MainActivity : ComponentActivity() {
-
-    private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,13 +42,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             RegisterAppTheme {
-                val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
-
-                if (isLoggedIn) {
-                    MainScreen()
-                } else {
-                    LoginScreen(onTokenSaved = {})
-                }
+                MainScreen()
             }
         }
     }

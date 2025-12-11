@@ -1,5 +1,6 @@
 package com.sloth.registerapp.presentation.screen
 
+import android.util.Base64
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -26,21 +28,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-
 import androidx.navigation.NavController
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.sloth.registerapp.data.network.RetrofitClient
+import com.sloth.registerapp.data.repository.TokenRepository
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 @Composable
 fun LoginScreen(
     navController: NavController,
     onRegisterClick: () -> Unit
 ) {
-    var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") } // Alterado de email para username
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+
+    // Adicionado: Contexto e CoroutineScope
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Cores do tema
     val primaryBlue = Color(0xFF3B82F6)
@@ -127,18 +134,18 @@ fun LoginScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Email Field
+                    // Username Field
                     OutlinedTextField(
-                        value = email,
+                        value = username, // Alterado de email para username
                         onValueChange = {
-                            email = it
+                            username = it // Alterado de email para username
                             errorMessage = ""
                         },
-                        label = { Text("Email", color = textGray) },
-                        placeholder = { Text("seu@email.com", color = textGray.copy(alpha = 0.5f)) },
+                        label = { Text("Usuário", color = textGray) }, // Alterado de Email para Usuário
+                        placeholder = { Text("seu_usuario", color = textGray.copy(alpha = 0.5f)) }, // Alterado de seu@email.com para seu_usuario
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Default.Email,
+                                imageVector = Icons.Default.Person, // Alterado de Email para Person
                                 contentDescription = null,
                                 tint = primaryBlue
                             )
@@ -154,7 +161,7 @@ fun LoginScreen(
                             unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
                             cursorColor = primaryBlue
                         ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), // Alterado de Email para Text
                         singleLine = true
                     )
 
@@ -201,11 +208,7 @@ fun LoginScreen(
 
                     // Link "Esqueceu a senha?"
                     TextButton(
-                        onClick = {
-                            navController.navigate("mission") {
-                                popUpTo("welcome") { inclusive = true }
-                            }
-                        },
+                        onClick = { /* TODO */ },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(
@@ -255,14 +258,42 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             when {
-                                email.isBlank() -> errorMessage = "Por favor, digite seu email"
-                                !email.contains("@") -> errorMessage = "Email inválido"
+                                username.isBlank() -> errorMessage = "Por favor, digite seu nome de usuário" // Alterado de email para nome de usuário
+                                // Validação de email removida
                                 password.isBlank() -> errorMessage = "Por favor, digite sua senha"
-                                password.length < 6 -> errorMessage = "Senha deve ter no mínimo 6 caracteres"
                                 else -> {
                                     isLoading = true
-                                    navController.navigate("dashboard") {
-                                        popUpTo("welcome") { inclusive = true }
+                                    scope.launch {
+                                        try {
+                                            // Instanciar dependências
+                                            val apiService = RetrofitClient.getInstance(context)
+                                            val tokenRepository = TokenRepository(context)
+
+                                            // Criar cabeçalho Basic Auth
+                                            val credentials = "$username:$password" // Alterado de email para username
+                                            val basicAuth = "Basic " + Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
+
+                                            // Fazer a chamada de API
+                                            val response = apiService.login(basicAuth)
+
+                                            // Salvar o token
+                                            tokenRepository.saveToken(response.token)
+
+                                            // Navegar para o dashboard
+                                            navController.navigate("dashboard") {
+                                                popUpTo("welcome") { inclusive = true }
+                                            }
+
+                                        } catch (e: HttpException) {
+                                            errorMessage = when (e.code()) {
+                                                401 -> "Usuário ou senha inválidos." // Alterado de Email para Usuário
+                                                else -> "Erro ${e.code()}: ${e.message()}"
+                                            }
+                                        } catch (e: Exception) {
+                                            errorMessage = "Falha na conexão. Verifique sua internet."
+                                        } finally {
+                                            isLoading = false
+                                        }
                                     }
                                 }
                             }

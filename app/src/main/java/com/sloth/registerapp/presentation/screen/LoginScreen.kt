@@ -208,7 +208,7 @@ fun LoginScreen(
 
                     // Link "Esqueceu a senha?"
                     TextButton(
-                        onClick = { /* TODO */ },
+                        onClick = { /* TODO: Implementar recuperação de senha */ },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(

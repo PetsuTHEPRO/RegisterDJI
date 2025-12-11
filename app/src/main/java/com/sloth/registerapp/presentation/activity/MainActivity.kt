@@ -85,7 +85,10 @@ class MainActivity : ComponentActivity() {
                         })
                     }
                     composable("dashboard") {
-                        DashboardScreen()
+                        DashboardScreen(
+                            onMissionsClick = { navController.navigate("mission") },
+                            onCreateMissionClick = { navController.navigate("mission-create") }
+                        )
                     }
                     composable("mission") {
                         MissionsTableScreen(

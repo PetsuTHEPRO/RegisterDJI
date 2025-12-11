@@ -159,4 +159,6 @@ dependencies {
     // AndroidX Hilt (para ViewModel)
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
+    // Mapbox Maps SDK
+    implementation("com.mapbox.maps:android-ndk27:11.17.0")
 }

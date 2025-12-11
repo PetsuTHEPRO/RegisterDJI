@@ -17,6 +17,7 @@ import com.sloth.registerapp.data.sdk.DJIConnectionHelper
 import com.sloth.registerapp.presentation.screen.DashboardScreen
 import com.sloth.registerapp.presentation.screen.DroneControlScreen
 import com.sloth.registerapp.presentation.screen.LoginScreen
+import com.sloth.registerapp.presentation.screen.MissionCreateScreen
 import com.sloth.registerapp.presentation.screen.MissionsTableScreen
 import com.sloth.registerapp.presentation.screen.RegisterScreen
 import com.sloth.registerapp.presentation.screen.WelcomeScreen
@@ -87,9 +88,13 @@ class MainActivity : ComponentActivity() {
                         DashboardScreen()
                     }
                     composable("mission") {
-                        MissionsTableScreen(onBackClick = {
-                            navController.popBackStack()
-                        })
+                        MissionsTableScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onCreateMissionClick = { navController.navigate("mission-create") }
+                        )
+                    }
+                    composable("mission-create") {
+                        MissionCreateScreen(onBackClick = { navController.popBackStack() })
                     }
                 }
             }

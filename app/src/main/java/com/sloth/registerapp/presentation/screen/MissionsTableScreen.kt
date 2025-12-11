@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontFamily // Added import
+import androidx.compose.ui.tooling.preview.Preview
 
 // Data class para representar uma missão
 data class Mission(
@@ -292,11 +294,11 @@ fun MissionsTableScreen(
                                     textGray = textGray,
                                     greenAccent = greenAccent,
                                     redAccent = redAccent,
-                                    darkBg = darkBg,
-                                    lightBlue = lightBlue
+                                    darkBg = darkBg, // Passed here
+                                    lightBlue = lightBlue // Passed here
                                 )
                             }
-
+                            
                             // Espaçamento no final
                             item {
                                 Spacer(modifier = Modifier.height(20.dp))
@@ -388,8 +390,8 @@ fun MissionCard(
     textGray: Color,
     greenAccent: Color,
     redAccent: Color,
-    darkBg: Color,
-    lightBlue: Color
+    darkBg: Color, // Added parameter
+    lightBlue: Color // Added parameter
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
@@ -426,7 +428,7 @@ fun MissionCard(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = lightBlue,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            fontFamily = FontFamily.Monospace // Used here
                         )
                     }
 
@@ -454,7 +456,7 @@ fun MissionCard(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            darkBg.copy(alpha = 0.4f),
+                            darkBg.copy(alpha = 0.4f), // Used here
                             RoundedCornerShape(10.dp)
                         )
                 ) {
@@ -689,6 +691,7 @@ fun SpeedInfoCard(
 
 // Preview (exemplo de uso)
 @Composable
+@Preview(showBackground = true)
 fun PreviewMissionsTable() {
     val sampleMissions = listOf(
         Mission(1, "Missão Alpha", -2.5387, -44.2827, 5, 5.0f, 15.0f),

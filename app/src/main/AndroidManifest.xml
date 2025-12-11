@@ -95,11 +95,6 @@
             android:screenOrientation="portrait"
             tools:ignore="LockedOrientationActivity" />
 
-
-
-
-
-
         <!-- Cadastro Facial (VERTICAL) -->
         <!-- ✅ ADICIONE ESTA ACTIVITY -->
         <activity

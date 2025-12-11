@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -26,6 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.google.gson.Gson
+import com.sloth.registerapp.data.model.RegisterRequest
+import com.sloth.registerapp.data.model.RegisterResponse
+import com.sloth.registerapp.data.network.RetrofitClient
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 @Composable
 fun RegisterScreen(
@@ -40,6 +47,10 @@ fun RegisterScreen(
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+
+    // Adicionado: Contexto e CoroutineScope
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Cores do tema
     val primaryBlue = Color(0xFF3B82F6)
@@ -331,8 +342,36 @@ fun RegisterScreen(
                                 password != confirmPassword -> errorMessage = "As senhas não coincidem"
                                 else -> {
                                     isLoading = true
-                                    // Simular registro
-                                    onRegisterSuccess()
+                                    scope.launch {
+                                        try {
+                                            val apiService = RetrofitClient.getInstance(context)
+                                            val request = RegisterRequest(
+                                                username = username.trim(),
+                                                email = email.trim(),
+                                                password = password
+                                            )
+                                            // Chamada de API
+                                            apiService.register(request)
+                                            // Sucesso, navega para o login
+                                            onRegisterSuccess()
+
+                                        } catch (e: HttpException) {
+                                            errorMessage = if (e.code() == 400) {
+                                                try { // Tenta parsear a mensagem de erro do backend
+                                                    val errorBody = e.response()?.errorBody()?.string()
+                                                    Gson().fromJson(errorBody, RegisterResponse::class.java).message
+                                                } catch (jsonE: Exception) {
+                                                    "Ocorreu um erro ao registrar." // Fallback
+                                                }
+                                            } else {
+                                                "Erro ${e.code()}: Não foi possível registrar."
+                                            }
+                                        } catch (e: Exception) {
+                                            errorMessage = "Falha na conexão. Verifique sua internet."
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
                                 }
                             }
                         },

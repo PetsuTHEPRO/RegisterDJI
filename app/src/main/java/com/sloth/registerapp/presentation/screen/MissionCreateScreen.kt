@@ -2,6 +2,7 @@ package com.sloth.registerapp.presentation.screen
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +72,9 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
     var showSuccessDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    
+    // Estado para controlar a interação com o mapa
+    var isMapTouched by remember { mutableStateOf(false) }
 
     val canProceed = when (currentStep) {
         0 -> missionData.name.isNotBlank()
@@ -115,7 +120,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                             )
                         }
                     }
-                    
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -142,15 +147,21 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
+                    // O scroll é desativado quando o mapa está sendo tocado
+                    .verticalScroll(rememberScrollState(), enabled = !isMapTouched)
             ) {
                 AnimatedContent(targetState = currentStep, label = "step") { step ->
                     when (step) {
                         0 -> ConfigStep(missionData, { missionData = it }, cardBg, primaryBlue, textWhite, textGray)
                         1 -> MapStep(
-                            missionData,
+                            data = missionData,
                             onDataChange = { missionData = it },
-                            primaryBlue, cardBg, textWhite, textGray, redAccent
+                            primary = primaryBlue,
+                            cardBg = cardBg,
+                            textWhite = textWhite,
+                            textGray = textGray,
+                            redAccent = redAccent,
+                            onMapTouch = { isTouched -> isMapTouched = isTouched }
                         )
                         else -> ReviewStep(missionData, cardBg, primaryBlue, textWhite, textGray, greenAccent)
                     }
@@ -233,11 +244,15 @@ fun MapStep(
     cardBg: Color,
     textWhite: Color,
     textGray: Color,
-    redAccent: Color
+    redAccent: Color,
+    onMapTouch: (Boolean) -> Unit
 ) {
     var showAltitudeDialog by remember { mutableStateOf(false) }
     var pendingCoordinates by remember { mutableStateOf<Point?>(null) }
     
+    // As variáveis mapboxMap, pointAnnotationManager e polylineAnnotationManager são controladas pelo MapboxMapView agora
+    // e passadas via callback onMapReady. O LaunchedEffect para desenhar waypoints também foi movido.
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -265,12 +280,25 @@ fun MapStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(400.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            onMapTouch(true) // Desativa o scroll da tela
+                            try {
+                                awaitRelease()
+                            } finally {
+                                onMapTouch(false) // Reativa o scroll da tela
+                            }
+                        }
+                    )
+                }
         ) {
             MapboxMapView(
                 modifier = Modifier.fillMaxSize(),
                 waypoints = data.waypoints,
                 primaryColor = primary,
-                onMapReady = { map ->
+                onMapReady = { map -> // 'map' aqui é MapboxMap
+                    // Configura a câmera inicial
                     map.setCamera(
                         com.mapbox.maps.CameraOptions.Builder()
                             .center(Point.fromLngLat(-44.3025, -2.5307))
@@ -278,6 +306,7 @@ fun MapStep(
                             .build()
                     )
                     
+                    // Adiciona o listener de cliques ao mapa
                     map.addOnMapClickListener { point ->
                         pendingCoordinates = point
                         showAltitudeDialog = true
@@ -367,7 +396,7 @@ fun MapStep(
     if (showAltitudeDialog && pendingCoordinates != null) {
         AltitudeDialog(
             onDismiss = { showAltitudeDialog = false; pendingCoordinates = null },
-            onConfirm = { altitude ->
+            onConfirm = { dialogAltitude -> // Renomeado para evitar conflito de nome
                 val point = pendingCoordinates!!
                 
                 if (data.pointOfInterest.isEmpty()) {
@@ -377,7 +406,7 @@ fun MapStep(
                         id = data.waypoints.size + 1,
                         latitude = point.latitude(),
                         longitude = point.longitude(),
-                        altitude = altitude
+                        altitude = dialogAltitude // Usando a altitude fornecida pelo diálogo
                     )
                     val updatedWaypoints = data.waypoints.toMutableList().apply { add(newWaypoint) }
                     onDataChange(data.copy(waypoints = updatedWaypoints))

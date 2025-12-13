@@ -36,7 +36,7 @@ object DJIConnectionHelper {
             override fun onRegister(error: DJIError?) {
                 if (error == DJISDKError.REGISTRATION_SUCCESS) {
                     Log.d(TAG, "Registro do SDK bem-sucedido!")
-                    _connectionStatus.value = "Registrado com Sucesso."
+                    _connectionStatus.value = "Pronto para Conexão"
                     // Não precisa de runOnUiThread aqui, o Toast já faz isso se necessário
                     Toast.makeText(context, "Registro do SDK bem-sucedido!", Toast.LENGTH_SHORT).show()
                     DJISDKManager.getInstance().startConnectionToProduct()

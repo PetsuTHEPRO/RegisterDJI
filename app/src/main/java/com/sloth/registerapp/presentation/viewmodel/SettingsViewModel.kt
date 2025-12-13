@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class PermissionsViewModel : ViewModel() {
+class SettingsViewModel : ViewModel() {
 
     // A lista de permissões agora vive aqui.
     val requiredPermissions: Array<String> = arrayOf(

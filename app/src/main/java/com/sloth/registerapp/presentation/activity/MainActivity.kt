@@ -1,9 +1,13 @@
 package com.sloth.registerapp.presentation.activity
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -20,20 +24,21 @@ import com.sloth.registerapp.presentation.screen.LoginScreen
 import com.sloth.registerapp.presentation.screen.MissionCreateScreen
 import com.sloth.registerapp.presentation.screen.MissionsTableScreen
 import com.sloth.registerapp.presentation.screen.RegisterScreen
+import com.sloth.registerapp.presentation.screen.SettingsScreen
 import com.sloth.registerapp.presentation.screen.WelcomeScreen
 import com.sloth.registerapp.presentation.theme.RegisterAppTheme
+import dji.sdk.sdkmanager.DJISDKManager
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        PermissionHelper.initializeLaunchers(this) {
-            DJIConnectionHelper.registerApp(applicationContext)
-        }
-        PermissionHelper.checkAndRequestAllPermissions(this) {
-            DJIConnectionHelper.registerApp(applicationContext)
-        }
+        // Inicializa o SDK da DJI imediatamente
+        DJIConnectionHelper.registerApp(applicationContext)
+
+        PermissionHelper.initializeLaunchers(this) {}
+        PermissionHelper.checkAndRequestAllPermissions(this) {}
 
         // --- NOVO: Inicia o gerenciador de telemetria ---
         DroneTelemetryManager.init(lifecycleScope)
@@ -42,19 +47,13 @@ class MainActivity : ComponentActivity() {
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             RegisterAppTheme {
                 val navController = rememberNavController()
+                val context = LocalContext.current // Obtém o contexto aqui
 
                 navController.addOnDestinationChangedListener { _, destination, _ ->
-                    if (destination.route in listOf("welcome", "login", "register")) {
-                        // Mostra as barras do sistema
-                        WindowCompat.setDecorFitsSystemWindows(window, true)
-                        controller.show(WindowInsetsCompat.Type.systemBars())
-                    } else {
-                        // Esconde as barras do sistema (modo edge-to-edge)
-                        WindowCompat.setDecorFitsSystemWindows(window, false)
-                        controller.hide(WindowInsetsCompat.Type.systemBars())
-                        controller.systemBarsBehavior =
-                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    }
+                    // Deixar o sistema gerenciar as barras de sistema para todas as telas.
+                    // Isso garante que a barra de status e a barra de navegação fiquem visíveis.
+                    WindowCompat.setDecorFitsSystemWindows(window, true)
+                    controller.show(WindowInsetsCompat.Type.systemBars())
                 }
 
                 NavHost(navController = navController, startDestination = "welcome") {
@@ -85,9 +84,29 @@ class MainActivity : ComponentActivity() {
                         })
                     }
                     composable("dashboard") {
+                        val droneStatus by DJIConnectionHelper.connectionStatus.collectAsState()
                         DashboardScreen(
+                            droneStatus = droneStatus,
                             onMissionsClick = { navController.navigate("mission") },
-                            onCreateMissionClick = { navController.navigate("mission-create") }
+                            onLiveFeedClick = {
+                                val intent = Intent(context, VideoFeedActivity::class.java)
+                                context.startActivity(intent)
+                            },
+                            onConnectDroneClick = {
+                                DJISDKManager.getInstance().startConnectionToProduct()
+                            },
+                            onSettingsClick = { navController.navigate("settings") }
+                        )
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onLogout = {
+                                // TODO: Implement actual logout logic
+                                navController.navigate("login") {
+                                    popUpTo("welcome") { inclusive = true }
+                                }
+                            }
                         )
                     }
                     composable("mission") {

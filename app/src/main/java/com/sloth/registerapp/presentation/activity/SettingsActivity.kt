@@ -5,13 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
-import com.sloth.registerapp.presentation.screen.PermissionsScreen
-import com.sloth.registerapp.presentation.viewmodel.PermissionsViewModel
+import com.sloth.registerapp.presentation.screen.SettingsScreen
+import com.sloth.registerapp.presentation.viewmodel.SettingsViewModel
 
-class PermissionActivity : ComponentActivity() {
+class SettingsActivity : ComponentActivity() {
 
     // Instancia o ViewModel usando a delegação do KTX
-    private val viewModel: PermissionsViewModel by viewModels()
+    private val viewModel: SettingsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -19,7 +19,7 @@ class PermissionActivity : ComponentActivity() {
         // Define o conteúdo da tela usando Jetpack Compose
         setContent {
             MaterialTheme { // Aplica o tema do Material Design 3
-                PermissionsScreen(viewModel = viewModel)
+                SettingsScreen()
             }
         }
     }

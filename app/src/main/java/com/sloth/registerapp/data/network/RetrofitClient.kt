@@ -9,7 +9,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
     private const val BASE_URL = "http://192.168.2.46:5000/api/" // TODO: Replace with actual IP address
-
+    //private const val BASE_URL = "http://10.1.8.115:5000/api/"
     private lateinit var apiService: SdiaApiService
 
     fun getInstance(context: Context): SdiaApiService {

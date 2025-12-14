@@ -1,4 +1,4 @@
-package com.sloth.deteccaofacial.viewmodel
+package com.sloth.registerapp.service.facedetection.ui
 
 import android.graphics.Bitmap
 import android.util.Log
@@ -9,7 +9,7 @@ import com.sloth.deteccaofacial.FaceRegistrationService
 import com.sloth.deteccaofacial.data.local.FaceEntity
 import com.sloth.deteccaofacial.domain.model.FaceResult
 import com.sloth.deteccaofacial.domain.usecase.SaveFaceUseCase
-import com.sloth.deteccaofacial.service.FaceAnalysisResult
+import com.sloth.registerapp.vision.FaceAnalysisResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -201,3 +201,4 @@ class FaceRegistrationViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

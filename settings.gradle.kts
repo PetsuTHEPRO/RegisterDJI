@@ -22,6 +22,7 @@ pluginManagement {
         maven { url = uri("https://dev.dji.com/repo/") }
     }
 }
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -33,4 +34,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "RegisterApp"
 include(":app")
- 

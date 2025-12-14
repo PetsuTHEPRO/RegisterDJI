@@ -1,9 +1,8 @@
-package com.sloth.deteccaofacial.ui
+package com.sloth.registerapp.service.facedetection.ui
 
 import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -46,11 +45,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.deteccaofacial.FaceRegistrationService
-import com.sloth.deteccaofacial.service.FaceAnalysisResult
-import com.sloth.deteccaofacial.service.FaceAnalyzer
-import com.sloth.deteccaofacial.viewmodel.FaceRegistrationUiState
-import com.sloth.deteccaofacial.viewmodel.FaceRegistrationViewModel
-import com.sloth.deteccaofacial.viewmodel.FaceRegistrationViewModelFactory
+import com.sloth.registerapp.vision.FaceAnalysisResult
+import com.sloth.registerapp.vision.FaceAnalyzer
+import com.sloth.registerapp.vision.FaceAnalyzerConfig
+import com.sloth.registerapp.vision.FaceAnalyzerListener
+import com.sloth.registerapp.core.utils.imageProxyToBitmap
 import java.util.concurrent.Executors
 
 /**
@@ -188,8 +187,8 @@ fun CameraPreviewScreen(
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
     val canCapture = remember(analysisResult) {
-        analysisResult is FaceAnalysisResult.FaceDetected &&
-                (analysisResult as FaceAnalysisResult.FaceDetected).isStable
+        analysisResult is FaceAnalysisResult.AdvancedResult &&
+                (analysisResult as FaceAnalysisResult.AdvancedResult).isStable
     }
 
     LaunchedEffect(Unit) {
@@ -206,11 +205,17 @@ fun CameraPreviewScreen(
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also {
+                        val config = FaceAnalyzerConfig(advancedAnalysis = true)
                         it.setAnalyzer(
                             cameraExecutor,
-                            FaceAnalyzer { result ->
-                                viewModel.updateAnalysisResult(result)
-                            }
+                            FaceAnalyzer(
+                                listener = object : FaceAnalyzerListener {
+                                    override fun onResult(result: FaceAnalysisResult) {
+                                        viewModel.updateAnalysisResult(result)
+                                    }
+                                },
+                                config = config
+                            )
                         )
                     }
 
@@ -371,19 +376,20 @@ fun FaceGuideOverlay(analysisResult: FaceAnalysisResult) {
     )
 
     val color = when (analysisResult) {
-        is FaceAnalysisResult.FaceDetected -> {
+        is FaceAnalysisResult.AdvancedResult -> {
             when {
-                (analysisResult as FaceAnalysisResult.FaceDetected).isStable -> Color(0xFF10B981)
+                analysisResult.isStable -> Color(0xFF10B981)
                 else -> Color(0xFFF59E0B)
             }
         }
+        is FaceAnalysisResult.FaceDetected -> Color(0xFFF59E0B)
         else -> Color.White
     }
 
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .scale(if (analysisResult is FaceAnalysisResult.FaceDetected) scale else 1f)
+            .scale(if (analysisResult is FaceAnalysisResult.AdvancedResult && analysisResult.isStable) scale else 1f)
     ) {
         val ovalWidth = size.width * 0.65f
         val ovalHeight = size.height * 0.45f
@@ -431,7 +437,7 @@ fun InstructionsCard(
             Triple("Posicione seu rosto no centro", Icons.Default.FaceRetouchingNatural, Color(0xFFF59E0B))
         is FaceAnalysisResult.MultipleFaces ->
             Triple("Apenas uma pessoa por vez", Icons.Default.Groups, Color(0xFFEF4444))
-        is FaceAnalysisResult.FaceDetected -> {
+        is FaceAnalysisResult.AdvancedResult -> {
             when {
                 !analysisResult.isCentered ->
                     Triple("Centralize seu rosto", Icons.Default.CenterFocusWeak, Color(0xFFF59E0B))
@@ -445,6 +451,7 @@ fun InstructionsCard(
         }
         is FaceAnalysisResult.Error ->
             Triple("Erro na análise", Icons.Default.Error, Color(0xFFEF4444))
+        else -> Triple("Aguardando análise", Icons.Default.HourglassEmpty, Color.White)
     }
 
     AnimatedVisibility(
@@ -1191,6 +1198,7 @@ fun PermissionRequestScreen(
 /**
  * Captura foto usando CameraX
  */
+@androidx.camera.core.ExperimentalGetImage
 private fun capturePhoto(
     context: Context,
     imageCapture: ImageCapture,
@@ -1213,20 +1221,4 @@ private fun capturePhoto(
             }
         }
     )
-}
-
-/**
- * Converte ImageProxy para Bitmap
- */
-private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap? {
-    return try {
-        val planeProxy = imageProxy.planes[0]
-        val buffer = planeProxy.buffer
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    } catch (e: Exception) {
-        Log.e("ImageProxyToBitmap", "Erro: ${e.message}", e)
-        null
-    }
 }

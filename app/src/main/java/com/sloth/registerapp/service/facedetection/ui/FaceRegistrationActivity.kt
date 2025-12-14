@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.sloth.registerapp.service.facedetection.ui.FaceRegistrationScreen
 
 class FaceRegistrationActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

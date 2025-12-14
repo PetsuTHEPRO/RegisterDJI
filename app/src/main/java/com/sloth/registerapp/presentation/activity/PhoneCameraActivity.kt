@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -19,10 +18,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.mlkit.vision.face.Face
-import com.sloth.registerapp.data.vision.FaceAnalyzer
 import com.sloth.registerapp.data.vision.FaceRecognitionManager
 import com.sloth.registerapp.databinding.ActivityPhoneCameraBinding
 import com.sloth.registerapp.presentation.component.FaceOverlayView
+import com.sloth.registerapp.vision.FaceAnalysisResult
+import com.sloth.registerapp.vision.FaceAnalyzer
+import com.sloth.registerapp.vision.FaceAnalyzerConfig
+import com.sloth.registerapp.vision.FaceAnalyzerListener
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
@@ -80,34 +82,46 @@ class PhoneCameraActivity : AppCompatActivity() {
     }
 
     private fun setupFaceDetector() {
-        faceDetector = FaceAnalyzer(object : FaceAnalyzer.FaceDetectionCallback {
-
-            override fun onFaceDetected(numberOfFaces: Int, faces: List<Face>, rotation: Int, frameBitmap: Bitmap) {
+        val config = FaceAnalyzerConfig(
+            disallowMultipleFaces = false
+        )
+        faceDetector = FaceAnalyzer(object : FaceAnalyzerListener {
+            override fun onResult(result: FaceAnalysisResult) {
                 runOnUiThread {
-
-                    faceOverlay.setFaces(faces, recognizedNames, imageWidth, imageHeight, useFrontCamera, rotation)
-
-                    // Reconhece a primeira face detectada
-                    if (faces.isNotEmpty() && !isRecognizing) {
-                        recognizeFirstFace(faces[0], frameBitmap, 0)
+                    when (result) {
+                        is FaceAnalysisResult.FaceDetected -> {
+                            val faces = listOf(result.face)
+                            faceOverlay.setFaces(faces, recognizedNames, imageWidth, imageHeight, useFrontCamera, 0)
+                            if (!isRecognizing && result.bitmap != null) {
+                                recognizeFirstFace(result.face, result.bitmap, 0)
+                            }
+                        }
+                        is FaceAnalysisResult.AdvancedResult -> {
+                            val faces = listOf(result.face)
+                            faceOverlay.setFaces(faces, recognizedNames, imageWidth, imageHeight, useFrontCamera, 0)
+                            if (!isRecognizing && result.bitmap != null && result.isStable) {
+                                recognizeFirstFace(result.face, result.bitmap, 0)
+                            }
+                        }
+                        is FaceAnalysisResult.MultipleFaces -> {
+                            // The config allows multiple faces, but we only recognize the first one.
+                            // We can update the overlay with all faces if we want.
+                            // For now, just clear.
+                            faceOverlay.clear()
+                            isRecognizing = false
+                        }
+                        is FaceAnalysisResult.NoFace -> {
+                            faceOverlay.clear()
+                            isRecognizing = false
+                        }
+                        is FaceAnalysisResult.Error -> {
+                            faceOverlay.clear()
+                            Log.e(TAG, "Erro: ${result.message}")
+                        }
                     }
                 }
             }
-
-            override fun onFaceDetectionFailed(e: Exception) {
-                runOnUiThread {
-                    faceOverlay.clear()
-                    Log.e(TAG, "Erro: ${e.message}", e)
-                }
-            }
-
-            override fun onNoFacesDetected() {
-                runOnUiThread {
-                    faceOverlay.clear()
-                    isRecognizing = false
-                }
-            }
-        })
+        }, config)
     }
 
     /**
@@ -119,7 +133,6 @@ class PhoneCameraActivity : AppCompatActivity() {
         lifecycleScope.launch {
             // Aplica rotação se necessário (suponha rotationDegrees)
             frameBitmap
-
 
             // Crop da face usando bounding box
             val croppedFace = Bitmap.createBitmap(
@@ -235,7 +248,7 @@ class PhoneCameraActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        faceDetector.close()
+        faceDetector.release()
     }
 
     companion object {

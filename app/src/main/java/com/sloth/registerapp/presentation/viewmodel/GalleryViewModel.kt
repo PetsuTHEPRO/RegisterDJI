@@ -3,13 +3,9 @@ package com.sloth.registerapp.presentation.viewmodel
 import android.app.Application
 import android.content.ContentResolver
 import android.content.ContentUris
-import android.content.ContentValues
-import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingConfig
@@ -18,16 +14,11 @@ import androidx.paging.PagingData
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import androidx.paging.cachedIn
-import com.google.android.gms.tasks.Tasks
-import com.google.mlkit.vision.common.InputImage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import java.io.IOException
 
 // Data class para representar cada foto
 data class MediaStoreImage(
@@ -131,97 +122,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         _nameRequestEvent.value = uri
     }
 
-    /**
-     * Passo 3: A UI chama esta função para registrar o rosto após obter o nome do usuário.
-     */
-    /*fun registerFaceFromGallery(uri: android.net.Uri, name: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val context = getApplication<Application>().applicationContext
-            val contentResolver = context.contentResolver
-            val tag = "GalleryViewModel"
 
-            try {
-                val bitmapToAnalyze = MediaStore.Images.Media.getBitmap(contentResolver, uri)
-                //val detector = FaceDetectorProvider.getFaceDetector()
-                val image = InputImage.fromBitmap(bitmapToAnalyze, 0)
-                //val faces = Tasks.await(detector.process(image))
-
-                /*if (faces.isEmpty()) {
-                    Log.d(tag, "Nenhum rosto detectado na imagem. Cadastro cancelado.")
-                    //_saveResult.postValue("Nenhum rosto encontrado na foto.")
-                    return@launch
-                }
-
-                Log.d(tag, "${faces.size} rosto(s) detectado(s). Registrando o primeiro com o nome: $name")
-
-                // Registra o embedding do primeiro rosto encontrado
-                val firstFace = faces[0]
-                val box = firstFace.boundingBox
-*/
-                /* --- INÍCIO DA CORREÇÃO ---
-                // Garante que a caixa de recorte (bounding box) não saia dos limites do bitmap original.
-                val safeBox = android.graphics.Rect(
-                    maxOf(0, box.left),
-                    maxOf(0, box.top),
-                    minOf(bitmapToAnalyze.width, box.right),
-                    minOf(bitmapToAnalyze.height, box.bottom)
-                )*/
-
-                // Verifica se a caixa de recorte tem dimensões válidas
-                if (safeBox.width() <= 0 || safeBox.height() <= 0) {
-                    Log.e(tag, "BoundingBox inválido após o ajuste. Cadastro cancelado.")
-                    //_saveResult.postValue("Não foi possível recortar o rosto da imagem.")
-                    return@launch
-                }
-
-                val faceBitmap = Bitmap.createBitmap(
-                    bitmapToAnalyze,
-                    safeBox.left,
-                    safeBox.top,
-                    safeBox.width(),
-                    safeBox.height()
-                )
-                // --- FIM DA CORREÇÃO ---
-
-                // ATENÇÃO: Idealmente, FaceEmbedder e FaceDatabase seriam injetados (Hilt/Koin)
-                // para melhor performance e gerenciamento de ciclo de vida.
-                //val faceEmbedder = FaceEmbedder(context, "mobile_face_net.tflite")
-                //val embedding = faceEmbedder.getEmbedding(faceBitmap)
-                //val faceDatabase = FaceDatabase(context)
-                //faceDatabase.addEmbedding(name, embedding)
-                Log.d(tag, "Embedding para '$name' salvo no banco de dados.")
-
-                // Prossegue para salvar a imagem completa na galeria
-                val cleanName = name.replace(Regex("[^a-zA-Z0-9.-]"), "_")
-                val fileName = "${cleanName}_${System.currentTimeMillis()}.jpg"
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Drone App/face-search")
-                    }
-                }
-
-                val destinationUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                    ?: throw IOException("Falha ao criar arquivo de mídia.")
-
-                contentResolver.openOutputStream(destinationUri).use { outputStream ->
-                    requireNotNull(outputStream) { "Falha ao abrir o output stream." }
-                    contentResolver.openInputStream(uri)?.use { inputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
-                }
-
-                //_saveResult.postValue("Rosto de '$name' cadastrado com sucesso!")
-                println("Imagem salva em: ${Environment.DIRECTORY_DCIM}/face-search/$fileName")
-                _refreshTrigger.emit(Unit)
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-                //_saveResult.postValue("Erro ao cadastrar rosto: ${e.message}")
-            }
-        }
-    }*/
 
     /**
      * A UI deve chamar esta função depois de lidar com o evento de pedido de nome,

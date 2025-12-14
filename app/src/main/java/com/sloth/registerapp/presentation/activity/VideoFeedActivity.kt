@@ -11,13 +11,17 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.sloth.registerapp.data.drone.DroneControllerManager
-import com.sloth.registerapp.data.vision.FaceAnalyzer
 import com.sloth.registerapp.presentation.screen.DroneCameraScreen
 import dji.midware.usb.P3.UsbAccessoryService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.sloth.registerapp.core.utils.yuvToBitmap
+
+import com.sloth.registerapp.vision.FaceAnalysisResult
+import com.sloth.registerapp.vision.FaceAnalyzer
+import com.sloth.registerapp.vision.FaceAnalyzerListener
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
 
@@ -45,6 +49,7 @@ class VideoFeedActivity : ComponentActivity() {
         Log.d(TAG, "Activity criada")
 
         droneController = DroneControllerManager()
+        setupVisionProcessor()
 
         setContent {
             val feedAvailableState by isFeedAvailable.collectAsState() // Observa o estado
@@ -61,8 +66,6 @@ class VideoFeedActivity : ComponentActivity() {
                 isFeedAvailable = feedAvailableState // Passa o estado para o Composable
             )
         }
-
-        setupVisionProcessor()
     }
 // ... (resto da classe VideoFeedActivity)
 
@@ -112,32 +115,41 @@ class VideoFeedActivity : ComponentActivity() {
 
     private val onYuvDataReceived = DJICodecManager.YuvDataCallback { format, yuvFrame, dataSize, width, height ->
         faceProcessor?.let {
-            // TODO: Processar frame se necessário
+            val bytes = ByteArray(yuvFrame.remaining())
+            yuvFrame.get(bytes)
+            val bitmap = yuvToBitmap(bytes, width, height)
+            if (bitmap != null) {
+                it.analyze(bitmap, 0)
+            }
         }
     }
     
     // ========== Métodos de UI e Ciclo de Vida ==========
     
     private fun setupVisionProcessor() {
-        val callback = object : FaceAnalyzer.FaceDetectionCallback {
-            override fun onFaceDetected(
-                numberOfFaces: Int,
-                faces: List<com.google.mlkit.vision.face.Face>,
-                rotation: Int,
-                frameBitmap: android.graphics.Bitmap
-            ) {
-                Log.d(TAG, "Rostos detectados: $numberOfFaces")
+        faceProcessor = FaceAnalyzer(object : FaceAnalyzerListener {
+            override fun onResult(result: FaceAnalysisResult) {
+                when(result) {
+                    is FaceAnalysisResult.FaceDetected -> {
+                        Log.d(TAG, "Rostos detectados: 1")
+                    }
+                    is FaceAnalysisResult.MultipleFaces -> {
+                        Log.d(TAG, "Rostos detectados: >1")
+                    }
+                    else -> {}
+                }
             }
-
-            override fun onFaceDetectionFailed(e: Exception) { Log.e(TAG, "Detecção de rosto falhou", e) }
-            override fun onNoFacesDetected() {}
-        }
-        faceProcessor = FaceAnalyzer(callback)
+        })
     }
 
     private fun switchToPhoneCamera() {
         val intent = Intent(this, PhoneCameraActivity::class.java)
         startActivity(intent)
         finish()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        faceProcessor?.release()
     }
 }

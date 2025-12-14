@@ -19,6 +19,16 @@ class MissionRepository(
         }
     }
 
+    suspend fun getMission(id: Int): Result<ServerMission?> {
+        return try {
+            val missions = apiService.getMissions()
+            val mission = missions.find { it.id == id }
+            Result.success(mission)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun ServerMission.toUiMission(): UiMission {
         return UiMission(
             id = this.id,

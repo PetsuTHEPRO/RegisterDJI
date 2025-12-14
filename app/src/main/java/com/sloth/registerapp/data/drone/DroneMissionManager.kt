@@ -6,8 +6,11 @@ import dji.common.mission.waypoint.*
 import dji.sdk.mission.MissionControl
 import dji.sdk.mission.waypoint.WaypointMissionOperator
 import dji.sdk.mission.waypoint.WaypointMissionOperatorListener
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 // O enum de estado interno permanece o mesmo
 enum class MissionState {
@@ -22,7 +25,10 @@ enum class MissionState {
     ERROR
 }
 
-class DroneMissionManager {
+class DroneMissionManager(
+    private val djiConnectionHelper: com.sloth.registerapp.data.sdk.DJIConnectionHelper,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
+) {
 
     private val TAG = "DroneMissionManager"
     // API do SDK v4 para obter o operador de missão.
@@ -33,6 +39,27 @@ class DroneMissionManager {
     val missionState = _missionState.asStateFlow()
 
     init {
+        scope.launch {
+            djiConnectionHelper.product.collect { product ->
+                if (product == null) {
+                    _missionState.value = MissionState.IDLE
+                } else {
+                    val model = product.model
+                    if (model != null && (
+                                model.displayName.contains("Mavic Mini", ignoreCase = true) ||
+                                model.displayName.contains("Spark", ignoreCase = true) ||
+                                model.displayName.contains("Tello", ignoreCase = true)
+                                )) {
+                        Log.e(TAG, "O drone conectado (${model.displayName}) não suporta missões de waypoint.")
+                        _missionState.value = MissionState.ERROR
+                    }
+                }
+            }
+        }
+        if (waypointMissionOperator == null) {
+            Log.e(TAG, "WaypointMissionOperator is null. Waypoint missions are not supported.")
+            _missionState.value = MissionState.ERROR
+        }
         // Adiciona um listener para receber atualizações de status do operador de missão
         waypointMissionOperator?.addListener(object : WaypointMissionOperatorListener {
             override fun onDownloadUpdate(event: WaypointMissionDownloadEvent) {}
@@ -74,7 +101,7 @@ class DroneMissionManager {
     /**
      * Prepara, carrega e faz o upload de uma missão v4 para o drone.
      */
-    fun prepareAndUploadMission(/* TODO: Receber dados da missão, ex: missionData: MissionData */) {
+    fun prepareAndUploadMission(missionData: com.sloth.registerapp.data.model.ServerMission) {
         val operator = waypointMissionOperator ?: run {
             Log.e(TAG, "WaypointMissionOperator não está disponível.")
             _missionState.value = MissionState.ERROR
@@ -83,10 +110,10 @@ class DroneMissionManager {
 
         _missionState.value = MissionState.PREPARING
 
-        // TODO: Implementar a lógica de "parsing" dos dados recebidos do servidor aqui
-        val waypointList = mutableListOf<Waypoint>()
-        // Exemplo: waypointList.add(Waypoint(lat, lng, alt))
-        
+        val waypointList = missionData.waypoints.map {
+            Waypoint(it.latitude, it.longitude, it.altitude.toFloat())
+        }
+
         if (waypointList.isEmpty()) {
             Log.e(TAG, "Não é possível criar missão sem waypoints.")
             _missionState.value = MissionState.ERROR
@@ -94,11 +121,11 @@ class DroneMissionManager {
         }
 
         val missionBuilder = WaypointMission.Builder().apply {
-            finishedAction(WaypointMissionFinishedAction.GO_HOME)
-            headingMode(WaypointMissionHeadingMode.AUTO)
-            autoFlightSpeed(5f)
-            maxFlightSpeed(10f)
-            flightPathMode(WaypointMissionFlightPathMode.NORMAL)
+            finishedAction(WaypointMissionFinishedAction.valueOf(missionData.finished_action))
+            headingMode(WaypointMissionHeadingMode.valueOf(missionData.heading_mode))
+            autoFlightSpeed(missionData.auto_flight_speed.toFloat())
+            maxFlightSpeed(missionData.max_flight_speed.toFloat())
+            flightPathMode(WaypointMissionFlightPathMode.valueOf(missionData.flight_path_mode))
             waypointList(waypointList)
             waypointCount(waypointList.size)
         }

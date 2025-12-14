@@ -118,6 +118,12 @@
             android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity" />
 
+        <activity
+            android:name=".presentation.activity.MissionControlActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
+
     </application>
 
 </manifest>

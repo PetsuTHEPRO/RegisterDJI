@@ -41,6 +41,7 @@ fun DashboardScreen(
     userName: String = "Usuário",
     onLiveFeedClick: () -> Unit = {},
     onMissionsClick: () -> Unit = {},
+    onMissionControlClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onConnectDroneClick: () -> Unit = {}
@@ -239,6 +240,21 @@ fun DashboardScreen(
                                 colors = listOf(Color(0xFF8B5CF6), Color(0xFF6366F1))
                             ),
                             onClick = onMissionsClick,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        MainActionCard(
+                            icon = "🕹️",
+                            title = "Controle",
+                            subtitle = "Controle de missão",
+                            gradient = Brush.linearGradient(
+                                colors = listOf(Color(0xFFF59E0B), Color(0xFFD97706))
+                            ),
+                            onClick = onMissionControlClick,
                             modifier = Modifier.weight(1f)
                         )
                     }

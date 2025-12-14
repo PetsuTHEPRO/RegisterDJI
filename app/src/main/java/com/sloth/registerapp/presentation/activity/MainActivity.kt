@@ -92,6 +92,10 @@ class MainActivity : ComponentActivity() {
                         DashboardScreen(
                             droneStatus = droneStatus,
                             onMissionsClick = { navController.navigate("mission") },
+                            onMissionControlClick = {
+                                val intent = Intent(context, MissionControlActivity::class.java)
+                                context.startActivity(intent)
+                            },
                             onLiveFeedClick = {
                                 val intent = Intent(context, VideoFeedActivity::class.java)
                                 context.startActivity(intent)
@@ -155,7 +159,13 @@ class MainActivity : ComponentActivity() {
                             missions = missions,
                             isLoading = isLoading,
                             onBackClick = { navController.popBackStack() },
-                            onCreateMissionClick = { navController.navigate("mission-create") }
+                            onCreateMissionClick = { navController.navigate("mission-create") },
+                            onViewMissionClick = { missionId ->
+                                val intent = Intent(context, MissionControlActivity::class.java).apply {
+                                    putExtra("MISSION_ID", missionId)
+                                }
+                                context.startActivity(intent)
+                            }
                         )
                     }
                     composable("mission-create") {

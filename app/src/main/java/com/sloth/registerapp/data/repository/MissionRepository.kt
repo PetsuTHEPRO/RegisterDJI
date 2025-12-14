@@ -1,22 +1,33 @@
 package com.sloth.registerapp.data.repository
 
-import com.sloth.registerapp.data.model.Mission
 import com.sloth.registerapp.data.network.SdiaApiService
 import kotlinx.coroutines.flow.first
+import com.sloth.registerapp.data.model.ServerMission as ServerMission
+import com.sloth.registerapp.model.Mission as UiMission
 
 class MissionRepository(
     private val apiService: SdiaApiService,
     private val tokenRepository: TokenRepository
 ) {
 
-    suspend fun getMissions(): Result<List<Mission>> {
+    suspend fun getMissions(): Result<List<UiMission>> {
         return try {
-            val token = tokenRepository.token.first()
-            val authHeader = "Bearer ${token.orEmpty()}"
-            val missions = apiService.getMissions(authHeader)
-            Result.success(missions)
+            val missions = apiService.getMissions()
+            Result.success(missions.map { it.toUiMission() })
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun ServerMission.toUiMission(): UiMission {
+        return UiMission(
+            id = this.id,
+            name = this.name,
+            latitude = this.poi_latitude,
+            longitude = this.poi_longitude,
+            waypointCount = this.waypoints.size,
+            autoSpeed = this.auto_flight_speed.toFloat(),
+            maxSpeed = this.max_flight_speed.toFloat()
+        )
     }
 }

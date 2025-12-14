@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
-class TokenRepository(private val context: Context) {
+class TokenRepository private constructor(private val context: Context) {
 
     private val tokenKey = stringPreferencesKey("auth_token")
 
@@ -23,6 +23,19 @@ class TokenRepository(private val context: Context) {
     suspend fun saveToken(token: String) {
         context.dataStore.edit { settings ->
             settings[tokenKey] = token
+        }
+    }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: TokenRepository? = null
+
+        fun getInstance(context: Context): TokenRepository {
+            return INSTANCE ?: synchronized(this) {
+                val instance = TokenRepository(context.applicationContext)
+                INSTANCE = instance
+                instance
+            }
         }
     }
 }

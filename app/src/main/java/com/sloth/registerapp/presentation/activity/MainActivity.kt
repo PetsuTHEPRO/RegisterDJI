@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
@@ -22,11 +23,14 @@ import com.sloth.registerapp.presentation.screen.DashboardScreen
 import com.sloth.registerapp.presentation.screen.DroneControlScreen
 import com.sloth.registerapp.presentation.screen.LoginScreen
 import com.sloth.registerapp.presentation.screen.MissionCreateScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.registerapp.presentation.screen.MissionsTableScreen
 import com.sloth.registerapp.presentation.screen.RegisterScreen
 import com.sloth.registerapp.presentation.screen.SettingsScreen
 import com.sloth.registerapp.presentation.screen.WelcomeScreen
 import com.sloth.registerapp.presentation.theme.RegisterAppTheme
+import com.sloth.registerapp.ui.mission.MissionUiState
+import com.sloth.registerapp.ui.mission.MissionViewModel
 import dji.sdk.sdkmanager.DJISDKManager
 
 class MainActivity : ComponentActivity() {
@@ -110,7 +114,46 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("mission") {
+                        val viewModel: MissionViewModel = viewModel()
+                        val uiState by viewModel.uiState.collectAsState()
+
+                        LaunchedEffect(Unit) {
+                            viewModel.fetchMissions()
+                        }
+
+                        val missions: List<com.sloth.registerapp.model.Mission>
+                        val isLoading: Boolean
+
+                        when (val state = uiState) {
+                            is MissionUiState.Success -> {
+                                missions = state.missions
+                                isLoading = false
+                            }
+                            is MissionUiState.Loading -> {
+                                missions = emptyList()
+                                isLoading = true
+                            }
+                            is MissionUiState.Error -> {
+                                missions = emptyList()
+                                isLoading = false
+                                // TODO: Show error message
+                            }
+                            is MissionUiState.Idle -> {
+                                missions = emptyList()
+                                isLoading = false
+                            }
+                            is MissionUiState.Unauthorized -> {
+                                navController.navigate("login") {
+                                    popUpTo("welcome") { inclusive = true }
+                                }
+                                missions = emptyList()
+                                isLoading = false
+                            }
+                        }
+
                         MissionsTableScreen(
+                            missions = missions,
+                            isLoading = isLoading,
                             onBackClick = { navController.popBackStack() },
                             onCreateMissionClick = { navController.navigate("mission-create") }
                         )

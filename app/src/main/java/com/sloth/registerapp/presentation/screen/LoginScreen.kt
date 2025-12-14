@@ -267,7 +267,7 @@ fun LoginScreen(
                                         try {
                                             // Instanciar dependências
                                             val apiService = RetrofitClient.getInstance(context)
-                                            val tokenRepository = TokenRepository(context)
+                                            val tokenRepository = TokenRepository.getInstance(context)
 
                                             // Criar cabeçalho Basic Auth
                                             val credentials = "$username:$password" // Alterado de email para username

@@ -1,10 +1,11 @@
 package com.sloth.registerapp.ui.mission
 
-import com.sloth.registerapp.data.model.Mission
+import com.sloth.registerapp.model.Mission
 
-sealed interface MissionUiState {
-    object Idle : MissionUiState
-    object Loading : MissionUiState
-    data class Success(val missions: List<Mission>) : MissionUiState
-    data class Error(val message: String) : MissionUiState
+sealed class MissionUiState {
+    object Idle : MissionUiState()
+    object Loading : MissionUiState()
+    data class Success(val missions: List<Mission>) : MissionUiState()
+    data class Error(val message: String) : MissionUiState()
+    object Unauthorized : MissionUiState()
 }

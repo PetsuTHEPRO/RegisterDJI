@@ -1,7 +1,7 @@
 package com.sloth.registerapp.data.network
 
 import com.sloth.registerapp.data.model.LoginResponse
-import com.sloth.registerapp.data.model.Mission
+import com.sloth.registerapp.data.model.ServerMission
 import com.sloth.registerapp.data.model.RegisterRequest
 import com.sloth.registerapp.data.model.RegisterResponse
 import com.sloth.registerapp.data.model.User
@@ -21,5 +21,5 @@ interface SdiaApiService {
     suspend fun getMe(@Header("Authorization") token: String): User
 
     @GET("missions")
-    suspend fun getMissions(@Header("Authorization") token: String): List<Mission>
+    suspend fun getMissions(): List<ServerMission>
 }

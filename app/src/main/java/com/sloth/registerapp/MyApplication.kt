@@ -4,7 +4,9 @@ package com.sloth.registerapp // Certifique-se de que o package name está corre
 import android.app.Application
 import android.content.Context
 import com.cySdkyc.clx.Helper
+import dagger.hilt.android.HiltAndroidApp
 
+@HiltAndroidApp
 class MyApplication : Application() {
 
     override fun attachBaseContext(base: Context?) {

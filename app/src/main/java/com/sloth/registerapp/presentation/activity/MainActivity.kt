@@ -31,8 +31,10 @@ import com.sloth.registerapp.presentation.screen.WelcomeScreen
 import com.sloth.registerapp.presentation.theme.RegisterAppTheme
 import com.sloth.registerapp.ui.mission.MissionUiState
 import com.sloth.registerapp.ui.mission.MissionViewModel
+import dagger.hilt.android.AndroidEntryPoint
 import dji.sdk.sdkmanager.DJISDKManager
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

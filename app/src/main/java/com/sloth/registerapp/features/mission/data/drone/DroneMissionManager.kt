@@ -205,7 +205,7 @@ class DroneMissionManager(
         operator.uploadMission { error ->
             if (error == null) {
                 Log.i(TAG, "Upload da missão v4 concluído com sucesso!")
-                _missionState.value = MissionState.FINISHED
+                _missionState.value = MissionState.READY_TO_EXECUTE
             } else {
                 Log.e(TAG, "Falha no upload da missão v4: ${error.description}")
                 _missionState.value = MissionState.ERROR
@@ -222,7 +222,7 @@ class DroneMissionManager(
                 }
             }
         } else {
-            Log.w(TAG, "Não foi possível iniciar a missão. Estado atual: ${waypointMissionOperator?.currentState?.name}")
+            Log.w(TAG, "Não foi possível iniciar a missão. Estado atual: ${_missionState.value}")
         }
     }
 

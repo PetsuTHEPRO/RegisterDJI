@@ -60,14 +60,14 @@ class MissionControlActivity : ComponentActivity() {
                     MissionControlScreen(
                         missionName = missionData.name,
                         missionStatus = missionState.toUiStatus(),
-                        totalWaypoints = missionData.waypoints.size,
+                        //totalWaypoints = missionData.waypoints.size,
                         // TODO: Get currentWaypoint, progress, altitude, speed, distance, battery, gpsSignal from a drone state provider
                         onBackClick = { finish() },
                         onStartMission = { viewModel.startMission() },
                         onPauseMission = { viewModel.pauseMission() },
                         onResumeMission = { viewModel.resumeMission() },
                         onStopMission = { viewModel.stopMission() },
-                        onEmergencyStop = { viewModel.stopMission() }
+                        //onEmergencyStop = { viewModel.stopMission() }
                     )
                 }
             }

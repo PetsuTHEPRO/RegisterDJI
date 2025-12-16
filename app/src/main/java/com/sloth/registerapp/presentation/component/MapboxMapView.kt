@@ -27,7 +27,7 @@ fun MapboxMapView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember { MapView(context) }
-    
+
     // Gerenciadores de anotação
     var pointAnnotationManager by remember { mutableStateOf<PointAnnotationManager?>(null) }
     var polylineAnnotationManager by remember { mutableStateOf<PolylineAnnotationManager?>(null) }
@@ -36,7 +36,7 @@ fun MapboxMapView(
     LaunchedEffect(waypoints, pointAnnotationManager, polylineAnnotationManager) {
         pointAnnotationManager?.deleteAll()
         polylineAnnotationManager?.deleteAll()
-        
+
         waypoints.forEachIndexed { index, waypoint ->
             val pointAnnotationOptions = PointAnnotationOptions()
                 .withPoint(Point.fromLngLat(waypoint.longitude, waypoint.latitude))
@@ -76,11 +76,11 @@ fun MapboxMapView(
     AndroidView(
         factory = {
             mapView.apply {
-                getMapboxMap().loadStyle(Style.SATELLITE_STREETS) {
+                mapboxMap.loadStyle(Style.SATELLITE_STREETS) {
                     // Inicializa os gerenciadores de anotação aqui
                     pointAnnotationManager = annotations.createPointAnnotationManager()
                     polylineAnnotationManager = annotations.createPolylineAnnotationManager()
-                    onMapReady(getMapboxMap())
+                    onMapReady(mapboxMap)
                 }
             }
         },

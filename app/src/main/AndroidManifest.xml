@@ -82,7 +82,7 @@
         <activity
             android:name=".presentation.activity.PhoneCameraActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
         <activity
             android:name=".presentation.activity.SettingsActivity"
@@ -121,7 +121,7 @@
         <activity
             android:name=".presentation.activity.MissionControlActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
 
     </application>

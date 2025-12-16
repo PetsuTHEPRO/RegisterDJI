@@ -1,19 +1,23 @@
 package com.sloth.registerapp.ui.mission
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.sloth.registerapp.data.network.RetrofitClient
 import com.sloth.registerapp.data.repository.MissionRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
+import com.sloth.registerapp.data.repository.TokenRepository
+import com.sloth.registerapp.model.Mission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import javax.inject.Inject
 
-@HiltViewModel
-class MissionViewModel @Inject constructor(
-    private val missionRepository: MissionRepository
-) : ViewModel() {
+class MissionViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val missionRepository = MissionRepository(
+        RetrofitClient.getInstance(application),
+        TokenRepository.getInstance(application)
+    )
 
     private val _uiState = MutableStateFlow<MissionUiState>(MissionUiState.Idle)
     val uiState: StateFlow<MissionUiState> = _uiState

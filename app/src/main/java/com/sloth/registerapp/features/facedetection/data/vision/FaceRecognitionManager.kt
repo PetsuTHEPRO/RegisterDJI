@@ -1,10 +1,10 @@
-package com.sloth.registerapp.data.vision
+package com.sloth.registerapp.features.facedetection.data.vision
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
-import com.sloth.deteccaofacial.FaceRegistrationService
-import com.sloth.deteccaofacial.domain.model.FaceResult
+import com.sloth.registerapp.features.facedetection.domain.service.FaceRegistrationService
+import com.sloth.registerapp.features.facedetection.domain.model.FaceResult
 import com.sloth.registerapp.core.utils.FileManager.saveDebugBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

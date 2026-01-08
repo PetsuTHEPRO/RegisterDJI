@@ -1,8 +1,8 @@
-package com.sloth.registerapp.data.drone
+package com.sloth.registerapp.features.mission.data.drone
 
 import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
-import com.sloth.registerapp.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.model.ServerMission
 import dji.common.error.DJIError
 import dji.common.mission.waypoint.*
 import dji.common.product.Model
@@ -31,7 +31,7 @@ enum class MissionState {
 }
 
 class DroneMissionManager(
-    private val djiConnectionHelper: com.sloth.registerapp.data.sdk.DJIConnectionHelper,
+    private val djiConnectionHelper: com.sloth.registerapp.features.mission.data.sdk.DJIConnectionHelper,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) {
 

@@ -54,46 +54,37 @@
             android:required="false" />
         <uses-library
             android:name="com.android.future.usb.accessory"
-            android:required="false" /> <!-- Tela principal -->
+            android:required="false" />
+
+        <!-- Tela Principal - Nova App de Drone -->
         <activity
-            android:name=".presentation.activity.MainActivity"
+            android:name="com.sloth.registerapp.features.mission.ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
+            android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
             </intent-filter>
-
             <meta-data
                 android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
                 android:resource="@xml/accessory_filter" />
-        </activity> <!-- Feed de vídeo -->
+        </activity>
+
+        <!-- Controle de Missão -->
         <activity
-            android:name=".presentation.activity.VideoFeedActivity"
+            android:name="com.sloth.registerapp.features.mission.ui.MissionControlActivity"
             android:exported="false"
             android:screenOrientation="landscape"
+            android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity" />
-        <activity
-            android:name=".presentation.activity.PhoneCameraActivity"
-            android:exported="false"
-            android:screenOrientation="landscape"
-            tools:ignore="LockedOrientationActivity" />
-        <activity
-            android:name=".presentation.activity.SettingsActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            tools:ignore="LockedOrientationActivity" />
-        <activity
-            android:name=".presentation.activity.AboutActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            tools:ignore="LockedOrientationActivity" />
+
+        <!-- Feed de vídeo agora via Compose (sem Activity dedicada) -->
 
         <!-- Cadastro Facial (VERTICAL) -->
         <!-- ✅ ADICIONE ESTA ACTIVITY -->
@@ -116,12 +107,6 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.RegisterApp"
-            tools:ignore="LockedOrientationActivity" />
-
-        <activity
-            android:name=".presentation.activity.MissionControlActivity"
-            android:exported="false"
-            android:screenOrientation="landscape"
             tools:ignore="LockedOrientationActivity" />
 
     </application>

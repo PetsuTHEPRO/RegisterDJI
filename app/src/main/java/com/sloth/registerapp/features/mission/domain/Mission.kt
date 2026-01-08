@@ -1,4 +1,4 @@
-package com.sloth.registerapp.model
+package com.sloth.registerapp.features.mission.domain.model
 
 data class Mission(
     val id: Int,

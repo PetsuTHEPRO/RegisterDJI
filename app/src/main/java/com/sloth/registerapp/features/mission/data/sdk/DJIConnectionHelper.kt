@@ -1,4 +1,4 @@
-package com.sloth.registerapp.data.sdk
+package com.sloth.registerapp.features.mission.data.sdk
 
 import android.content.Context
 import android.util.Log

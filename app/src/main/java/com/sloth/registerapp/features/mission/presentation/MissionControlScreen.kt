@@ -117,23 +117,24 @@ fun MissionControlScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp), // Reduced vertical padding
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Botão voltar + Nome
+                    // Botão voltar + Nome (Removed back button)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        IconButton(
-                            onClick = onBackClick,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(darkBg.copy(alpha = 0.6f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.ArrowBack, null, tint = textGray)
-                        }
+                        // Removed IconButton for ArrowBack
+                        // IconButton(
+                        //     onClick = onBackClick,
+                        //     modifier = Modifier
+                        //         .size(40.dp)
+                        //         .background(darkBg.copy(alpha = 0.6f), CircleShape)
+                        // ) {
+                        //     Icon(Icons.Default.ArrowBack, null, tint = textGray)
+                        // }
 
                         Text("🚁", fontSize = 24.sp)
 
@@ -228,8 +229,8 @@ fun MissionControlScreen(
             shadowElevation = 16.dp
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Botões de controle baseados no status
                 Row(
@@ -242,8 +243,7 @@ fun MissionControlScreen(
                             Button(
                                 onClick = onStartMission,
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .height(56.dp),
+                                    .height(48.dp), // Decreased height
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = greenOnline
@@ -263,7 +263,7 @@ fun MissionControlScreen(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 color = yellowWarning.copy(alpha = 0.2f),
                                 border = BorderStroke(1.dp, yellowWarning)
@@ -295,7 +295,7 @@ fun MissionControlScreen(
                                 onClick = onPauseMission,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = yellowWarning
@@ -315,7 +315,7 @@ fun MissionControlScreen(
                                 onClick = { showStopDialog = true },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = redDanger
@@ -337,7 +337,7 @@ fun MissionControlScreen(
                                 onClick = onResumeMission,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = greenOnline
@@ -357,7 +357,7 @@ fun MissionControlScreen(
                                 onClick = { showStopDialog = true },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = redDanger
@@ -373,11 +373,10 @@ fun MissionControlScreen(
                             }
                         }
 
-                        MissionStatus.STOPPED -> {
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 color = redDanger.copy(alpha = 0.1f),
                                 border = BorderStroke(1.dp, redDanger)
@@ -407,7 +406,7 @@ fun MissionControlScreen(
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 color = greenOnline.copy(alpha = 0.2f),
                                 border = BorderStroke(1.dp, greenOnline)
@@ -438,7 +437,7 @@ fun MissionControlScreen(
                                 onClick = onStartMission,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = primaryBlue

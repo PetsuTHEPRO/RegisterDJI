@@ -3,6 +3,7 @@ package com.sloth.registerapp.features.mission.data.drone
 import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
 import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.model.Waypoint as ServerWaypoint
 import dji.common.error.DJIError
 import dji.common.mission.waypoint.*
 import dji.common.product.Model
@@ -11,9 +12,16 @@ import dji.sdk.mission.waypoint.WaypointMissionOperator
 import dji.sdk.mission.waypoint.WaypointMissionOperatorListener
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 // O enum de estado interno permanece o mesmo
 enum class MissionState {
@@ -36,222 +44,610 @@ class DroneMissionManager(
 ) {
 
     private val SUPPORTED_DRONE_MODELS = listOf(
-         "Mavic Pro",
-         "Mavic 2 Pro",
-         "Mavic 2 Zoom",
-         "Mavic 2 Enterprise",
-         "Phantom 4 Pro",
-         "Phantom 4 RTK",
-         "Phantom 3 Professional",
-         "Phantom 3 Advanced",
-         "Inspire 1",
-         "Inspire 2"
-         // Adicionar outros modelos da lista do SDK V4 aqui
+        "Mavic Pro",
+        "Mavic 2 Pro",
+        "Mavic 2 Zoom",
+        "Mavic 2 Enterprise",
+        "Phantom 4 Pro",
+        "Phantom 4 RTK",
+        "Phantom 3 Professional",
+        "Phantom 3 Advanced",
+        "Inspire 1",
+        "Inspire 2"
     )
-    private val TAG = "DroneMissionManager"
-    // API do SDK v4 para obter o operador de missão.
-    // É uma boa prática verificar se MissionControl não é nulo.
-    private val waypointMissionOperator: WaypointMissionOperator? = MissionControl.getInstance()?.waypointMissionOperator
+
+    companion object {
+        private const val TAG = "DroneMissionManager"
+        private const val UPLOAD_TIMEOUT_MS = 30000L  // 30 segundos
+        private const val START_TIMEOUT_MS = 10000L   // 10 segundos
+        private const val STOP_TIMEOUT_MS = 10000L    // 10 segundos
+        private const val PAUSE_TIMEOUT_MS = 5000L    // 5 segundos
+        private const val RESUME_TIMEOUT_MS = 5000L   // 5 segundos
+        private const val MIN_AUTO_FLIGHT_SPEED = 0.5f
+        private const val MAX_AUTO_FLIGHT_SPEED = 20f
+        private const val MIN_MAX_FLIGHT_SPEED = 0.5f
+        private const val MAX_FLIGHT_SPEED_LIMIT = 30f
+        private const val MAX_RETRY_ATTEMPTS = 3
+        private const val RETRY_DELAY_MS = 1000L
+    }
+
+    private fun getWaypointMissionOperator(): WaypointMissionOperator? =
+        MissionControl.getInstance()?.waypointMissionOperator
 
     private val _missionState = MutableStateFlow(MissionState.IDLE)
     val missionState = _missionState.asStateFlow()
 
+    // Listener para rastrear eventos do operador
+    private val missionListener = MissionListenerImpl()
+    private var listenerAdded = false
+
     init {
+        initializeConnectionMonitoring()
+        addMissionListener()
+    }
+
+    private fun initializeConnectionMonitoring() {
         scope.launch {
             djiConnectionHelper.product.collect { product ->
                 when {
                     product == null -> {
+                        Log.d(TAG, "✈️ Drone desconectado")
                         _missionState.value = MissionState.IDLE
+                        // Remover listener se estiver adicionado
+                        if (listenerAdded) {
+                            getWaypointMissionOperator()?.removeListener(missionListener)
+                            listenerAdded = false
+                            Log.d(TAG, "ℹ️ Mission Listener removido (drone desconectado)")
+                        }
                     }
 
                     product.model == null -> {
-                        Log.e(TAG, "Produto conectado sem modelo definido")
+                        Log.e(TAG, "❌ Produto conectado sem modelo definido")
                         _missionState.value = MissionState.ERROR
                     }
 
                     !isSupported(product.model) -> {
                         Log.e(
                             TAG,
-                            "O drone conectado (${product.model.displayName}) não suporta missões de waypoint."
+                            "❌ Drone não suportado: ${product.model.displayName}"
                         )
                         _missionState.value = MissionState.ERROR
                     }
 
                     else -> {
-                        _missionState.value = MissionState.IDLE
+                        Log.d(TAG, "✅ Drone conectado: ${product.model.displayName}")
+                        if (_missionState.value == MissionState.ERROR) {
+                            _missionState.value = MissionState.IDLE
+                        }
+                        // Tentar adicionar listener quando o produto conectar
+                        addMissionListener()
                     }
                 }
             }
         }
+    }
 
-        if (!checkOperator()) {
-            Log.e(
-                TAG,
-                "WaypointMissionOperator indisponível no momento."
-            )
-            _missionState.value = MissionState.ERROR
+    private fun addMissionListener() {
+        val operator = getWaypointMissionOperator()
+        if (operator == null) {
+            Log.w(TAG, "⚠️ WaypointMissionOperator ainda não disponível (SDK inicializando?)")
+            return
         }
 
-        // Adiciona um listener para receber atualizações de status do operador de missão
-        waypointMissionOperator?.addListener(object : WaypointMissionOperatorListener {
-            override fun onDownloadUpdate(event: WaypointMissionDownloadEvent) {
-
-                val error = event.error
-                val progress = event.progress
-
-                if (error != null) {
-                    Log.e(TAG, "Erro no download da missão: ${error.description}")
-                    _missionState.value = MissionState.ERROR
-                    return
-                }
-
-                if (progress != null) {
-                    _missionState.value = MissionState.DOWNLOADING
-
-                    Log.d(
-                        TAG,
-                        "Download missão: ${progress.downloadedWaypointIndex}/${progress.totalWaypointCount}"
-                    )
-
-                    if (progress.downloadedWaypointIndex == progress.totalWaypointCount) {
-                        _missionState.value = MissionState.DOWNLOAD_FINISHED
-                    }
-                }
-            }
-
-            override fun onUploadUpdate(event: WaypointMissionUploadEvent) {
-                val currentState = event.currentState
-                if (currentState == WaypointMissionState.UPLOADING) {
-                    _missionState.value = MissionState.UPLOADING
-                } else if (currentState == WaypointMissionState.READY_TO_EXECUTE) {
-                    _missionState.value = MissionState.READY_TO_EXECUTE
-                }
-            }
-            
-            override fun onExecutionStart() {
-                _missionState.value = MissionState.EXECUTING
-            }
-
-            override fun onExecutionUpdate(event: WaypointMissionExecutionEvent) {
-                val currentState = event.currentState
-                if (currentState == WaypointMissionState.EXECUTING) {
-                    _missionState.value = MissionState.EXECUTING
-                } else if (currentState == WaypointMissionState.EXECUTION_PAUSED) {
-                    _missionState.value = MissionState.EXECUTION_PAUSED
-                }
-            }
-
-            override fun onExecutionFinish(error: DJIError?) {
-                if (error == null) {
-                    _missionState.value = MissionState.FINISHED
-                    Log.i(TAG, "Missão v4 concluída com sucesso!")
-                } else {
-                    _missionState.value = MissionState.ERROR
-                    Log.e(TAG, "Erro na conclusão da missão v4: ${error.description}")
-                }
-            }
-        })
+        if (!listenerAdded) {
+            operator.addListener(missionListener)
+            listenerAdded = true
+            Log.d(TAG, "✅ Mission Listener adicionado")
+        }
     }
 
     /**
-     * Prepara, carrega e faz o upload de uma missão v4 para o drone.
+     * Verifica se o drone está realmente conectado.
+     * @return true se conectado, false caso contrário
      */
-    fun prepareAndUploadMission(missionData: ServerMission) {
-        val operator = waypointMissionOperator ?: run {
-            Log.e(TAG, "WaypointMissionOperator não está disponível.")
-            _missionState.value = MissionState.ERROR
-            return
-        }
+    private fun isDroneConnected(): Boolean {
+        val product = djiConnectionHelper.getProductInstance()
+        return product != null
+    }
 
+    /**
+     * Valida se o drone está conectado antes de executar operações.
+     * @throws DJIMissionException se o drone não estiver conectado
+     */
+    private fun validateDroneConnection() {
+        if (!isDroneConnected()) {
+            val product = djiConnectionHelper.getProductInstance()
+            Log.e(TAG, "❌ DRONE NÃO CONECTADO!")
+            Log.e(TAG, "  📱 Product: ${product?.model?.displayName ?: "NULL"}")
+            Log.e(TAG, "  ⚠️ Não é possível executar operações sem o drone conectado")
+            throw DJIMissionException(
+                "Drone não está conectado. Conecte o drone e tente novamente."
+            )
+        }
+    }
+
+    /**
+     * Faz diagnóstico do estado atual do drone antes de carregar missão.
+     * Ajuda a identificar por que uma missão não pode ser carregada.
+     */
+    private fun diagnosticoDroneState() {
+        try {
+            val product = djiConnectionHelper.getProductInstance()
+            
+            Log.d(TAG, "🔍 === DIAGNÓSTICO DO DRONE ===")
+            
+            // Verificar conexão REAL do drone
+            if (product != null) {
+                Log.d(TAG, "  ✅ Drone: CONECTADO")
+                Log.d(TAG, "  📱 Modelo: ${product.model?.displayName ?: "Desconhecido"}")
+                Log.d(TAG, "  🆔 Firmware: ${product.firmwarePackageVersion ?: "N/A"}")
+            } else {
+                Log.e(TAG, "  ❌ Drone: NÃO CONECTADO")
+                Log.e(TAG, "  💡 CAUSA: Product é NULL")
+            }
+            
+            // Verificar operador (sempre está disponível se SDK foi inicializado)
+            if (getWaypointMissionOperator() == null) {
+                Log.w(TAG, "  ⚠️ WaypointMissionOperator: NÃO disponível (SDK não inicializado)")
+            } else {
+                Log.d(TAG, "  ℹ️ WaypointMissionOperator: Disponível (SDK inicializado)")
+            }
+            
+            // Verificar estado da missão
+            Log.d(TAG, "  🎯 Estado da missão: ${_missionState.value}")
+            Log.d(TAG, "  📡 Listener adicionado: $listenerAdded")
+            
+            Log.d(TAG, "🔍 === FIM DIAGNÓSTICO ===")
+            
+            if (product == null) {
+                Log.e(TAG, "")
+                Log.e(TAG, "❌ AÇÃO NECESSÁRIA:")
+                Log.e(TAG, "   1. Ligue o DRONE")
+                Log.e(TAG, "   2. Ligue o CONTROLE REMOTO")
+                Log.e(TAG, "   3. Conecte o cabo USB ao dispositivo")
+                Log.e(TAG, "   4. Aguarde a conexão ser estabelecida")
+                Log.e(TAG, "")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro ao fazer diagnóstico: ${e.message}")
+        }
+    }
+
+    /**
+     * Prepara, valida, carrega e faz upload de uma missão para o drone.
+     * Inclui retry automático em caso de falha de upload.
+     * @throws IllegalArgumentException se os parâmetros forem inválidos
+     * @throws DJIMissionException se houver erro no upload ou se drone não estiver conectado
+     */
+    suspend fun prepareAndUploadMission(missionData: ServerMission) {
         _missionState.value = MissionState.PREPARING
 
-        val waypointList = missionData.waypoints
-            .filter { wp ->
-                val alt = wp.altitude.toFloat()
-                alt in DroneConstants.MIN_ALTITUDE..DroneConstants.MAX_ALTITUDE
-            }
-            .map { wp ->
-                Waypoint(
-                    wp.latitude,
-                    wp.longitude,
-                    wp.altitude.toFloat()
-                )
-            }
+        try {
+            Log.i(TAG, "🚀 Iniciando preparação de missão: ${missionData.name}")
+            
+            // VALIDAÇÃO CRÍTICA: Verificar se o drone está conectado ANTES de tudo
+            validateDroneConnection()
+            
+            // Verificar operador após validação de conexão
+            val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+                "WaypointMissionOperator não está disponível. Reinicie o app."
+            )
+            
+            // Fazer diagnóstico do drone
+            diagnosticoDroneState()
 
-        if (waypointList.isEmpty()) {
-            Log.e(TAG, "Não é possível criar missão sem waypoints.")
-            _missionState.value = MissionState.ERROR
-            return
-        }
+            // 1. Validar e filtrar waypoints
+            Log.d(TAG, "📍 Validando ${missionData.waypoints.size} waypoints...")
+            val waypointList = validateAndFilterWaypoints(missionData.waypoints)
+            Log.d(TAG, "✅ ${waypointList.size} waypoints válidos após filtragem")
 
-        val missionBuilder = WaypointMission.Builder().apply {
-            finishedAction(WaypointMissionFinishedAction.valueOf(missionData.finished_action))
-            headingMode(WaypointMissionHeadingMode.valueOf(missionData.heading_mode))
-            autoFlightSpeed(missionData.auto_flight_speed.toFloat())
-            maxFlightSpeed(missionData.max_flight_speed.toFloat())
-            flightPathMode(WaypointMissionFlightPathMode.valueOf(missionData.flight_path_mode))
-            waypointList(waypointList)
-            waypointCount(waypointList.size)
-        }
+            // 2. Validar parâmetros de voo
+            Log.d(TAG, "⚙️ Validando parâmetros de voo...")
+            validateFlightParameters(
+                missionData.auto_flight_speed.toFloat(),
+                missionData.max_flight_speed.toFloat()
+            )
+            Log.d(TAG, "✅ Parâmetros de voo validados")
 
-        val mission = missionBuilder.build()
-        val loadError = operator.loadMission(mission)
-        if (loadError != null) {
-            Log.e(TAG, "Erro ao carregar a missão v4: ${loadError.description}")
-            _missionState.value = MissionState.ERROR
-            return
-        }
+            // 3. Construir missão
+            Log.d(TAG, "🔧 Construindo missão DJI...")
+            val mission = buildWaypointMission(missionData, waypointList)
+            Log.d(TAG, "✅ Missão construída: ${mission.waypointCount} waypoints")
 
-        operator.uploadMission { error ->
-            if (error == null) {
-                Log.i(TAG, "Upload da missão v4 concluído com sucesso!")
-                _missionState.value = MissionState.READY_TO_EXECUTE
-            } else {
-                Log.e(TAG, "Falha no upload da missão v4: ${error.description}")
+            // 4. Carregar missão
+            Log.d(TAG, "📤 Carregando missão no operador...")
+            val loadError = operator.loadMission(mission)
+            if (loadError != null) {
                 _missionState.value = MissionState.ERROR
+                val errorMessage = buildString {
+                    append("Erro ao carregar missão no drone: ")
+                    append(loadError.description)
+                    append(" (Código: ${loadError.errorCode})")
+                }
+                Log.e(TAG, "❌ $errorMessage")
+                
+                // Fazer diagnóstico novamente quando falha
+                Log.e(TAG, "⚠️ Diagnóstico após falha de carregamento:")
+                diagnosticoDroneState()
+                
+                throw DJIMissionException(errorMessage)
             }
+
+            Log.i(TAG, "✅ Missão carregada com sucesso no drone (${waypointList.size} waypoints, ${mission.waypointCount} confirmados)")
+
+            // 5. Fazer upload com retry e timeout
+            Log.d(TAG, "☁️ Iniciando upload da missão com retry...")
+            try {
+                retryOperation(MAX_RETRY_ATTEMPTS, RETRY_DELAY_MS) {
+                    withTimeout(UPLOAD_TIMEOUT_MS) {
+                        uploadMissionSuspend(operator)
+                    }
+                }
+                Log.i(TAG, "✅ Upload da missão concluído com sucesso!")
+                _missionState.value = MissionState.READY_TO_EXECUTE
+            } catch (e: TimeoutCancellationException) {
+                _missionState.value = MissionState.ERROR
+                Log.e(TAG, "❌ Upload timeout após ${UPLOAD_TIMEOUT_MS}ms")
+                throw DJIMissionException("Upload timeout (${UPLOAD_TIMEOUT_MS}ms)", e)
+            } catch (e: Exception) {
+                _missionState.value = MissionState.ERROR
+                Log.e(TAG, "❌ Erro durante upload: ${e.message}")
+                throw e
+            }
+
+        } catch (e: Exception) {
+            _missionState.value = MissionState.ERROR
+            Log.e(TAG, "❌ ERRO CRÍTICO ao preparar/upload missão: ${e.message}")
+            e.printStackTrace()
+            throw e
         }
     }
 
-    fun startMission() {
-        if (waypointMissionOperator?.currentState == WaypointMissionState.READY_TO_EXECUTE) {
-            waypointMissionOperator?.startMission { error ->
-                if (error != null) {
-                    Log.e(TAG, "Falha ao iniciar a missão v4: ${error.description}")
-                    _missionState.value = MissionState.ERROR
+    suspend fun startMission() {
+        // Validar conexão do drone
+        validateDroneConnection()
+        
+        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+            "WaypointMissionOperator não está disponível"
+        )
+
+        if (operator.currentState != WaypointMissionState.READY_TO_EXECUTE) {
+            throw DJIMissionException(
+                "Estado incorreto para iniciar. Estado atual: ${operator.currentState}"
+            )
+        }
+
+        try {
+            withTimeout(START_TIMEOUT_MS) {
+                startMissionSuspend(operator)
+            }
+            Log.i(TAG, "✅ Missão iniciada com sucesso!")
+        } catch (e: TimeoutCancellationException) {
+            _missionState.value = MissionState.ERROR
+            throw DJIMissionException("Start mission timeout (${START_TIMEOUT_MS}ms)", e)
+        }
+    }
+
+    suspend fun stopMission() {
+        // Validar conexão do drone
+        validateDroneConnection()
+        
+        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+            "WaypointMissionOperator não está disponível"
+        )
+
+        try {
+            withTimeout(STOP_TIMEOUT_MS) {
+                stopMissionSuspend(operator)
+            }
+            _missionState.value = MissionState.EXECUTION_STOPPED
+            Log.i(TAG, "✅ Missão parada com sucesso!")
+        } catch (e: TimeoutCancellationException) {
+            _missionState.value = MissionState.ERROR
+            throw DJIMissionException("Stop mission timeout (${STOP_TIMEOUT_MS}ms)", e)
+        }
+    }
+
+    suspend fun pauseMission() {
+        // Validar conexão do drone
+        validateDroneConnection()
+        
+        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+            "WaypointMissionOperator não está disponível"
+        )
+
+        try {
+            withTimeout(PAUSE_TIMEOUT_MS) {
+                pauseMissionSuspend(operator)
+            }
+            Log.i(TAG, "✅ Missão pausada com sucesso!")
+        } catch (e: TimeoutCancellationException) {
+            _missionState.value = MissionState.ERROR
+            Log.e(TAG, "❌ Timeout ao pausar missão (${PAUSE_TIMEOUT_MS}ms)")
+            throw DJIMissionException("Timeout ao pausar missão", e)
+        } catch (e: Exception) {
+            _missionState.value = MissionState.ERROR
+            Log.e(TAG, "❌ Erro ao pausar missão: ${e.message}")
+            throw DJIMissionException("Erro ao pausar missão", e)
+        }
+    }
+
+    suspend fun resumeMission() {
+        // Validar conexão do drone
+        validateDroneConnection()
+        
+        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+            "WaypointMissionOperator não está disponível"
+        )
+
+        try {
+            withTimeout(RESUME_TIMEOUT_MS) {
+                resumeMissionSuspend(operator)
+            }
+            Log.i(TAG, "✅ Missão retomada com sucesso!")
+        } catch (e: TimeoutCancellationException) {
+            _missionState.value = MissionState.ERROR
+            Log.e(TAG, "❌ Timeout ao retomar missão (${RESUME_TIMEOUT_MS}ms)")
+            throw DJIMissionException("Timeout ao retomar missão", e)
+        } catch (e: Exception) {
+            _missionState.value = MissionState.ERROR
+            Log.e(TAG, "❌ Erro ao retomar missão: ${e.message}")
+            throw DJIMissionException("Erro ao retomar missão", e)
+        }
+    }
+
+    // ========== RETRY LOGIC ==========
+
+    /**
+     * Executa uma operação com retry automático e backoff exponencial.
+     * @param maxAttempts número máximo de tentativas (padrão 3)
+     * @param initialDelayMs delay inicial em ms (padrão 100)
+     * @param block a operação a ser executada
+     * @throws Exception quando todas as tentativas falham
+     */
+    private suspend inline fun <T> retryOperation(
+        maxAttempts: Int = MAX_RETRY_ATTEMPTS,
+        initialDelayMs: Long = RETRY_DELAY_MS,
+        crossinline block: suspend () -> T
+    ): T {
+        var lastException: Exception? = null
+        var delayMs = initialDelayMs
+
+        for (attempt in 1..maxAttempts) {
+            try {
+                Log.d(TAG, "🔄 Tentativa $attempt/$maxAttempts...")
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                Log.w(TAG, "⚠️ Tentativa $attempt falhou: ${e.message}")
+
+                if (attempt < maxAttempts) {
+                    delay(delayMs)
+                    delayMs *= 2 // Backoff exponencial: 100ms, 200ms, 400ms, ...
                 }
             }
-        } else {
-            Log.w(TAG, "Não foi possível iniciar a missão. Estado atual: ${_missionState.value}")
+        }
+
+        throw lastException ?: Exception("Operação falhou após $maxAttempts tentativas")
+    }
+
+    // ========== SUSPEND FUNCTIONS PARA CALLBACKS ==========
+
+    private suspend fun uploadMissionSuspend(operator: WaypointMissionOperator) =
+        suspendCancellableCoroutine<Unit> { continuation ->
+            operator.uploadMission { error ->
+                if (error == null) {
+                    continuation.resume(Unit)
+                } else {
+                    continuation.resumeWithException(
+                        DJIMissionException("Falha no upload: ${error.description}")
+                    )
+                }
+            }
+        }
+
+    private suspend fun startMissionSuspend(operator: WaypointMissionOperator) =
+        suspendCancellableCoroutine<Unit> { continuation ->
+            operator.startMission { error ->
+                if (error == null) {
+                    continuation.resume(Unit)
+                } else {
+                    continuation.resumeWithException(
+                        DJIMissionException("Falha ao iniciar: ${error.description}")
+                    )
+                }
+            }
+        }
+
+    private suspend fun stopMissionSuspend(operator: WaypointMissionOperator) =
+        suspendCancellableCoroutine<Unit> { continuation ->
+            operator.stopMission { error ->
+                if (error == null) {
+                    continuation.resume(Unit)
+                } else {
+                    continuation.resumeWithException(
+                        DJIMissionException("Falha ao parar: ${error.description}")
+                    )
+                }
+            }
+        }
+
+    private suspend fun pauseMissionSuspend(operator: WaypointMissionOperator) =
+        suspendCancellableCoroutine<Unit> { continuation ->
+            operator.pauseMission { error ->
+                if (error == null) {
+                    continuation.resume(Unit)
+                } else {
+                    continuation.resumeWithException(
+                        DJIMissionException("Falha ao pausar: ${error.description}")
+                    )
+                }
+            }
+        }
+
+    private suspend fun resumeMissionSuspend(operator: WaypointMissionOperator) =
+        suspendCancellableCoroutine<Unit> { continuation ->
+            operator.resumeMission { error ->
+                if (error == null) {
+                    continuation.resume(Unit)
+                } else {
+                    continuation.resumeWithException(
+                        DJIMissionException("Falha ao retomar: ${error.description}")
+                    )
+                }
+            }
+        }
+
+    // ========== VALIDAÇÕES ==========
+
+    /**
+     * Valida e extrai dados de coordenadas de um waypoint.
+     * @return Triple(latitude, longitude, altitude) se válido, ou null se inválido
+     */
+    private fun extractAndValidateCoordinates(wp: Any): Triple<Double, Double, Double>? {
+        return try {
+            val (lat, lng, alt) = when (wp) {
+                is ServerWaypoint -> {
+                    // Nosso modelo de servidor
+                    Triple(wp.latitude, wp.longitude, wp.altitude)
+                }
+                is Map<*, *> -> {
+                    // Map genérico
+                    @Suppress("UNCHECKED_CAST")
+                    val map = wp as Map<String, Any>
+                    Triple(
+                        map["latitude"] as Double,
+                        map["longitude"] as Double,
+                        (map["altitude"] as Number).toDouble()
+                    )
+                }
+                else -> {
+                    // Qualquer outro tipo (incluindo DJI Waypoint): extrair via reflexão
+                    Triple(
+                        wp.javaClass.getMethod("getLatitude").invoke(wp) as Double,
+                        wp.javaClass.getMethod("getLongitude").invoke(wp) as Double,
+                        (wp.javaClass.getMethod("getAltitude").invoke(wp) as Number).toDouble()
+                    )
+                }
+            }
+
+            // Validar latitude
+            if (lat !in -90.0..90.0) {
+                Log.w(TAG, "⚠️ Latitude inválida: $lat (permitido: -90 a 90)")
+                return null
+            }
+
+            // Validar longitude
+            if (lng !in -180.0..180.0) {
+                Log.w(TAG, "⚠️ Longitude inválida: $lng (permitido: -180 a 180)")
+                return null
+            }
+
+            // Validar altitude
+            if (alt.toFloat() !in DroneConstants.MIN_ALTITUDE..DroneConstants.MAX_ALTITUDE) {
+                Log.w(TAG, "⚠️ Altitude inválida: $alt m (permitido: ${DroneConstants.MIN_ALTITUDE}-${DroneConstants.MAX_ALTITUDE}m)")
+                return null
+            }
+
+            Triple(lat, lng, alt)
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Erro ao processar waypoint: ${e.message}")
+            null
         }
     }
 
-    fun stopMission() {
-        waypointMissionOperator?.stopMission { error ->
-            if (error == null) {
-                _missionState.value = MissionState.IDLE
-            } else {
-                Log.e(TAG, "Falha ao parar a missão v4: ${error.description}")
-                _missionState.value = MissionState.ERROR
-            }
+    private fun validateAndFilterWaypoints(waypoints: List<Any>): List<Waypoint> {
+        if (waypoints.isEmpty()) {
+            throw IllegalArgumentException("Nenhum waypoint fornecido")
         }
+
+        Log.d(TAG, "📍 Processando $waypoints.size} waypoints para validação...")
+
+        val validWaypoints = waypoints.mapIndexed { index, wp ->
+            val (latitude, longitude, altitude) = extractAndValidateCoordinates(wp) ?: return@mapIndexed null
+            Log.d(TAG, "  ✓ Waypoint #${index + 1}: lat=$latitude, lng=$longitude, alt=${altitude.toFloat()}m")
+            Waypoint(latitude, longitude, altitude.toFloat())
+        }.filterNotNull()
+
+        if (validWaypoints.isEmpty()) {
+            throw IllegalArgumentException(
+                "Nenhum waypoint válido após filtragem (altitude: ${DroneConstants.MIN_ALTITUDE}-${DroneConstants.MAX_ALTITUDE}m, lat: -90 a 90, lng: -180 a 180)"
+            )
+        }
+
+        Log.i(TAG, "✅ ${validWaypoints.size}/${waypoints.size} waypoints válidos")
+        return validWaypoints
     }
 
-    fun pauseMission() {
-        waypointMissionOperator?.pauseMission { error ->
-            if (error != null) {
-                Log.e(TAG, "Falha ao pausar a missão v4: ${error.description}")
-                _missionState.value = MissionState.ERROR
-            }
+    private fun validateFlightParameters(autoSpeed: Float, maxSpeed: Float) {
+        // Validar velocidade automática
+        if (autoSpeed !in MIN_AUTO_FLIGHT_SPEED..MAX_AUTO_FLIGHT_SPEED) {
+            throw IllegalArgumentException(
+                "Auto flight speed inválida: $autoSpeed (permitido: $MIN_AUTO_FLIGHT_SPEED-$MAX_AUTO_FLIGHT_SPEED m/s)"
+            )
         }
+
+        // Validar velocidade máxima
+        if (maxSpeed !in MIN_MAX_FLIGHT_SPEED..MAX_FLIGHT_SPEED_LIMIT) {
+            throw IllegalArgumentException(
+                "Max flight speed inválida: $maxSpeed (permitido: $MIN_MAX_FLIGHT_SPEED-$MAX_FLIGHT_SPEED_LIMIT m/s)"
+            )
+        }
+
+        // Validar relação entre velocidades
+        if (maxSpeed < autoSpeed) {
+            throw IllegalArgumentException(
+                "Max flight speed ($maxSpeed) não pode ser menor que auto flight speed ($autoSpeed)"
+            )
+        }
+
+        Log.d(TAG, "✅ Parâmetros de voo validados: auto=$autoSpeed m/s, max=$maxSpeed m/s")
     }
 
-    fun resumeMission() {
-        waypointMissionOperator?.resumeMission { error ->
-            if (error != null) {
-                Log.e(TAG, "Falha ao retomar a missão v4: ${error.description}")
-                _missionState.value = MissionState.ERROR
+    @Suppress("DEPRECATION")
+    private fun buildWaypointMission(
+        missionData: ServerMission,
+        waypointList: List<Waypoint>
+    ): WaypointMission {
+        return try {
+            // Validar enums antes de usar
+            val finishedAction = try {
+                WaypointMissionFinishedAction.valueOf(missionData.finished_action)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "⚠️ Ação final inválida: ${missionData.finished_action}, usando padrão")
+                WaypointMissionFinishedAction.NO_ACTION
             }
+
+            val headingMode = try {
+                WaypointMissionHeadingMode.valueOf(missionData.heading_mode)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "⚠️ Modo heading inválido: ${missionData.heading_mode}, usando padrão")
+                WaypointMissionHeadingMode.AUTO
+            }
+
+            val flightPathMode = try {
+                WaypointMissionFlightPathMode.valueOf(missionData.flight_path_mode)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "⚠️ Modo flight path inválido: ${missionData.flight_path_mode}, usando padrão")
+                WaypointMissionFlightPathMode.NORMAL
+            }
+
+            Log.d(TAG, "🔧 Configurando missão: finishedAction=$finishedAction, heading=$headingMode, flightPath=$flightPathMode")
+
+            WaypointMission.Builder().apply {
+                finishedAction(finishedAction)
+                headingMode(headingMode)
+                autoFlightSpeed(missionData.auto_flight_speed.toFloat())
+                maxFlightSpeed(missionData.max_flight_speed.toFloat())
+                flightPathMode(flightPathMode)
+                waypointList(waypointList)
+                waypointCount(waypointList.size)
+            }.build()
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro ao construir missão: ${e.message}")
+            e.printStackTrace()
+            throw IllegalArgumentException("Erro ao construir missão: ${e.message}", e)
         }
     }
 
@@ -260,13 +656,134 @@ class DroneMissionManager(
         return SUPPORTED_DRONE_MODELS.any { it.equals(name, ignoreCase = true) }
     }
 
-    private fun checkOperator(): Boolean {
-        if (waypointMissionOperator == null) {
-            _missionState.value = MissionState.ERROR
-            Log.e(TAG, "Operator unavailable")
-            return false
+    // ========== CLEANUP ==========
+
+    /**
+     * Libera recursos e remove listeners.
+     * DEVE ser chamado quando a Activity/Fragment é destruída.
+     */
+    /**
+     * Libera recursos e remove listeners de forma síncrona.
+     * DEVE ser chamado quando a Activity/Fragment é destruída.
+     * 
+     * IMPORTANTE: Este método é SÍNCRONO e bloqueia a thread até que
+     * a limpeza seja concluída, garantindo que todos os recursos sejam
+     * liberados antes que a Activity seja destruída.
+     */
+    fun destroy() {
+        try {
+            Log.d(TAG, "🛑 Iniciando limpeza de recursos...")
+
+            // 1. Parar missão em execução de forma não bloqueante (best-effort)
+            if (_missionState.value == MissionState.EXECUTING ||
+                _missionState.value == MissionState.EXECUTION_PAUSED
+            ) {
+                try {
+                    Log.d(TAG, "⏹️ Solicitando parada da missão (assíncrono)...")
+                    getWaypointMissionOperator()?.stopMission { error ->
+                        if (error == null) {
+                            Log.d(TAG, "✅ Missão parada durante cleanup")
+                        } else {
+                            Log.w(TAG, "⚠️ Falha ao parar missão no cleanup: ${error.description}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ Erro ao solicitar parada no cleanup: ${e.message}")
+                }
+            }
+
+            // 2. Remover listener
+            if (listenerAdded) {
+                getWaypointMissionOperator()?.removeListener(missionListener)
+                listenerAdded = false
+                Log.d(TAG, "✅ Mission Listener removido")
+            }
+
+            // 3. Cancelar coroutine scope
+            scope.cancel()
+            Log.d(TAG, "✅ Coroutine Scope cancelado")
+
+            Log.d(TAG, "✅ DroneMissionManager destruído com sucesso")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro ao destruir DroneMissionManager: ${e.message}")
         }
-        return true
     }
 
+    // ========== LISTENER INTERNO ==========
+
+    private inner class MissionListenerImpl : WaypointMissionOperatorListener {
+        override fun onDownloadUpdate(event: WaypointMissionDownloadEvent) {
+            val error = event.error
+            val progress = event.progress
+
+            if (error != null) {
+                Log.e(TAG, "❌ Erro no download: ${error.description}")
+                _missionState.value = MissionState.ERROR
+                return
+            }
+
+            if (progress != null) {
+                _missionState.value = MissionState.DOWNLOADING
+                Log.d(
+                    TAG,
+                    "⬇️ Download: ${progress.downloadedWaypointIndex}/${progress.totalWaypointCount}"
+                )
+
+                if (progress.downloadedWaypointIndex == progress.totalWaypointCount) {
+                    _missionState.value = MissionState.DOWNLOAD_FINISHED
+                    Log.d(TAG, "✅ Download concluído")
+                }
+            }
+        }
+
+        override fun onUploadUpdate(event: WaypointMissionUploadEvent) {
+            val currentState = event.currentState
+            when (currentState) {
+                WaypointMissionState.UPLOADING -> {
+                    _missionState.value = MissionState.UPLOADING
+                    Log.d(TAG, "⬆️ Upload em progresso...")
+                }
+                WaypointMissionState.READY_TO_EXECUTE -> {
+                    _missionState.value = MissionState.READY_TO_EXECUTE
+                    Log.d(TAG, "✅ Pronto para executar")
+                }
+                else -> {}
+            }
+        }
+
+        override fun onExecutionStart() {
+            _missionState.value = MissionState.EXECUTING
+            Log.i(TAG, "▶️ Missão iniciada")
+        }
+
+        override fun onExecutionUpdate(event: WaypointMissionExecutionEvent) {
+            val currentState = event.currentState
+            when (currentState) {
+                WaypointMissionState.EXECUTING -> {
+                    _missionState.value = MissionState.EXECUTING
+                }
+                WaypointMissionState.EXECUTION_PAUSED -> {
+                    _missionState.value = MissionState.EXECUTION_PAUSED
+                    Log.i(TAG, "⏸️ Missão pausada")
+                }
+                else -> {}
+            }
+        }
+
+        override fun onExecutionFinish(error: DJIError?) {
+            if (error == null) {
+                _missionState.value = MissionState.FINISHED
+                Log.i(TAG, "✅ Missão concluída com sucesso!")
+            } else {
+                _missionState.value = MissionState.ERROR
+                Log.e(TAG, "❌ Erro na conclusão: ${error.description}")
+            }
+        }
+    }
 }
+
+/**
+ * Exception customizada para erros de missão DJI
+ */
+class DJIMissionException(message: String, cause: Throwable? = null) :
+    Exception(message, cause)

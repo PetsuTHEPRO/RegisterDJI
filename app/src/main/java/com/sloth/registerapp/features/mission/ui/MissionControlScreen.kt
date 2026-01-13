@@ -44,15 +44,18 @@ fun MissionControlScreen(
     missionStatus: MissionStatus = MissionStatus.READY,
     currentLocation: Point = Point.fromLngLat(-44.3025, -2.5307),
     droneLocation: Point? = null,
+    waypoints: List<com.sloth.registerapp.features.mission.ui.Waypoint> = emptyList(),
     altitude: String = "0m",
     speed: String = "0 m/s",
     battery: Int = 100,
     gpsSignal: Int = 12,
+    errorMessage: String? = null,
     onBackClick: () -> Unit = {},
     onStartMission: () -> Unit = {},
     onPauseMission: () -> Unit = {},
     onResumeMission: () -> Unit = {},
-    onStopMission: () -> Unit = {}
+    onStopMission: () -> Unit = {},
+    onErrorDismiss: () -> Unit = {}
 ) {
     // Ocultar barras do sistema (status bar e navigation bar)
     val view = LocalView.current
@@ -116,20 +119,56 @@ fun MissionControlScreen(
             FABConfig(Icons.Default.CheckCircle, "Concluída", {}, greenOnline)
     }
 
+    // Calcular configuração da câmera com base nos waypoints
+    val cameraOptions = remember(waypoints, currentLocation) {
+        if (waypoints.isNotEmpty()) {
+            // Calcular bounding box para mostrar todos os waypoints
+            val lats = waypoints.map { it.latitude }
+            val lngs = waypoints.map { it.longitude }
+            
+            val minLat = lats.minOrNull() ?: currentLocation.latitude()
+            val maxLat = lats.maxOrNull() ?: currentLocation.latitude()
+            val minLng = lngs.minOrNull() ?: currentLocation.longitude()
+            val maxLng = lngs.maxOrNull() ?: currentLocation.longitude()
+            
+            // Calcular centro e zoom apropriados
+            val centerLat = (minLat + maxLat) / 2
+            val centerLng = (minLng + maxLng) / 2
+            
+            // Calcular zoom baseado na distância entre pontos
+            val latDiff = maxLat - minLat
+            val lngDiff = maxLng - minLng
+            val maxDiff = maxOf(latDiff, lngDiff)
+            
+            val zoom = when {
+                maxDiff > 0.1 -> 10.0  // Pontos muito distantes
+                maxDiff > 0.05 -> 12.0 // Pontos distantes
+                maxDiff > 0.01 -> 14.0 // Pontos médios
+                maxDiff > 0.005 -> 15.0 // Pontos próximos
+                else -> 16.0            // Pontos muito próximos
+            }
+            
+            Pair(Point.fromLngLat(centerLng, centerLat), zoom)
+        } else {
+            // Sem waypoints, focar na localização atual
+            Pair(currentLocation, 15.0)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. Mapa em tela cheia
         MapboxMapView(
             modifier = Modifier.fillMaxSize(),
-            waypoints = emptyList(),
+            waypoints = waypoints,
             primaryColor = primaryBlue,
             onMapReady = { mapView ->
                 val mapboxMap = mapView
 
-                // Centralizar no local atual
+                // Centralizar na área dos waypoints ou localização atual
                 mapboxMap.setCamera(
                     com.mapbox.maps.CameraOptions.Builder()
-                        .center(currentLocation)
-                        .zoom(15.0)
+                        .center(cameraOptions.first)
+                        .zoom(cameraOptions.second)
                         .build()
                 )
             }
@@ -204,6 +243,40 @@ fun MissionControlScreen(
                 onDismiss = { showStopDialog = false },
                 isDanger = true
             )
+        }
+        
+        // 8. Alerta de erro sobreposto
+        if (errorMessage != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = errorMessage,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onErrorDismiss) {
+                            Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }

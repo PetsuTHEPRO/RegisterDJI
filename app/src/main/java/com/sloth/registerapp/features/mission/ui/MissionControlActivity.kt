@@ -59,17 +59,20 @@ class MissionControlActivity : ComponentActivity() {
             RegisterAppTheme {
                 val missionState = viewModel.missionState.collectAsStateWithLifecycle().value
                 val missionData: ServerMission? = viewModel.mission.collectAsStateWithLifecycle().value
+                val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
                 when {
                     missionData != null -> {
                         MissionControlScreen(
                             missionName = missionData.name,
                             missionStatus = missionState.toUiStatus(),
+                            errorMessage = errorMessage,
                             onBackClick = { finish() },
                             onStartMission = { viewModel.startMission() },
                             onPauseMission = { viewModel.pauseMission() },
                             onResumeMission = { viewModel.resumeMission() },
-                            onStopMission = { viewModel.stopMission() }
+                            onStopMission = { viewModel.stopMission() },
+                            onErrorDismiss = { viewModel.clearError() }
                         )
                     }
                     else -> {

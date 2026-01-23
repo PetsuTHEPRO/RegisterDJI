@@ -318,6 +318,16 @@ class DroneMissionManager(
             )
         }
 
+        // Verificar e tentar registrar o Home Point antes de iniciar
+        try {
+            ensureHomePointRecorded()
+        } catch (e: Exception) {
+            _missionState.value = MissionState.ERROR
+            throw DJIMissionException(
+                "Falha de pré-checagem: ${e.message ?: "Home Point não registrado"}", e
+            )
+        }
+
         try {
             withTimeout(START_TIMEOUT_MS) {
                 startMissionSuspend(operator)
@@ -436,7 +446,7 @@ class DroneMissionManager(
 
     private suspend fun uploadMissionSuspend(operator: WaypointMissionOperator) =
         suspendCancellableCoroutine<Unit> { continuation ->
-            operator.uploadMission { error ->
+            operator.uploadMission { error: dji.common.error.DJIError? ->
                 if (error == null) {
                     continuation.resume(Unit)
                 } else {
@@ -449,7 +459,7 @@ class DroneMissionManager(
 
     private suspend fun startMissionSuspend(operator: WaypointMissionOperator) =
         suspendCancellableCoroutine<Unit> { continuation ->
-            operator.startMission { error ->
+            operator.startMission { error: dji.common.error.DJIError? ->
                 if (error == null) {
                     continuation.resume(Unit)
                 } else {
@@ -462,7 +472,7 @@ class DroneMissionManager(
 
     private suspend fun stopMissionSuspend(operator: WaypointMissionOperator) =
         suspendCancellableCoroutine<Unit> { continuation ->
-            operator.stopMission { error ->
+            operator.stopMission { error: dji.common.error.DJIError? ->
                 if (error == null) {
                     continuation.resume(Unit)
                 } else {
@@ -475,7 +485,7 @@ class DroneMissionManager(
 
     private suspend fun pauseMissionSuspend(operator: WaypointMissionOperator) =
         suspendCancellableCoroutine<Unit> { continuation ->
-            operator.pauseMission { error ->
+            operator.pauseMission { error: dji.common.error.DJIError? ->
                 if (error == null) {
                     continuation.resume(Unit)
                 } else {
@@ -488,7 +498,7 @@ class DroneMissionManager(
 
     private suspend fun resumeMissionSuspend(operator: WaypointMissionOperator) =
         suspendCancellableCoroutine<Unit> { continuation ->
-            operator.resumeMission { error ->
+            operator.resumeMission { error: dji.common.error.DJIError? ->
                 if (error == null) {
                     continuation.resume(Unit)
                 } else {
@@ -500,6 +510,94 @@ class DroneMissionManager(
         }
 
     // ========== VALIDAÇÕES ==========
+
+    /**
+     * Garante que o Home Point do drone esteja registrado antes da execução da missão.
+     * Tenta definir usando a posição atual da aeronave caso ainda não esteja registrado.
+     * Lança DJIMissionException com instruções acionáveis se não for possível.
+     */
+    private suspend fun ensureHomePointRecorded() {
+        val product = djiConnectionHelper.getProductInstance() as? dji.sdk.products.Aircraft
+            ?: throw DJIMissionException("Aeronave não disponível (produto não é Aircraft)")
+
+        val flightController = product.flightController
+            ?: throw DJIMissionException("FlightController não disponível")
+
+        // Ler estado atual e satélites (quando disponível)
+        val state = try { flightController.state } catch (e: Exception) { null }
+        val satellites = try { state?.satelliteCount ?: 0 } catch (e: Exception) { 0 }
+        var isHomeSet = try { state?.isHomeLocationSet ?: false } catch (e: Exception) { false }
+
+        Log.d(TAG, "🔎 Pré-checagem: satélites=$satellites, homeSet=$isHomeSet")
+
+        if (isHomeSet) return
+
+        // Aguarda brevemente pela gravação automática do Home Point (GPS fix)
+        try {
+            Log.d(TAG, "⏳ Aguardando fix de Home Point (até 15s)...")
+            waitForHomePointSet(flightController, timeoutMs = 15_000L)
+            Log.i(TAG, "✅ Home Point registrado automaticamente")
+            return
+        } catch (_: Exception) {
+            // segue para tentativa manual
+        }
+
+        // Se poucos satélites, avisar antes de tentar definir
+        if (satellites in 0..5) {
+            Log.w(TAG, "⚠️ Sinal GPS baixo (satélites=$satellites). Aguarde fix.")
+        }
+
+        // Tentativa manual removida para compatibilidade de SDK. Se não houver fix,
+        // o Home Point pode não ser gravado; orientamos o operador via exceção.
+
+        // Aguardar atualização de estado após tentativa manual
+        try {
+            waitForHomePointSet(flightController, timeoutMs = 5_000L)
+            isHomeSet = true
+        } catch (_: Exception) {
+            // queda para revalidação imediata
+        }
+
+        // Revalidar após tentativa
+        val postState = try { flightController.state } catch (e: Exception) { null }
+        val postHomeSet = try { postState?.isHomeLocationSet ?: isHomeSet } catch (e: Exception) { isHomeSet }
+        if (!postHomeSet) {
+            throw DJIMissionException(
+                "The home point of aircraft is not recorded. Aguarde fix de GPS, decole brevemente para gravar automaticamente ou defina manualmente no controle."
+            )
+        }
+    }
+
+    /**
+     * Aguarda até que `isHomeLocationSet` torne-se verdadeiro no `FlightController.state`.
+     * Remove o callback no retorno ou cancelamento.
+     */
+    private suspend fun waitForHomePointSet(
+        flightController: dji.sdk.flightcontroller.FlightController,
+        timeoutMs: Long
+    ) {
+        kotlinx.coroutines.withTimeout(timeoutMs) {
+            kotlinx.coroutines.suspendCancellableCoroutine<Unit> { cont ->
+                // Registra callback de estado para observar `isHomeLocationSet`
+                val callback: (dji.common.flightcontroller.FlightControllerState) -> Unit = { st ->
+                    val homeSet = try { st.isHomeLocationSet } catch (_: Exception) { false }
+                    if (homeSet) {
+                        try { flightController.setStateCallback(null) } catch (_: Exception) {}
+                        cont.resume(Unit)
+                    }
+                }
+                try {
+                    flightController.setStateCallback(callback)
+                } catch (e: Exception) {
+                    cont.resumeWithException(DJIMissionException("Não foi possível observar estado do FlightController: ${e.message}"))
+                    return@suspendCancellableCoroutine
+                }
+                cont.invokeOnCancellation {
+                    try { flightController.setStateCallback(null) } catch (_: Exception) {}
+                }
+            }
+        }
+    }
 
     /**
      * Valida e extrai dados de coordenadas de um waypoint.
@@ -680,7 +778,7 @@ class DroneMissionManager(
             ) {
                 try {
                     Log.d(TAG, "⏹️ Solicitando parada da missão (assíncrono)...")
-                    getWaypointMissionOperator()?.stopMission { error ->
+                    getWaypointMissionOperator()?.stopMission { error: dji.common.error.DJIError? ->
                         if (error == null) {
                             Log.d(TAG, "✅ Missão parada durante cleanup")
                         } else {

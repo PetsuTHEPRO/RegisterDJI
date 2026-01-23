@@ -167,6 +167,76 @@ class DroneMissionManager(
     }
 
     /**
+     * DIAGNÓSTICO: Verifica se o método setHomeLocationUsingAircraftCurrentLocation existe
+     * e o estado atual do Home Point no drone.
+     * USE ISSO PARA DEBUG!
+     */
+    suspend fun diagnosticHomePoint() {
+        Log.d(TAG, "🔍 === DIAGNÓSTICO DE HOME POINT ===")
+        
+        try {
+            val product = djiConnectionHelper.getProductInstance() as? dji.sdk.products.Aircraft
+            
+            if (product == null) {
+                Log.e(TAG, "❌ Drone não conectado (product == null)")
+                return
+            }
+            
+            val flightController = product.flightController
+            if (flightController == null) {
+                Log.e(TAG, "❌ FlightController não disponível")
+                return
+            }
+            
+            Log.d(TAG, "✅ Drone conectado: ${product.model?.displayName ?: "Desconhecido"}")
+            
+            // 1. Verificar se o método existe via reflexão
+            val hasMethod = try {
+                val method = flightController.javaClass.getMethod(
+                    "setHomeLocationUsingAircraftCurrentLocation",
+                    dji.common.callback.CommonCallbacks.CompletionCallback::class.java
+                )
+                Log.d(TAG, "✅ MÉTODO EXISTE: setHomeLocationUsingAircraftCurrentLocation")
+                true
+            } catch (e: NoSuchMethodException) {
+                Log.e(TAG, "❌ MÉTODO NÃO EXISTE: setHomeLocationUsingAircraftCurrentLocation")
+                Log.e(TAG, "   Métodos disponíveis com 'Home' no nome:")
+                flightController.javaClass.methods
+                    .filter { it.name.contains("Home", ignoreCase = true) }
+                    .forEach { Log.e(TAG, "   - ${it.name}") }
+                false
+            }
+            
+            // 2. Verificar estado do Home Point
+            val state = try { flightController.state } catch (e: Exception) { null }
+            val isHomeSet = try { state?.isHomeLocationSet ?: false } catch (e: Exception) { false }
+            val satellites = try { state?.satelliteCount ?: 0 } catch (e: Exception) { 0 }
+            
+            Log.d(TAG, "📍 Estado Home Point: ${if (isHomeSet) "✅ SETADO" else "❌ NÃO SETADO"}")
+            Log.d(TAG, "📡 Satélites: $satellites (mínimo recomendado: 10)")
+            
+            // 3. Verificar se drone está no ar
+            val isFlying = try { state?.isFlying ?: false } catch (e: Exception) { false }
+            val altitude = try { state?.altitude ?: 0.0 } catch (e: Exception) { 0.0 }
+            
+            Log.d(TAG, "🚁 Drone no ar: ${if (isFlying) "SIM ❌ (deve estar no chão)" else "NÃO ✅ (correto)"}")
+            Log.d(TAG, "📏 Altitude: ${String.format("%.2f", altitude)}m")
+            
+            // 4. Status da bateria
+            val batteryPercent = try { 
+                product.battery?.energyRemainingPercent ?: -1 
+            } catch (e: Exception) { -1 }
+            Log.d(TAG, "🔋 Bateria: ${if (batteryPercent >= 0) "$batteryPercent%" else "N/A"}")
+            
+            Log.d(TAG, "🔍 === FIM DIAGNÓSTICO ===")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro ao fazer diagnóstico: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    /**
      * Faz diagnóstico do estado atual do drone antes de carregar missão.
      * Ajuda a identificar por que uma missão não pode ser carregada.
      */
@@ -315,16 +385,6 @@ class DroneMissionManager(
         if (operator.currentState != WaypointMissionState.READY_TO_EXECUTE) {
             throw DJIMissionException(
                 "Estado incorreto para iniciar. Estado atual: ${operator.currentState}"
-            )
-        }
-
-        // Verificar e tentar registrar o Home Point antes de iniciar
-        try {
-            ensureHomePointRecorded()
-        } catch (e: Exception) {
-            _missionState.value = MissionState.ERROR
-            throw DJIMissionException(
-                "Falha de pré-checagem: ${e.message ?: "Home Point não registrado"}", e
             )
         }
 
@@ -513,7 +573,7 @@ class DroneMissionManager(
 
     /**
      * Garante que o Home Point do drone esteja registrado antes da execução da missão.
-     * Tenta definir usando a posição atual da aeronave caso ainda não esteja registrado.
+     * Tenta registrar automaticamente usando a posição atual da aeronave.
      * Lança DJIMissionException com instruções acionáveis se não for possível.
      */
     private suspend fun ensureHomePointRecorded() {
@@ -530,41 +590,102 @@ class DroneMissionManager(
 
         Log.d(TAG, "🔎 Pré-checagem: satélites=$satellites, homeSet=$isHomeSet")
 
-        if (isHomeSet) return
+        if (isHomeSet) {
+            Log.i(TAG, "✅ Home Point já registrado")
+            return
+        }
+
+        // Tentar registrar Home Point automaticamente (sem esperar GPS fix)
+        try {
+            Log.d(TAG, "📍 Tentando registrar Home Point automaticamente (Tentativa 1/3)...")
+            setHomePointAutomatically(flightController)
+            Log.i(TAG, "✅ Home Point registrado automaticamente!")
+            return
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Tentativa 1 falhou: ${e.message}")
+        }
 
         // Aguarda brevemente pela gravação automática do Home Point (GPS fix)
         try {
-            Log.d(TAG, "⏳ Aguardando fix de Home Point (até 15s)...")
-            waitForHomePointSet(flightController, timeoutMs = 15_000L)
-            Log.i(TAG, "✅ Home Point registrado automaticamente")
+            Log.d(TAG, "⏳ Aguardando fix automático de Home Point (até 30s)...")
+            waitForHomePointSet(flightController, timeoutMs = 30_000L)
+            Log.i(TAG, "✅ Home Point registrado via GPS fix")
             return
         } catch (_: Exception) {
-            // segue para tentativa manual
+            Log.w(TAG, "⚠️ Timeout aguardando GPS fix")
         }
 
-        // Se poucos satélites, avisar antes de tentar definir
+        // Se poucos satélites, avisar
         if (satellites in 0..5) {
-            Log.w(TAG, "⚠️ Sinal GPS baixo (satélites=$satellites). Aguarde fix.")
+            Log.w(TAG, "⚠️ Sinal GPS baixo (satélites=$satellites)")
         }
 
-        // Tentativa manual removida para compatibilidade de SDK. Se não houver fix,
-        // o Home Point pode não ser gravado; orientamos o operador via exceção.
-
-        // Aguardar atualização de estado após tentativa manual
+        // Segunda tentativa de registrar Home Point automaticamente
         try {
-            waitForHomePointSet(flightController, timeoutMs = 5_000L)
-            isHomeSet = true
-        } catch (_: Exception) {
-            // queda para revalidação imediata
+            Log.d(TAG, "📍 Tentando registrar Home Point novamente (Tentativa 2/3)...")
+            setHomePointAutomatically(flightController)
+            Log.i(TAG, "✅ Home Point registrado na segunda tentativa!")
+            return
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Tentativa 2 falhou: ${e.message}")
         }
 
-        // Revalidar após tentativa
+        // Aguardar mais um pouco e revalidar
+        delay(2000L)
         val postState = try { flightController.state } catch (e: Exception) { null }
-        val postHomeSet = try { postState?.isHomeLocationSet ?: isHomeSet } catch (e: Exception) { isHomeSet }
-        if (!postHomeSet) {
-            throw DJIMissionException(
-                "The home point of aircraft is not recorded. Aguarde fix de GPS, decole brevemente para gravar automaticamente ou defina manualmente no controle."
-            )
+        val postHomeSet = try { postState?.isHomeLocationSet ?: false } catch (e: Exception) { false }
+        
+        if (postHomeSet) {
+            Log.i(TAG, "✅ Home Point registrado após aguardar")
+            return
+        }
+
+        // Terceira e última tentativa
+        try {
+            Log.d(TAG, "📍 Tentando registrar Home Point (Tentativa 3/3)...")
+            setHomePointAutomatically(flightController)
+            Log.i(TAG, "✅ Home Point registrado na terceira tentativa!")
+            return
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Falha final ao registrar Home Point: ${e.message}")
+        }
+
+        // Se tudo falhou, lançar exceção com instruções claras
+        Log.e(TAG, "❌ Não foi possível registrar automaticamente")
+        throw DJIMissionException(
+            "Home Point não foi registrado. Causas possíveis:\n" +
+            "1. Sinal GPS insuficiente (satélites=$satellites, mínimo 10)\n" +
+            "2. Drone acelerou rápido demais\n\n" +
+            "Solução:\n" +
+            "• Mantenha o drone parado em área aberta\n" +
+            "• Aguarde 30-60 segundos para GPS fazer fix\n" +
+            "• Verifique se tem pelo menos 10+ satélites\n" +
+            "• Tente novamente"
+        )
+    }
+
+    /**
+     * Tenta registrar o Home Point da aeronave automaticamente.
+     * Usa a posição GPS atual como referência.
+     */
+    private suspend fun setHomePointAutomatically(flightController: dji.sdk.flightcontroller.FlightController) {
+        try {
+            suspendCancellableCoroutine<Unit> { continuation ->
+                flightController.setHomeLocationUsingAircraftCurrentLocation { error: dji.common.error.DJIError? ->
+                    if (error == null) {
+                        Log.d(TAG, "✅ setHomeLocationUsingAircraftCurrentLocation bem-sucedido")
+                        continuation.resume(Unit)
+                    } else {
+                        Log.w(TAG, "⚠️ setHomeLocationUsingAircraftCurrentLocation falhou: ${error.description}")
+                        continuation.resumeWithException(
+                            DJIMissionException("Erro ao registrar Home Point: ${error.description}")
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Exceção ao chamar setHomeLocationUsingAircraftCurrentLocation: ${e.message}")
+            throw DJIMissionException("Não foi possível registrar Home Point: ${e.message}", e)
         }
     }
 

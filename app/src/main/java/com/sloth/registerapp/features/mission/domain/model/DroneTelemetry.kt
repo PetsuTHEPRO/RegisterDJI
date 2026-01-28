@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.mission.data.drone
+package com.sloth.registerapp.features.mission.domain.model
 
 data class DroneTelemetry(
     val altitude: Float = 0f,              // Altitude em metros

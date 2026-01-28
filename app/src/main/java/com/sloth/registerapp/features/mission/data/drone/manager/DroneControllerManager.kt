@@ -2,8 +2,8 @@ package com.sloth.registerapp.features.mission.data.drone.manager
 
 import android.util.Log
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
-import com.sloth.registerapp.features.mission.data.drone.DroneState
-import com.sloth.registerapp.features.mission.data.drone.DroneTelemetry
+import com.sloth.registerapp.features.mission.domain.model.DroneState
+import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
 import dji.common.flightcontroller.virtualstick.FlightControlData
 import dji.common.flightcontroller.virtualstick.FlightCoordinateSystem
 import dji.common.flightcontroller.virtualstick.RollPitchControlMode

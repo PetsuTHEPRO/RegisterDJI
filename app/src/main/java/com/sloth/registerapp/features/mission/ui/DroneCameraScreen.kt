@@ -3,7 +3,7 @@ package com.sloth.registerapp.features.mission.ui
 import android.graphics.SurfaceTexture
 import android.widget.Toast
 import androidx.compose.animation.*
-import com.sloth.registerapp.features.mission.data.drone.DroneTelemetry
+import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager
-import com.sloth.registerapp.features.mission.data.drone.DroneState
+import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.mission.ui.component.VideoFeedView
 import kotlinx.coroutines.delay
 

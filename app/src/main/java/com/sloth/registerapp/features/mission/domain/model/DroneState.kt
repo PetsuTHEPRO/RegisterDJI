@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.mission.data.drone
+package com.sloth.registerapp.features.mission.domain.model
 
 // DroneState.kt
 enum class DroneState {

@@ -17,7 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.remember
 import com.sloth.registerapp.core.utils.PermissionHelper
-import com.sloth.registerapp.features.mission.data.drone.sdk.DJIConnectionHelper
+import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.features.mission.ui.DashboardScreen
 import com.sloth.registerapp.features.mission.ui.DroneControlScreen

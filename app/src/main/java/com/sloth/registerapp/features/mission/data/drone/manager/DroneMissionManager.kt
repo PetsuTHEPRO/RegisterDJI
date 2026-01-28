@@ -2,8 +2,8 @@ package com.sloth.registerapp.features.mission.data.drone.manager
 
 import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
-import com.sloth.registerapp.features.mission.data.drone.DJIMissionException
-import com.sloth.registerapp.features.mission.data.drone.sdk.DJIConnectionHelper
+import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.core.dji.DJIException
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto as ServerWaypoint
 import dji.common.error.DJIError
@@ -154,7 +154,7 @@ class DroneMissionManager(
 
     /**
      * Valida se o drone está conectado antes de executar operações.
-     * @throws DJIMissionException se o drone não estiver conectado
+     * @throws DJIException se o drone não estiver conectado
      */
     private fun validateDroneConnection() {
         if (!isDroneConnected()) {
@@ -162,7 +162,7 @@ class DroneMissionManager(
             Log.e(TAG, "❌ DRONE NÃO CONECTADO!")
             Log.e(TAG, "  📱 Product: ${product?.model?.displayName ?: "NULL"}")
             Log.e(TAG, "  ⚠️ Não é possível executar operações sem o drone conectado")
-            throw DJIMissionException(
+            throw DJIException(
                 "Drone não está conectado. Conecte o drone e tente novamente."
             )
         }
@@ -311,7 +311,7 @@ class DroneMissionManager(
      * Prepara, valida, carrega e faz upload de uma missão para o drone.
      * Inclui retry automático em caso de falha de upload.
      * @throws IllegalArgumentException se os parâmetros forem inválidos
-     * @throws DJIMissionException se houver erro no upload ou se drone não estiver conectado
+     * @throws DJIException se houver erro no upload ou se drone não estiver conectado
      */
     suspend fun prepareAndUploadMission(missionData: ServerMissionDto) {
         _missionState.value = MissionState.PREPARING
@@ -323,7 +323,7 @@ class DroneMissionManager(
             validateDroneConnection()
             
             // Verificar operador após validação de conexão
-            val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+            val operator = getWaypointMissionOperator() ?: throw DJIException(
                 "WaypointMissionOperator não está disponível. Reinicie o app."
             )
             
@@ -364,7 +364,7 @@ class DroneMissionManager(
                 Log.e(TAG, "⚠️ Diagnóstico após falha de carregamento:")
                 diagnosticoDroneState()
                 
-                throw DJIMissionException(errorMessage)
+                throw DJIException(errorMessage)
             }
 
             Log.i(TAG, "✅ Missão carregada com sucesso no drone (${waypointList.size} waypoints, ${mission.waypointCount} confirmados)")
@@ -382,7 +382,7 @@ class DroneMissionManager(
             } catch (e: TimeoutCancellationException) {
                 _missionState.value = MissionState.ERROR
                 Log.e(TAG, "❌ Upload timeout após ${UPLOAD_TIMEOUT_MS}ms")
-                throw DJIMissionException("Upload timeout (${UPLOAD_TIMEOUT_MS}ms)", e)
+                throw DJIException("Upload timeout (${UPLOAD_TIMEOUT_MS}ms)", e)
             } catch (e: Exception) {
                 _missionState.value = MissionState.ERROR
                 Log.e(TAG, "❌ Erro durante upload: ${e.message}")
@@ -401,12 +401,12 @@ class DroneMissionManager(
         // Validar conexão do drone
         validateDroneConnection()
         
-        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+        val operator = getWaypointMissionOperator() ?: throw DJIException(
             "WaypointMissionOperator não está disponível"
         )
 
         if (operator.currentState != WaypointMissionState.READY_TO_EXECUTE) {
-            throw DJIMissionException(
+            throw DJIException(
                 "Estado incorreto para iniciar. Estado atual: ${operator.currentState}"
             )
         }
@@ -418,7 +418,7 @@ class DroneMissionManager(
             Log.i(TAG, "✅ Missão iniciada com sucesso!")
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
-            throw DJIMissionException("Start mission timeout (${START_TIMEOUT_MS}ms)", e)
+            throw DJIException("Start mission timeout (${START_TIMEOUT_MS}ms)", e)
         }
     }
 
@@ -426,7 +426,7 @@ class DroneMissionManager(
         // Validar conexão do drone
         validateDroneConnection()
         
-        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+        val operator = getWaypointMissionOperator() ?: throw DJIException(
             "WaypointMissionOperator não está disponível"
         )
 
@@ -438,7 +438,7 @@ class DroneMissionManager(
             Log.i(TAG, "✅ Missão parada com sucesso!")
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
-            throw DJIMissionException("Stop mission timeout (${STOP_TIMEOUT_MS}ms)", e)
+            throw DJIException("Stop mission timeout (${STOP_TIMEOUT_MS}ms)", e)
         }
     }
 
@@ -446,7 +446,7 @@ class DroneMissionManager(
         // Validar conexão do drone
         validateDroneConnection()
         
-        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+        val operator = getWaypointMissionOperator() ?: throw DJIException(
             "WaypointMissionOperator não está disponível"
         )
 
@@ -458,11 +458,11 @@ class DroneMissionManager(
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Timeout ao pausar missão (${PAUSE_TIMEOUT_MS}ms)")
-            throw DJIMissionException("Timeout ao pausar missão", e)
+            throw DJIException("Timeout ao pausar missão", e)
         } catch (e: Exception) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Erro ao pausar missão: ${e.message}")
-            throw DJIMissionException("Erro ao pausar missão", e)
+            throw DJIException("Erro ao pausar missão", e)
         }
     }
 
@@ -470,7 +470,7 @@ class DroneMissionManager(
         // Validar conexão do drone
         validateDroneConnection()
         
-        val operator = getWaypointMissionOperator() ?: throw DJIMissionException(
+        val operator = getWaypointMissionOperator() ?: throw DJIException(
             "WaypointMissionOperator não está disponível"
         )
 
@@ -482,11 +482,11 @@ class DroneMissionManager(
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Timeout ao retomar missão (${RESUME_TIMEOUT_MS}ms)")
-            throw DJIMissionException("Timeout ao retomar missão", e)
+            throw DJIException("Timeout ao retomar missão", e)
         } catch (e: Exception) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Erro ao retomar missão: ${e.message}")
-            throw DJIMissionException("Erro ao retomar missão", e)
+            throw DJIException("Erro ao retomar missão", e)
         }
     }
 
@@ -534,7 +534,7 @@ class DroneMissionManager(
                     continuation.resume(Unit)
                 } else {
                     continuation.resumeWithException(
-                        DJIMissionException("Falha no upload: ${error.description}")
+                        DJIException("Falha no upload: ${error.description}")
                     )
                 }
             }
@@ -547,7 +547,7 @@ class DroneMissionManager(
                     continuation.resume(Unit)
                 } else {
                     continuation.resumeWithException(
-                        DJIMissionException("Falha ao iniciar: ${error.description}")
+                        DJIException("Falha ao iniciar: ${error.description}")
                     )
                 }
             }
@@ -560,7 +560,7 @@ class DroneMissionManager(
                     continuation.resume(Unit)
                 } else {
                     continuation.resumeWithException(
-                        DJIMissionException("Falha ao parar: ${error.description}")
+                        DJIException("Falha ao parar: ${error.description}")
                     )
                 }
             }
@@ -573,7 +573,7 @@ class DroneMissionManager(
                     continuation.resume(Unit)
                 } else {
                     continuation.resumeWithException(
-                        DJIMissionException("Falha ao pausar: ${error.description}")
+                        DJIException("Falha ao pausar: ${error.description}")
                     )
                 }
             }
@@ -586,7 +586,7 @@ class DroneMissionManager(
                     continuation.resume(Unit)
                 } else {
                     continuation.resumeWithException(
-                        DJIMissionException("Falha ao retomar: ${error.description}")
+                        DJIException("Falha ao retomar: ${error.description}")
                     )
                 }
             }
@@ -597,14 +597,14 @@ class DroneMissionManager(
     /**
      * Garante que o Home Point do drone esteja registrado antes da execução da missão.
      * Tenta registrar automaticamente usando a posição atual da aeronave.
-     * Lança DJIMissionException com instruções acionáveis se não for possível.
+     * Lança DJIException com instruções acionáveis se não for possível.
      */
     private suspend fun ensureHomePointRecorded() {
         val product = djiConnectionHelper.getProductInstance() as? dji.sdk.products.Aircraft
-            ?: throw DJIMissionException("Aeronave não disponível (produto não é Aircraft)")
+            ?: throw DJIException("Aeronave não disponível (produto não é Aircraft)")
 
         val flightController = product.flightController
-            ?: throw DJIMissionException("FlightController não disponível")
+            ?: throw DJIException("FlightController não disponível")
 
         // Ler estado atual e satélites (quando disponível)
         val state = try { flightController.state } catch (e: Exception) { null }
@@ -675,7 +675,7 @@ class DroneMissionManager(
 
         // Se tudo falhou, lançar exceção com instruções claras
         Log.e(TAG, "❌ Não foi possível registrar automaticamente")
-        throw DJIMissionException(
+        throw DJIException(
             "Home Point não foi registrado. Causas possíveis:\n" +
             "1. Sinal GPS insuficiente (satélites=$satellites, mínimo 10)\n" +
             "2. Drone acelerou rápido demais\n\n" +
@@ -701,14 +701,14 @@ class DroneMissionManager(
                     } else {
                         Log.w(TAG, "⚠️ setHomeLocationUsingAircraftCurrentLocation falhou: ${error.description}")
                         continuation.resumeWithException(
-                            DJIMissionException("Erro ao registrar Home Point: ${error.description}")
+                            DJIException("Erro ao registrar Home Point: ${error.description}")
                         )
                     }
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ Exceção ao chamar setHomeLocationUsingAircraftCurrentLocation: ${e.message}")
-            throw DJIMissionException("Não foi possível registrar Home Point: ${e.message}", e)
+            throw DJIException("Não foi possível registrar Home Point: ${e.message}", e)
         }
     }
 
@@ -733,7 +733,7 @@ class DroneMissionManager(
                 try {
                     flightController.setStateCallback(callback)
                 } catch (e: Exception) {
-                    cont.resumeWithException(DJIMissionException("Não foi possível observar estado do FlightController: ${e.message}"))
+                    cont.resumeWithException(DJIException("Não foi possível observar estado do FlightController: ${e.message}"))
                     return@suspendCancellableCoroutine
                 }
                 cont.invokeOnCancellation {

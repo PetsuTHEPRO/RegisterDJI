@@ -4,10 +4,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
-import com.sloth.registerapp.features.mission.data.drone.DJIMissionException
+import com.sloth.registerapp.core.dji.DJIException
 import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
-import com.sloth.registerapp.features.mission.data.drone.sdk.DJIConnectionHelper
+import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,7 +38,7 @@ class MissionControlViewModel : ViewModel() {
                 droneMissionManager.prepareAndUploadMission(mission)
                 Log.i(TAG, "✅ Missão carregada com sucesso!")
                 _errorMessage.value = null
-            } catch (e: DJIMissionException) {
+            } catch (e: DJIException) {
                 Log.e(TAG, "❌ Erro ao carregar missão: ${e.message}")
                 _errorMessage.value = e.message ?: "Erro desconhecido ao carregar missão"
                 // NÃO relança a exceção - permite que o app continue funcionando

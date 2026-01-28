@@ -2,6 +2,7 @@ package com.sloth.registerapp.features.mission.data.drone
 
 import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
+import com.sloth.registerapp.core.dji.DJIException
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import dji.common.error.DJIError
 import dji.common.mission.waypoint.WaypointMissionFinishedAction
@@ -93,7 +94,7 @@ class DroneMissionManagerTest {
         try {
             missionManager.prepareAndUploadMission(missionData)
             // Se não lançar exceção, significa que foi criada com 2 waypoints
-        } catch (e: DJIMissionException) {
+        } catch (e: DJIException) {
             // Upload pode falhar, mas validação passou
         }
     }
@@ -103,7 +104,7 @@ class DroneMissionManagerTest {
      */
     @Test
     fun `startMission no estado incorreto deve lançar exceção`() = runTest {
-        assertFailsWith<DJIMissionException> {
+        assertFailsWith<DJIException> {
             missionManager.startMission()
         }
     }

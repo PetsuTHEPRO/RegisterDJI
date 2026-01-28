@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.mission.data.drone.sdk
+package com.sloth.registerapp.core.dji
 
 import android.content.Context
 import android.util.Log

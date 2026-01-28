@@ -96,7 +96,7 @@
             tools:ignore="LockedOrientationActivity" />
 
         <activity
-            android:name="com.sloth.registerapp.service.facedetection.ui.RegisteredFacesActivity"
+            android:name="com.sloth.registerapp.ui.facedetection.registered.RegisteredFacesActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.RegisterApp"

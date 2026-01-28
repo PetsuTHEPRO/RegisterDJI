@@ -21,11 +21,11 @@ import com.sloth.registerapp.features.mission.data.sdk.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.features.mission.ui.DashboardScreen
 import com.sloth.registerapp.features.mission.ui.DroneControlScreen
-import com.sloth.registerapp.features.mission.ui.LoginScreen
+import com.sloth.registerapp.features.auth.presentation.login.LoginScreen
 import com.sloth.registerapp.features.mission.ui.MissionCreateScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.registerapp.features.mission.ui.MissionsTableScreen
-import com.sloth.registerapp.features.mission.ui.RegisterScreen
+import com.sloth.registerapp.features.auth.presentation.register.RegisterScreen
 import com.sloth.registerapp.features.mission.ui.SettingsScreen
 import com.sloth.registerapp.features.mission.ui.WelcomeScreen
 import com.sloth.registerapp.core.ui.theme.RegisterAppTheme

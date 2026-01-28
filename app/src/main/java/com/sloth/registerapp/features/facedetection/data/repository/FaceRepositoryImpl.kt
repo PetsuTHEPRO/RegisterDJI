@@ -3,13 +3,14 @@ package com.sloth.registerapp.features.facedetection.data.repository
 import android.util.Log
 import com.sloth.registerapp.features.facedetection.data.local.FaceDao
 import com.sloth.registerapp.features.facedetection.data.local.FaceEntity
-import com.sloth.registerapp.features.facedetection.data.local.toFloatArray
-import com.sloth.registerapp.features.facedetection.data.local.toJson
-import com.sloth.registerapp.features.facedetection.domain.service.FaceEmbeddingEngine
+import com.sloth.registerapp.features.facedetection.data.mapper.toFloatArray
+import com.sloth.registerapp.features.facedetection.data.mapper.toJson
+import com.sloth.registerapp.features.facedetection.domain.usecase.GenerateEmbeddingUseCase
+import com.sloth.registerapp.features.facedetection.domain.repository.FaceRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository para gerenciar dados de faces
+ * Implementação do Repository para gerenciar dados de faces
  *
  * Camada intermediária entre o banco de dados e a lógica de negócio
  * Responsável por:
@@ -17,12 +18,12 @@ import kotlinx.coroutines.flow.Flow
  * - Comparação de embeddings
  * - Verificação de duplicatas
  */
-class FaceRepository(
+class FaceRepositoryImpl(
     private val faceDao: FaceDao,
-    private val embeddingEngine: FaceEmbeddingEngine
-) {
+    private val embeddingEngine: GenerateEmbeddingUseCase
+) : FaceRepository {
     companion object {
-        private const val TAG = "FaceRepository"
+        private const val TAG = "FaceRepositoryImpl"
         private const val SIMILARITY_THRESHOLD = 0.87f // 75% de similaridade
     }
 
@@ -30,7 +31,7 @@ class FaceRepository(
      * Retorna todas as faces cadastradas (Flow reativo)
      * Use para observar mudanças em tempo real
      */
-    val allFaces: Flow<List<FaceEntity>> = faceDao.getAllFaces()
+    override val allFaces: Flow<List<FaceEntity>> = faceDao.getAllFaces()
 
     // ========== Operações de Leitura ==========
 
@@ -40,7 +41,7 @@ class FaceRepository(
      * @param id ID do rosto
      * @return FaceEntity ou null se não encontrado
      */
-    suspend fun getFaceById(id: Long): FaceEntity? {
+    override suspend fun getFaceById(id: Long): FaceEntity? {
         return try {
             Log.d(TAG, "🔍 Buscando rosto com ID: $id")
             val face = faceDao.getFaceById(id)
@@ -63,7 +64,7 @@ class FaceRepository(
      *
      * @return Lista de todas as faces
      */
-    suspend fun getAllFacesSync(): List<FaceEntity> {
+    override suspend fun getAllFacesSync(): List<FaceEntity> {
         return try {
             Log.d(TAG, "📋 Buscando todas as faces...")
             val faces = faceDao.getAllFacesSync()
@@ -80,7 +81,7 @@ class FaceRepository(
      *
      * @return Quantidade de faces
      */
-    suspend fun getCount(): Int {
+    override suspend fun getCount(): Int {
         return try {
             val count = faceDao.getCount()
             Log.d(TAG, "📊 Total de faces: $count")
@@ -100,7 +101,7 @@ class FaceRepository(
      * @param embedding Embedding do rosto
      * @return Result<Long> com o ID do rosto salvo
      */
-    suspend fun saveFace(name: String, embedding: FloatArray): Result<Long> {
+    override suspend fun saveFace(name: String, embedding: FloatArray): Result<Long> {
         return try {
             Log.d(TAG, "💾 Salvando rosto: $name")
 
@@ -140,7 +141,7 @@ class FaceRepository(
      *
      * @param face FaceEntity a ser deletado
      */
-    suspend fun deleteFace(face: FaceEntity): Int {
+    override suspend fun deleteFace(face: FaceEntity): Int {
         return try {
             Log.d(TAG, "🗑️ Deletando rosto: ${face.name}")
             faceDao.delete(face)
@@ -153,7 +154,7 @@ class FaceRepository(
     /**
      * Deleta todas as faces do banco
      */
-    suspend fun deleteAll(): Int {
+    override suspend fun deleteAll(): Int {
         return try {
             Log.d(TAG, "🗑️ Deletando TODOS os rostos...")
             faceDao.deleteAll()
@@ -173,7 +174,7 @@ class FaceRepository(
      * @param embedding Embedding a comparar
      * @return Pair<Boolean, FaceEntity?> - (encontrou similar?, face encontrada)
      */
-    suspend fun findSimilarFace(embedding: FloatArray, similarityThreshold: Float = SIMILARITY_THRESHOLD): Pair<Boolean, FaceEntity?> {
+    override suspend fun findSimilarFace(embedding: FloatArray, similarityThreshold: Float): Pair<Boolean, FaceEntity?> {
         return try {
             Log.d(TAG, "🔍 Procurando rosto similar...")
 

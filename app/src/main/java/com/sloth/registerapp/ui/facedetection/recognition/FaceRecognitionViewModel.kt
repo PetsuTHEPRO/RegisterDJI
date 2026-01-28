@@ -1,15 +1,15 @@
-package com.sloth.registerapp.features.facedetection.ui
+package com.sloth.registerapp.ui.facedetection.recognition
 
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.sloth.registerapp.features.facedetection.domain.service.FaceRegistrationService
+import com.sloth.registerapp.features.facedetection.domain.usecase.RegisterFaceUseCase
 import com.sloth.registerapp.features.facedetection.data.local.FaceEntity
-import com.sloth.registerapp.features.facedetection.domain.model.FaceResult
+import com.sloth.registerapp.features.facedetection.domain.model.FaceRegistrationResult
 import com.sloth.registerapp.features.facedetection.domain.usecase.SaveFaceUseCase
-import com.sloth.registerapp.features.vision.FaceAnalysisResult
+import com.sloth.registerapp.features.facedetection.data.ml.FaceAnalysisResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  * ViewModel para gerenciar o estado da tela de registro facial
  */
 class FaceRegistrationViewModel(
-    val faceService: FaceRegistrationService
+    val faceService: RegisterFaceUseCase
 ) : ViewModel() {
 
     companion object {
@@ -134,15 +134,15 @@ class FaceRegistrationViewModel(
                 duplicateFace = null
 
                 when (result) {
-                    is FaceResult.Success -> {
+                    is FaceRegistrationResult.Success -> {
                         Log.d(TAG, "✅ Rosto salvo com ID: ${result.id}")
                         _uiState.value = FaceRegistrationUiState.Saved(name)
                     }
-                    is FaceResult.Error -> {
+                    is FaceRegistrationResult.Error -> {
                         Log.e(TAG, "❌ Erro ao salvar: ${result.message}")
                         _uiState.value = FaceRegistrationUiState.Error(result.message)
                     }
-                    is FaceResult.Duplicate -> {
+                    is FaceRegistrationResult.Duplicate -> {
                         Log.w(TAG, "⚠️ Detectada duplicata: ${result.existingFace.name}")
                         _uiState.value = FaceRegistrationUiState.Error(
                             "Rosto já cadastrado como '${result.existingFace.name}'"
@@ -191,7 +191,7 @@ sealed class FaceRegistrationUiState {
 // ========== Factory ==========
 
 class FaceRegistrationViewModelFactory(
-    private val faceService: FaceRegistrationService
+    private val faceService: RegisterFaceUseCase
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

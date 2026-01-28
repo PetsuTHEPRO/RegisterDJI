@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.facedetection.ui
+package com.sloth.registerapp.ui.facedetection.recognition
 
 import android.Manifest
 import android.content.Context
@@ -44,11 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.sloth.registerapp.features.facedetection.domain.service.FaceRegistrationService
-import com.sloth.registerapp.features.vision.FaceAnalysisResult
-import com.sloth.registerapp.features.vision.FaceAnalyzer
-import com.sloth.registerapp.features.vision.FaceAnalyzerConfig
-import com.sloth.registerapp.features.vision.FaceAnalyzerListener
+import com.sloth.registerapp.features.facedetection.domain.usecase.RegisterFaceUseCase
+import com.sloth.registerapp.features.facedetection.data.ml.FaceAnalysisResult
+import com.sloth.registerapp.features.facedetection.data.ml.FaceAnalyzer
+import com.sloth.registerapp.features.facedetection.data.ml.FaceAnalyzerConfig
+import com.sloth.registerapp.features.facedetection.data.ml.FaceAnalyzerListener
 import com.sloth.registerapp.core.utils.imageProxyToBitmap
 import java.util.concurrent.Executors
 
@@ -62,7 +62,7 @@ fun FaceRegistrationScreen(
     val context = LocalContext.current
 
     val faceService = remember {
-        FaceRegistrationService.getInstance(context)
+        RegisterFaceUseCase.getInstance(context)
     }
 
     val viewModel: FaceRegistrationViewModel = viewModel(

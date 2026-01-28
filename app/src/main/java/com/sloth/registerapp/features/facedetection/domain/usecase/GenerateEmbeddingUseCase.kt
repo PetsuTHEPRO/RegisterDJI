@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.facedetection.domain.service
+package com.sloth.registerapp.features.facedetection.domain.usecase
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -13,17 +13,22 @@ import java.nio.channels.FileChannel
 import kotlin.math.sqrt
 
 /**
- * Serviço desacoplado para geração e comparação de embeddings faciais
+ * UseCase para geração e comparação de embeddings faciais
  * Usa LiteRT (Google AI Edge) em vez de TensorFlow Lite
+ * 
+ * Responsabilidades:
+ * - Carregar modelo de embedding facial
+ * - Gerar embeddings de imagens faciais
+ * - Comparar similaridade entre embeddings
  */
-class FaceEmbeddingEngine(private val context: Context) {
+class GenerateEmbeddingUseCase(private val context: Context) {
 
     private var interpreter: Interpreter? = null
     private val inputSize = 112 // MobileFaceNet usa 112x112
     private val embeddingSize = 192 // Tamanho do embedding do MobileFaceNet
 
     companion object {
-        private const val TAG = "FaceEmbeddingEngine"
+        private const val TAG = "GenerateEmbeddingUseCase"
         private const val MODEL_FILE = "mobile_face_net.tflite"
         private const val IMAGE_MEAN = 127.5f
         private const val IMAGE_STD = 128.0f

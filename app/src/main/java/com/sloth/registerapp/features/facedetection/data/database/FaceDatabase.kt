@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.sloth.registerapp.features.facedetection.data.mapper.Converters
 
 /**
  * Room Database para armazenar dados de reconhecimento facial

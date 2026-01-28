@@ -4,9 +4,11 @@ import com.sloth.registerapp.features.facedetection.data.local.FaceEntity
 
 /**
  * Resultado da operação de registro de rosto
- * Usar sealed class para type-safe handling
+ * 
+ * Representa o resultado de salvar um rosto no banco de dados.
+ * Usa sealed class para type-safe handling.
  */
-sealed class FaceResult {
+sealed class FaceRegistrationResult {
 
     /**
      * Rosto registrado com sucesso
@@ -15,7 +17,7 @@ sealed class FaceResult {
         val id: Long,           // ID do rosto no banco
         val name: String,       // Nome da pessoa
         val embedding: FloatArray  // Embedding gerado
-    ) : FaceResult() {
+    ) : FaceRegistrationResult() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is Success) return false
@@ -38,7 +40,7 @@ sealed class FaceResult {
      */
     data class Duplicate(
         val existingFace: FaceEntity  // Face encontrada no banco
-    ) : FaceResult()
+    ) : FaceRegistrationResult()
 
     /**
      * Erro durante a operação
@@ -46,41 +48,5 @@ sealed class FaceResult {
     data class Error(
         val message: String,           // Mensagem de erro
         val exception: Throwable? = null  // Exceção original (opcional)
-    ) : FaceResult()
-}
-
-/**
- * Estados durante o processo de captura
- */
-sealed class CaptureState {
-
-    /**
-     * Estado inicial
-     */
-    object Idle : CaptureState()
-
-    /**
-     * Escaneando rosto em tempo real
-     */
-    object Scanning : CaptureState()
-
-    /**
-     * Processando a captura
-     */
-    object Processing : CaptureState()
-
-    /**
-     * Captura bem-sucedida
-     */
-    data class Success(
-        val bitmap: android.graphics.Bitmap,  // Imagem capturada
-        val embedding: FloatArray,             // Embedding gerado
-        val isDuplicate: Boolean = false,      // Se é uma duplicata
-        val existingFace: FaceEntity? = null   // Face duplicada encontrada
-    ) : CaptureState()
-
-    /**
-     * Erro durante a captura
-     */
-    data class Error(val message: String) : CaptureState()
+    ) : FaceRegistrationResult()
 }

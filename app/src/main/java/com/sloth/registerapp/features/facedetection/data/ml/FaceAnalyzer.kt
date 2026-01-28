@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.vision
+package com.sloth.registerapp.features.facedetection.data.ml
 
 import android.graphics.Bitmap
 import android.graphics.Rect
@@ -12,6 +12,16 @@ import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.sloth.registerapp.core.utils.imageProxyToBitmap
 
+/**
+ * Analisador de Rostos usando ML Kit
+ * 
+ * Responsabilidades:
+ * - Detectar rostos em frames da câmera
+ * - Analisar qualidade (centralização, iluminação)
+ * - Garantir estabilidade antes de captura
+ * 
+ * Camada: Data/ML (infraestrutura de Machine Learning)
+ */
 class FaceAnalyzer(
     private val listener: FaceAnalyzerListener,
     private val config: FaceAnalyzerConfig = FaceAnalyzerConfig()
@@ -238,10 +248,16 @@ class FaceAnalyzer(
     }
 }
 
+/**
+ * Listener para resultados da análise facial
+ */
 interface FaceAnalyzerListener {
     fun onResult(result: FaceAnalysisResult)
 }
 
+/**
+ * Resultado da análise facial
+ */
 sealed class FaceAnalysisResult {
     object NoFace : FaceAnalysisResult()
     object MultipleFaces : FaceAnalysisResult()
@@ -257,6 +273,9 @@ sealed class FaceAnalysisResult {
     data class Error(val message: String) : FaceAnalysisResult()
 }
 
+/**
+ * Configuração do FaceAnalyzer
+ */
 data class FaceAnalyzerConfig(
     val performanceMode: Int = FaceDetectorOptions.PERFORMANCE_MODE_FAST,
     val landmarkMode: Int = FaceDetectorOptions.LANDMARK_MODE_NONE,

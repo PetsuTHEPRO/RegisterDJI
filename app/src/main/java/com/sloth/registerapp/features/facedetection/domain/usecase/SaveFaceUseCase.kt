@@ -1,8 +1,8 @@
 package com.sloth.registerapp.features.facedetection.domain.usecase
 
 import android.util.Log
-import com.sloth.registerapp.features.facedetection.data.repository.FaceRepository
-import com.sloth.registerapp.features.facedetection.domain.model.FaceResult
+import com.sloth.registerapp.features.facedetection.domain.repository.FaceRepository
+import com.sloth.registerapp.features.facedetection.domain.model.FaceRegistrationResult
 
 /**
  * Use Case para salvar um rosto no banco de dados
@@ -25,19 +25,19 @@ class SaveFaceUseCase(
      *
      * @param name Nome da pessoa
      * @param embedding Embedding do rosto
-     * @return FaceResult com o resultado da operação
+     * @return FaceRegistrationResult com o resultado da operação
      */
-    suspend operator fun invoke(name: String, embedding: FloatArray): FaceResult {
+    suspend operator fun invoke(name: String, embedding: FloatArray): FaceRegistrationResult {
         return try {
             // 1. Valida entrada
             if (name.isBlank()) {
                 Log.w(TAG, "⚠️ Nome inválido")
-                return FaceResult.Error("Nome não pode estar vazio")
+                return FaceRegistrationResult.Error("Nome não pode estar vazio")
             }
 
             if (embedding.isEmpty()) {
                 Log.w(TAG, "⚠️ Embedding vazio")
-                return FaceResult.Error("Embedding inválido")
+                return FaceRegistrationResult.Error("Embedding inválido")
             }
 
             Log.d(TAG, "💾 Salvando rosto: $name")
@@ -45,11 +45,11 @@ class SaveFaceUseCase(
             // 2. Salva no banco usando repository
             val result = repository.saveFace(name, embedding)
 
-            // 3. Mapeia resultado para FaceResult
+            // 3. Mapeia resultado para FaceRegistrationResult
             result.fold(
                 onSuccess = { id ->
                     Log.d(TAG, "✅ Rosto salvo com sucesso! ID: $id")
-                    FaceResult.Success(
+                    FaceRegistrationResult.Success(
                         id = id,
                         name = name,
                         embedding = embedding
@@ -57,7 +57,7 @@ class SaveFaceUseCase(
                 },
                 onFailure = { error ->
                     Log.e(TAG, "❌ Erro ao salvar: ${error.message}")
-                    FaceResult.Error(
+                    FaceRegistrationResult.Error(
                         message = error.message ?: "Erro desconhecido ao salvar",
                         exception = error
                     )
@@ -66,7 +66,7 @@ class SaveFaceUseCase(
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exceção: ${e.message}", e)
-            FaceResult.Error(
+            FaceRegistrationResult.Error(
                 message = e.message ?: "Erro desconhecido",
                 exception = e
             )

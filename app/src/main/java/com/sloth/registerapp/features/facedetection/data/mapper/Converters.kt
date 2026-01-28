@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.facedetection.data.local
+package com.sloth.registerapp.features.facedetection.data.mapper
 
 import androidx.room.TypeConverter
 import com.google.gson.Gson

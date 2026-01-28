@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.facedetection.ui
+package com.sloth.registerapp.ui.facedetection.registered
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -21,14 +21,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.sloth.registerapp.features.facedetection.domain.service.FaceRegistrationService
+import com.sloth.registerapp.features.facedetection.domain.usecase.RegisterFaceUseCase
 import com.sloth.registerapp.features.facedetection.data.local.FaceEntity
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisteredFacesScreen(
-    faceService: FaceRegistrationService,
+    faceService: RegisterFaceUseCase,
     onNavigateBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {

@@ -192,9 +192,10 @@ class DroneMissionManager(
             
             // 1. Verificar se o método existe via reflexão
             val hasMethod = try {
+                val callbackClass = Class.forName("dji.common.util.CommonCallbacks\$CompletionCallback")
                 val method = flightController.javaClass.getMethod(
                     "setHomeLocationUsingAircraftCurrentLocation",
-                    dji.common.callback.CommonCallbacks.CompletionCallback::class.java
+                    callbackClass
                 )
                 Log.d(TAG, "✅ MÉTODO EXISTE: setHomeLocationUsingAircraftCurrentLocation")
                 true
@@ -204,6 +205,9 @@ class DroneMissionManager(
                 flightController.javaClass.methods
                     .filter { it.name.contains("Home", ignoreCase = true) }
                     .forEach { Log.e(TAG, "   - ${it.name}") }
+                false
+            } catch (e: ClassNotFoundException) {
+                Log.e(TAG, "❌ Classe de callback não encontrada")
                 false
             }
             
@@ -217,15 +221,32 @@ class DroneMissionManager(
             
             // 3. Verificar se drone está no ar
             val isFlying = try { state?.isFlying ?: false } catch (e: Exception) { false }
-            val altitude = try { state?.altitude ?: 0.0 } catch (e: Exception) { 0.0 }
+            val altitude = try {
+                val altitudeField = state?.javaClass?.getDeclaredField("altitude")
+                altitudeField?.isAccessible = true
+                (altitudeField?.get(state) as? Float)?.toDouble() ?: 0.0
+            } catch (e: Exception) {
+                Log.w(TAG, "Não foi possível obter altitude: ${e.message}")
+                0.0
+            }
             
             Log.d(TAG, "🚁 Drone no ar: ${if (isFlying) "SIM ❌ (deve estar no chão)" else "NÃO ✅ (correto)"}")
             Log.d(TAG, "📏 Altitude: ${String.format("%.2f", altitude)}m")
             
             // 4. Status da bateria
-            val batteryPercent = try { 
-                product.battery?.energyRemainingPercent ?: -1 
-            } catch (e: Exception) { -1 }
+            val batteryPercent = try {
+                val battery = product.battery
+                if (battery != null) {
+                    val percentField = battery.javaClass.getDeclaredField("chargeRemainingInPercent")
+                    percentField.isAccessible = true
+                    percentField.getInt(battery)
+                } else {
+                    -1
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Não foi possível obter bateria: ${e.message}")
+                -1
+            }
             Log.d(TAG, "🔋 Bateria: ${if (batteryPercent >= 0) "$batteryPercent%" else "N/A"}")
             
             Log.d(TAG, "🔍 === FIM DIAGNÓSTICO ===")

@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.facedetection.ui
+package com.sloth.registerapp.ui.facedetection.registered
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,7 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.sloth.registerapp.features.facedetection.domain.service.FaceRegistrationService
+import com.sloth.registerapp.features.facedetection.domain.usecase.RegisterFaceUseCase
 
 class RegisteredFacesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,7 +21,7 @@ class RegisteredFacesActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                val faceService = FaceRegistrationService.getInstance(applicationContext)
+                val faceService = RegisterFaceUseCase.getInstance(applicationContext)
                 RegisteredFacesScreen(faceService = faceService)
             }
         }

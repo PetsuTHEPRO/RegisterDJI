@@ -3,7 +3,7 @@ package com.sloth.registerapp.features.mission.data.repository
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.network.SdiaApiService
 import com.sloth.registerapp.features.mission.data.mapper.ServerMissionMapper
-import com.sloth.registerapp.features.mission.data.model.ServerMission as ServerMission
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto as ServerMissionDto
 import com.sloth.registerapp.features.mission.domain.model.Mission as UiMission
 
 class MissionRepository(
@@ -20,7 +20,7 @@ class MissionRepository(
         }
     }
 
-    suspend fun getMission(id: Int): Result<ServerMission?> {
+    suspend fun getMission(id: Int): Result<ServerMissionDto?> {
         return try {
             val missions = apiService.getMissions()
             val mission = missions.find { it.id == id }

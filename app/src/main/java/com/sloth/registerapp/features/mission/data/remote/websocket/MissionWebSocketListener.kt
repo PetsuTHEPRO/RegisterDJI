@@ -1,7 +1,7 @@
-package com.sloth.registerapp.features.mission.data.network
+package com.sloth.registerapp.features.mission.data.remote.websocket
 
 import android.util.Log
-import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.google.gson.Gson
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -9,7 +9,7 @@ import okhttp3.WebSocketListener
 
 private const val TAG = "MissionWebSocket"
 
-class MissionWebSocketListener(private val onMissionReceived: (ServerMission) -> Unit) : WebSocketListener() {
+class MissionWebSocketListener(private val onMissionReceived: (ServerMissionDto) -> Unit) : WebSocketListener() {
 
     override fun onOpen(webSocket: WebSocket, response: Response) {
         Log.d(TAG, "WebSocket connection opened")
@@ -18,7 +18,7 @@ class MissionWebSocketListener(private val onMissionReceived: (ServerMission) ->
     override fun onMessage(webSocket: WebSocket, text: String) {
         Log.d(TAG, "Receiving: $text")
         try {
-            val mission = Gson().fromJson(text, ServerMission::class.java)
+            val mission = Gson().fromJson(text, ServerMissionDto::class.java)
             onMissionReceived(mission)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing mission from WebSocket message", e)

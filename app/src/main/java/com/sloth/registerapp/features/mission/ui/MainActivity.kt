@@ -17,7 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.runtime.remember
 import com.sloth.registerapp.core.utils.PermissionHelper
-import com.sloth.registerapp.features.mission.data.sdk.DJIConnectionHelper
+import com.sloth.registerapp.features.mission.data.drone.sdk.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.features.mission.ui.DashboardScreen
 import com.sloth.registerapp.features.mission.ui.DroneControlScreen
@@ -170,7 +170,7 @@ class MainActivity : ComponentActivity() {
 
                     // New: Drone camera feed as a Compose screen
                     composable("camera") {
-                        val droneController = remember { com.sloth.registerapp.features.mission.data.drone.DroneControllerManager() }
+                        val droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager() }
                         DroneCameraScreen(
                             droneController = droneController,
                             onCellCameraClick = { /* TODO: open phone camera */ },

@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sloth.registerapp.features.mission.data.drone.DroneControllerManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager
 import com.sloth.registerapp.features.mission.data.drone.DroneState
 import com.sloth.registerapp.features.mission.ui.component.VideoFeedView
 import kotlinx.coroutines.delay

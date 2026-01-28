@@ -3,11 +3,11 @@ package com.sloth.registerapp.features.mission.ui
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sloth.registerapp.features.mission.data.drone.DroneMissionManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
 import com.sloth.registerapp.features.mission.data.drone.DJIMissionException
-import com.sloth.registerapp.features.mission.data.drone.MissionState
-import com.sloth.registerapp.features.mission.data.model.ServerMission
-import com.sloth.registerapp.features.mission.data.sdk.DJIConnectionHelper
+import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
+import com.sloth.registerapp.features.mission.data.drone.sdk.DJIConnectionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -22,13 +22,13 @@ class MissionControlViewModel : ViewModel() {
 
     val missionState: StateFlow<MissionState> = droneMissionManager.missionState
 
-    private val _mission = MutableStateFlow<ServerMission?>(null)
-    val mission: StateFlow<ServerMission?> = _mission
+    private val _mission = MutableStateFlow<ServerMissionDto?>(null)
+    val mission: StateFlow<ServerMissionDto?> = _mission
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    fun loadMission(mission: ServerMission) {
+    fun loadMission(mission: ServerMissionDto) {
         _mission.value = mission
         _errorMessage.value = null // Limpar erro anterior
         

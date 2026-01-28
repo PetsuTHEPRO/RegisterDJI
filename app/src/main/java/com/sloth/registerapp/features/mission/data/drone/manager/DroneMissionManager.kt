@@ -1,9 +1,11 @@
-package com.sloth.registerapp.features.mission.data.drone
+package com.sloth.registerapp.features.mission.data.drone.manager
 
 import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
-import com.sloth.registerapp.features.mission.data.model.ServerMission
-import com.sloth.registerapp.features.mission.data.model.Waypoint as ServerWaypoint
+import com.sloth.registerapp.features.mission.data.drone.DJIMissionException
+import com.sloth.registerapp.features.mission.data.drone.sdk.DJIConnectionHelper
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
+import com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto as ServerWaypoint
 import dji.common.error.DJIError
 import dji.common.mission.waypoint.*
 import dji.common.product.Model
@@ -39,7 +41,7 @@ enum class MissionState {
 }
 
 class DroneMissionManager(
-    private val djiConnectionHelper: com.sloth.registerapp.features.mission.data.sdk.DJIConnectionHelper,
+    private val djiConnectionHelper: DJIConnectionHelper,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main)
 ) {
 
@@ -311,7 +313,7 @@ class DroneMissionManager(
      * @throws IllegalArgumentException se os parâmetros forem inválidos
      * @throws DJIMissionException se houver erro no upload ou se drone não estiver conectado
      */
-    suspend fun prepareAndUploadMission(missionData: ServerMission) {
+    suspend fun prepareAndUploadMission(missionData: ServerMissionDto) {
         _missionState.value = MissionState.PREPARING
 
         try {
@@ -847,7 +849,7 @@ class DroneMissionManager(
 
     @Suppress("DEPRECATION")
     private fun buildWaypointMission(
-        missionData: ServerMission,
+        missionData: ServerMissionDto,
         waypointList: List<Waypoint>
     ): WaypointMission {
         return try {
@@ -1021,9 +1023,3 @@ class DroneMissionManager(
         }
     }
 }
-
-/**
- * Exception customizada para erros de missão DJI
- */
-class DJIMissionException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)

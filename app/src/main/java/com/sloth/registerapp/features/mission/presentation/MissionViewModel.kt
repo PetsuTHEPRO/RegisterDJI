@@ -3,9 +3,9 @@ package com.sloth.registerapp.features.mission.presentation
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sloth.registerapp.features.mission.data.drone.DroneMissionManager
-import com.sloth.registerapp.features.mission.data.drone.MissionState
-import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
+import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -64,7 +64,7 @@ class MissionViewModel(
     /**
      * Prepara e faz upload de uma missão para o drone
      */
-    fun prepareAndUploadMission(missionData: ServerMission) {
+    fun prepareAndUploadMission(missionData: ServerMissionDto) {
         viewModelScope.launch {
             try {
                 Log.d(TAG, "📤 Iniciando upload da missão...")

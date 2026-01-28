@@ -1,9 +1,9 @@
-package com.sloth.registerapp.features.mission.data.network
+package com.sloth.registerapp.features.mission.data.remote.websocket
 
 /**
  * Representa os comandos de missão que o servidor pode enviar para o aplicativo.
  */
-enum class ServerMissionCommand(val code: Int) {
+enum class ServerMissionCommandDto(val code: Int) {
     UPLOAD_MISSION(0x10),
     START_MISSION(0x11),
     STOP_MISSION(0x12),

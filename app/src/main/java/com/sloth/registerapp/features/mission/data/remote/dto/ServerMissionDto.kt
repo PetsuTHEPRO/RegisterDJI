@@ -1,6 +1,6 @@
-package com.sloth.registerapp.features.mission.data.model
+package com.sloth.registerapp.features.mission.data.remote.dto
 
-data class ServerMission(
+data class ServerMissionDto(
     val auto_flight_speed: Double,
     val exit_on_signal_lost: Boolean,
     val finished_action: String,
@@ -14,10 +14,10 @@ data class ServerMission(
     val poi_latitude: Double,
     val poi_longitude: Double,
     val repeat_times: Int,
-    val waypoints: List<Waypoint>
+    val waypoints: List<WaypointDto>
 )
 
-data class Waypoint(
+data class WaypointDto(
     val actions: List<Any>,
     val altitude: Double,
     val latitude: Double,

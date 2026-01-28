@@ -1,14 +1,14 @@
 package com.sloth.registerapp.features.mission.data.mapper
 
-import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.domain.model.Mission
 
 /**
- * Mapper para converter ServerMission (modelo de servidor) para Mission (modelo de UI).
+ * Mapper para converter ServerMissionDto (modelo de servidor) para Mission (modelo de UI).
  * Separa responsabilidades e facilita testes unitários.
  */
 object ServerMissionMapper {
-    fun toDomain(serverMission: ServerMission): Mission {
+    fun toDomain(serverMission: ServerMissionDto): Mission {
         return Mission(
             id = serverMission.id,
             name = serverMission.name,
@@ -20,7 +20,7 @@ object ServerMissionMapper {
         )
     }
 
-    fun toDomainList(serverMissions: List<ServerMission>): List<Mission> {
+    fun toDomainList(serverMissions: List<ServerMissionDto>): List<Mission> {
         return serverMissions.map { toDomain(it) }
     }
 }

@@ -2,7 +2,7 @@ package com.sloth.registerapp.features.mission.data.drone
 
 import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
-import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import dji.common.error.DJIError
 import dji.common.mission.waypoint.WaypointMissionFinishedAction
 import dji.common.mission.waypoint.WaypointMissionHeadingMode

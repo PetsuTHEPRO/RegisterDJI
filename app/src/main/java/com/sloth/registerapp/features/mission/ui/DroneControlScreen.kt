@@ -14,7 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.sloth.registerapp.features.mission.data.drone.DroneControllerManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager
 
 @Composable
 fun DroneControlScreen(onMissionsClick: () -> Unit) {

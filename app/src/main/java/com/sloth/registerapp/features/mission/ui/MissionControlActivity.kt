@@ -15,8 +15,8 @@ import androidx.lifecycle.lifecycleScope
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.ui.theme.RegisterAppTheme
-import com.sloth.registerapp.features.mission.data.drone.MissionState
-import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.repository.MissionRepository
 import com.sloth.registerapp.features.mission.ui.MissionStatus
 import kotlinx.coroutines.launch
@@ -58,7 +58,7 @@ class MissionControlActivity : ComponentActivity() {
         setContent {
             RegisterAppTheme {
                 val missionState = viewModel.missionState.collectAsStateWithLifecycle().value
-                val missionData: ServerMission? = viewModel.mission.collectAsStateWithLifecycle().value
+                val missionData: ServerMissionDto? = viewModel.mission.collectAsStateWithLifecycle().value
                 val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
                 when {

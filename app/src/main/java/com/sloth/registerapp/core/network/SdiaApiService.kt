@@ -4,7 +4,7 @@ import com.sloth.registerapp.features.auth.data.remote.dto.LoginResponseDto
 import com.sloth.registerapp.features.auth.data.remote.dto.RegisterRequestDto
 import com.sloth.registerapp.features.auth.data.remote.dto.RegisterResponseDto
 import com.sloth.registerapp.features.auth.domain.model.User
-import com.sloth.registerapp.features.mission.data.model.ServerMission
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -21,5 +21,5 @@ interface SdiaApiService {
     suspend fun getMe(@Header("Authorization") token: String): User
 
     @GET("missions")
-    suspend fun getMissions(): List<ServerMission>
+    suspend fun getMissions(): List<ServerMissionDto>
 }

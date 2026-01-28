@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.network.RetrofitClient
-import com.sloth.registerapp.features.mission.data.repository.MissionRepository
+import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +17,7 @@ private const val TAG = "MissionViewModel"
 
 class MissionViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val missionRepository = MissionRepository(
+    private val missionRepository = MissionRepositoryImpl(
         com.sloth.registerapp.core.network.RetrofitClient.getInstance(application),
         com.sloth.registerapp.core.auth.TokenRepository.getInstance(application)
     )

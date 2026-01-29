@@ -1,4 +1,4 @@
-package com.sloth.registerapp.features.mission.ui
+package com.sloth.registerapp.ui.mission
 
 import android.Manifest
 import android.content.Context

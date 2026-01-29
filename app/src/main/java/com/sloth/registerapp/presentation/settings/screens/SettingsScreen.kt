@@ -1,4 +1,4 @@
-package com.sloth.registerapp.ui.mission
+package com.sloth.registerapp.presentation.settings.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*

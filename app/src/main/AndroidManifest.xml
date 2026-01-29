@@ -58,7 +58,7 @@
 
         <!-- Tela Principal - Nova App de Drone -->
         <activity
-            android:name="com.sloth.registerapp.features.mission.ui.MainActivity"
+            android:name="com.sloth.registerapp.presentation.app.activities.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
@@ -78,7 +78,7 @@
 
         <!-- Controle de Missão -->
         <activity
-            android:name="com.sloth.registerapp.features.mission.ui.MissionControlActivity"
+            android:name="com.sloth.registerapp.presentation.mission.activities.MissionControlActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.RegisterApp"
@@ -89,21 +89,14 @@
         <!-- Cadastro Facial (VERTICAL) -->
         <!-- ✅ ADICIONE ESTA ACTIVITY -->
         <activity
-            android:name="com.sloth.deteccaofacial.ui.FaceRegistrationActivity"
+            android:name="com.sloth.registerapp.presentation.facedetection.activities.FaceRegistrationActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity" />
 
         <activity
-            android:name="com.sloth.registerapp.ui.facedetection.registered.RegisteredFacesActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.RegisterApp"
-            tools:ignore="LockedOrientationActivity" />
-
-        <activity
-            android:name="com.sloth.registerapp.presentation.activity.MissionActivity"
+            android:name="com.sloth.registerapp.presentation.facedetection.activities.RegisteredFacesActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.RegisterApp"

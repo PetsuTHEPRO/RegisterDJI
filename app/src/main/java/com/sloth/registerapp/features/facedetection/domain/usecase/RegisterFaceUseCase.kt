@@ -12,8 +12,8 @@ import com.sloth.registerapp.features.facedetection.domain.model.FaceRegistratio
 import com.sloth.registerapp.features.facedetection.domain.usecase.CaptureFaceUseCase
 import com.sloth.registerapp.features.facedetection.domain.usecase.SaveFaceUseCase
 import com.sloth.registerapp.features.facedetection.domain.usecase.GenerateEmbeddingUseCase
-import com.sloth.registerapp.ui.facedetection.registration.FaceRegistrationActivity
-import com.sloth.registerapp.ui.facedetection.registered.RegisteredFacesActivity
+import com.sloth.registerapp.presentation.facedetection.activities.FaceRegistrationActivity
+import com.sloth.registerapp.presentation.facedetection.activities.RegisteredFacesActivity
 import kotlinx.coroutines.flow.Flow
 
 /**

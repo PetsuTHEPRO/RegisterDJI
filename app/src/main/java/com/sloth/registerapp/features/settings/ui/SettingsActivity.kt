@@ -1,12 +1,10 @@
-package com.sloth.registerapp.features.mission.ui
+package com.sloth.registerapp.ui.mission
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
-import com.sloth.registerapp.features.mission.ui.SettingsScreen
-import com.sloth.registerapp.features.mission.ui.SettingsViewModel
 
 class SettingsActivity : ComponentActivity() {
 

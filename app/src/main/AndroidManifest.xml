@@ -84,7 +84,13 @@
             android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity" />
 
-        <!-- Feed de vídeo agora via Compose (sem Activity dedicada) -->
+        <!-- Feed de vídeo - LANDSCAPE -->
+        <activity
+            android:name="com.sloth.registerapp.presentation.app.activities.VideoFeedActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.RegisterApp"
+            tools:ignore="LockedOrientationActivity" />
 
         <!-- Cadastro Facial (VERTICAL) -->
         <!-- ✅ ADICIONE ESTA ACTIVITY -->

@@ -86,15 +86,29 @@ fun DashboardScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(start = 8.dp)
                     ) {
-                        Text(text = "🚁", fontSize = 20.sp)
-                        Text(
-                            text = "Mission Control",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textWhite
+                        Icon(
+                            imageVector = Icons.Default.FlightTakeoff,
+                            contentDescription = "Drone",
+                            modifier = Modifier.size(28.dp),
+                            tint = primaryBlue
                         )
+                        Column {
+                            Text(
+                                text = "Mission Control",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textWhite
+                            )
+                            Text(
+                                text = "Sistema de Drones",
+                                fontSize = 11.sp,
+                                color = textGray,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -103,55 +117,15 @@ fun DashboardScreen(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Configurações",
                             tint = primaryBlue,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
-                    }
-                    IconButton(onClick = onProfileClick) {
-                        Surface(
-                            modifier = Modifier.size(32.dp),
-                            shape = CircleShape,
-                            color = primaryBlue.copy(alpha = 0.2f)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = userName.take(1).uppercase(),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = primaryBlue
-                                )
-                            }
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = cardBg
                 ),
-                modifier = Modifier.height(56.dp)
+                modifier = Modifier.height(80.dp)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onMissionsClick,
-                containerColor = primaryBlue,
-                contentColor = Color.White,
-                modifier = Modifier.size(64.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.List,
-                        contentDescription = "Missões",
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = "Missões",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
         }
     ) { paddingValues ->
         Column(
@@ -160,7 +134,7 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 80.dp),
+                .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -184,7 +158,12 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(text = "👋", fontSize = 32.sp)
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = "Bem-vindo",
+                            modifier = Modifier.size(32.dp),
+                            tint = primaryBlue
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Bem-vindo, $userName!",
@@ -226,7 +205,12 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(text = "🚁", fontSize = 32.sp)
+                            Icon(
+                                imageVector = Icons.Default.FlightTakeoff,
+                                contentDescription = "Drone Status",
+                                modifier = Modifier.size(32.dp),
+                                tint = statusColor
+                            )
                             Column {
                                 Text(
                                     text = "Status do Drone",
@@ -298,15 +282,6 @@ fun DashboardScreen(
                             color = textGray,
                             lineHeight = 18.sp
                         )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            ProjectFeatureChip("🎯 Waypoints")
-                            ProjectFeatureChip("📡 Telemetria")
-                            ProjectFeatureChip("🤖 IA")
-                        }
                     }
                 }
             }
@@ -333,7 +308,7 @@ fun DashboardScreen(
                     ) {
                         // Botão 1: Live Feed
                         MainActionCard(
-                            icon = "📡",
+                            icon = Icons.Default.Videocam,
                             title = "Live Feed",
                             subtitle = "Transmissão ao vivo",
                             gradient = Brush.linearGradient(
@@ -345,21 +320,21 @@ fun DashboardScreen(
                             badgeText = "AO VIVO"
                         )
 
-                        // Botão 2: Conectar Drone (NOVO)
+                        // Botão 2: Missões
                         MainActionCard(
-                            icon = "🔗",
-                            title = "Conectar",
-                            subtitle = "Estabelecer conexão",
+                            icon = Icons.Default.Assignment,
+                            title = "Missões",
+                            subtitle = "Gerenciar missões",
                             gradient = Brush.linearGradient(
-                                colors = listOf(Color(0xFF10B981), Color(0xFF059669))
+                                colors = listOf(Color(0xFF8B5CF6), Color(0xFF7C3AED))
                             ),
-                            onClick = onConnectDroneClick,
+                            onClick = onMissionsClick,
                             modifier = Modifier.weight(1f)
                         )
 
                         // Botão 3: Controle
                         MainActionCard(
-                            icon = "🕹️",
+                            icon = Icons.Default.TouchApp,
                             title = "Controle",
                             subtitle = "Controle manual",
                             gradient = Brush.linearGradient(
@@ -519,7 +494,7 @@ fun DashboardScreen(
 
 @Composable
 fun MainActionCard(
-    icon: String,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     gradient: Brush,
@@ -575,7 +550,12 @@ fun MainActionCard(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = icon, fontSize = 40.sp)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    modifier = Modifier.size(40.dp),
+                    tint = Color.White
+                )
                 Column {
                     Text(
                         text = title,

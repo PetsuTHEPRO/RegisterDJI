@@ -80,6 +80,15 @@ fun DashboardScreen(
         visible = true
     }
 
+    // Abas do Bottom Navigation (ajustado)
+    val dashboardTabs = listOf(
+        Triple("home", "Home", Icons.Default.Home),
+        Triple("missions", "Missões", Icons.Default.List),
+        Triple("telemetry", "Telemetria", Icons.Default.Speed),
+        Triple("video", "Vídeo", Icons.Default.PlayCircle)
+    )
+    var selectedTab by remember { mutableStateOf(0) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -126,6 +135,23 @@ fun DashboardScreen(
                 ),
                 modifier = Modifier.height(80.dp)
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color(0xFF0B1220)
+            ) {
+                dashboardTabs.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        icon = {
+                            Icon(tab.third, contentDescription = tab.second)
+                        },
+                        label = { Text(tab.second) },
+                        alwaysShowLabel = true
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         Column(

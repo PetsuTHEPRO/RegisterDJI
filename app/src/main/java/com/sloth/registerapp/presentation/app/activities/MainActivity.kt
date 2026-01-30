@@ -51,11 +51,12 @@ class MainActivity : ComponentActivity() {
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             RegisterAppTheme {
                 val navController = rememberNavController()
-                val context = LocalContext.current // Obtém o contexto aqui
+                val context = LocalContext.current
+                val sessionManager = remember { com.sloth.registerapp.core.auth.SessionManager.getInstance(context) }
+                val userName by sessionManager.username.collectAsState(initial = "Usuário")
+                val userEmail by sessionManager.email.collectAsState(initial = "usuario@labubu.com")
 
                 navController.addOnDestinationChangedListener { _, _, _ ->
-                    // Deixar o sistema gerenciar as barras de sistema para todas as telas.
-                    // Isso garante que a barra de status e a barra de navegação fiquem visíveis.
                     WindowCompat.setDecorFitsSystemWindows(window, true)
                     controller.show(WindowInsetsCompat.Type.systemBars())
                 }
@@ -91,6 +92,7 @@ class MainActivity : ComponentActivity() {
                         val droneStatus by DJIConnectionHelper.connectionStatus.collectAsState()
                         DashboardScreen(
                             droneStatus = droneStatus,
+                            userName = userName ?: "Usuário",
                             onMissionsClick = { navController.navigate("mission") },
                             onMissionControlClick = {
                                 val intent = Intent(context, MissionControlActivity::class.java)
@@ -107,9 +109,10 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("settings") {
                         SettingsScreen(
+                            userName = userName ?: "Usuário",
+                            userEmail = userEmail ?: "usuario@labubu.com",
                             onBackClick = { navController.popBackStack() },
                             onLogout = {
-                                // TODO: Implement actual logout logic
                                 navController.navigate("login") {
                                     popUpTo("welcome") { inclusive = true }
                                 }

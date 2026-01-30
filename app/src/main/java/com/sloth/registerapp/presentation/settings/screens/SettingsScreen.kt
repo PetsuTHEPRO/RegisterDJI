@@ -28,7 +28,7 @@ import androidx.compose.foundation.background
 @Composable
 fun SettingsScreen(
     userName: String = "Usuário",
-    userEmail: String = "usuario@email.com",
+    userEmail: String = "usuario@labubu.com",
     onBackClick: () -> Unit = {},
     onChangeProfilePhoto: () -> Unit = {},
     onChangeUsername: () -> Unit = {},

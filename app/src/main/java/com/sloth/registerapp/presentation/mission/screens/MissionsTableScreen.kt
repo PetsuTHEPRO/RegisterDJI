@@ -33,6 +33,7 @@ fun MissionsTableScreen(
     isLoading: Boolean = false,
     onCreateMissionClick: () -> Unit = {},
     onViewMissionClick: (Int) -> Unit = {},
+    onEditMissionClick: (Int) -> Unit = {},
     onDeleteMissionClick: (Int) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
@@ -58,13 +59,12 @@ fun MissionsTableScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "🗂️", fontSize = 20.sp)
                         Text(
                             text = "Missões",
                             fontSize = 18.sp,
@@ -82,10 +82,10 @@ fun MissionsTableScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = cardBg
                 ),
-                modifier = Modifier.height(56.dp)
+                modifier = Modifier.height(80.dp)
             )
         },
         floatingActionButton = {
@@ -217,6 +217,7 @@ fun MissionsTableScreen(
                                 MissionCard(
                                     mission = mission,
                                     onViewClick = { onViewMissionClick(mission.id) },
+                                    onEditClick = { onEditMissionClick(mission.id) },
                                     onDeleteClick = {
                                         missionToDelete = mission.id
                                         showDeleteDialog = true
@@ -316,6 +317,7 @@ fun MissionsTableScreen(
 fun MissionCard(
     mission: Mission,
     onViewClick: () -> Unit,
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     primaryBlue: Color,
     darkBlue: Color,
@@ -405,29 +407,36 @@ fun MissionCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Informações principais (sempre visíveis)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                // Coordenadas
-                InfoChip(
-                    icon = "📍",
-                    label = "Lat/Long",
-                    value = "${String.format("%.4f", mission.latitude)}, ${String.format("%.4f", mission.longitude)}",
-                    textGray = textGray,
-                    textWhite = textWhite,
-                    modifier = Modifier.weight(1f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Coordenadas
+                    InfoChip(
+                        icon = "📍",
+                        label = "Lat/Long",
+                        value = "${String.format("%.4f", mission.latitude)}, ${String.format("%.4f", mission.longitude)}",
+                        textGray = textGray,
+                        textWhite = textWhite,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                // Waypoints
-                InfoChip(
-                    icon = "📍",
-                    label = "Waypoints",
-                    value = "${mission.waypointCount}",
-                    textGray = textGray,
-                    textWhite = textWhite,
-                    accentColor = greenAccent
-                )
+                    // Waypoints
+                    InfoChip(
+                        icon = "📍",
+                        label = "Waypoints",
+                        value = "${mission.waypointCount}",
+                        textGray = textGray,
+                        textWhite = textWhite,
+                        accentColor = greenAccent,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
 
             // Informações expandidas
@@ -479,11 +488,30 @@ fun MissionCard(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // Botão Visualizar
-                        Button(
+                        OutlinedButton(
                             onClick = onViewClick,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .height(40.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            border = BorderStroke(1.5.dp, Color.White)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = "Visualizar",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // Botão Editar
+                        Button(
+                            onClick = onEditClick,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = primaryBlue
@@ -493,15 +521,9 @@ fun MissionCard(
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Visibility,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Visualizar",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                modifier = Modifier.size(16.dp)
                             )
                         }
 
@@ -510,7 +532,7 @@ fun MissionCard(
                             onClick = onDeleteClick,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .height(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = redAccent
@@ -519,14 +541,8 @@ fun MissionCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Excluir",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                contentDescription = "Excluir",
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -569,7 +585,7 @@ fun InfoChip(
                 )
                 Text(
                     text = value,
-                    fontSize = 13.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = accentColor ?: textWhite,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace

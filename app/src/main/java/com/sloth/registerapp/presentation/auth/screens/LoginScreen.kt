@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.navigation.NavController
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.auth.TokenRepository
+import com.sloth.registerapp.core.auth.SessionManager
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -268,6 +269,7 @@ fun LoginScreen(
                                             // Instanciar dependências
                                             val apiService = RetrofitClient.getInstance(context)
                                             val tokenRepository = TokenRepository.getInstance(context)
+                                            val sessionManager = SessionManager.getInstance(context)
 
                                             // Criar cabeçalho Basic Auth
                                             val credentials = "$username:$password" // Alterado de email para username
@@ -276,8 +278,20 @@ fun LoginScreen(
                                             // Fazer a chamada de API
                                             val response = apiService.login(basicAuth)
 
-                                            // Salvar o token
+                                            // Buscar dados completos do usuário (username e email)
+                                            val userMe = apiService.getMe("Bearer ${response.token}")
+
+                                            // Salvar o token (mantido para compatibilidade)
                                             tokenRepository.saveToken(response.token)
+                                            
+                                            // Salvar a sessão completa com dados do usuário
+                                            sessionManager.createSession(
+                                                token = response.token,
+                                                userId = response.userId,
+                                                username = userMe.username,
+                                                email = userMe.email,
+                                                expiryDays = 7L // Token válido por 7 dias
+                                            )
 
                                             // Navegar para o dashboard
                                             navController.navigate("dashboard") {

@@ -240,51 +240,7 @@ fun DashboardScreen(
                 }
             }
 
-            // 3. Sobre o Projeto - TERCEIRO
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn() + slideInVertically(
-                    initialOffsetY = { it / 2 },
-                    animationSpec = tween(400, delayMillis = 300)
-                )
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = cardBg.copy(alpha = 0.95f),
-                    border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = primaryBlue,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "Sobre o Projeto",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textWhite
-                            )
-                        }
-
-                        Text(
-                            text = "Sistema autônomo para planejamento e monitoramento de missões de drones em tempo real com IA.",
-                            fontSize = 13.sp,
-                            color = textGray,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-            }
+            // 3. Sobre o Projeto - TERCEIRO (REMOVIDO DAQUI)
 
             // 4. Ações Principais (3 botões em linha) - QUARTO
             AnimatedVisibility(
@@ -412,13 +368,62 @@ fun DashboardScreen(
                 }
             }
 
+            // 6B. Sobre o Projeto - DEPOIS DOS DRONES (MOVIDO)
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn() + slideInVertically(
+                    initialOffsetY = { it / 2 },
+                    animationSpec = tween(400, delayMillis = 650)
+                )
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = cardBg.copy(alpha = 0.95f),
+                    border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = primaryBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Sobre o Projeto",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textWhite
+                            )
+                        }
+
+                        Text(
+                            text = "Sistema autônomo para planejamento e monitoramento de missões de drones em tempo real com IA.",
+                            fontSize = 13.sp,
+                            color = textGray,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+
             // 7. Rodapé - SÉTIMO
             AnimatedVisibility(
                 visible = visible,
                 enter = fadeIn(animationSpec = tween(400, delayMillis = 700))
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

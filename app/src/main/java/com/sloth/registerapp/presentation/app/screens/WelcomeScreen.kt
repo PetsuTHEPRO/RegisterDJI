@@ -49,12 +49,13 @@ fun WelcomeScreen(
         label = "pulse_scale"
     )
 
-    // Cores do tema dark
+    // Cores do tema centralizado
+    val colorScheme = MaterialTheme.colorScheme
     val backgroundGradient = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF0A0E27),
-            Color(0xFF1A1F3A),
-            Color(0xFF0A0E27)
+            colorScheme.background,
+            colorScheme.surface,
+            colorScheme.surfaceVariant
         )
     )
 
@@ -68,7 +69,7 @@ fun WelcomeScreen(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset(x = (-50).dp, y = 50.dp),
-            color = Color(0xFF3B82F6),
+            color = colorScheme.primary,
             size = 200.dp
         )
 
@@ -76,7 +77,7 @@ fun WelcomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .offset(x = 50.dp, y = 100.dp),
-            color = Color(0xFF8B5CF6),
+            color = colorScheme.tertiary,
             size = 250.dp
         )
 
@@ -113,7 +114,7 @@ fun WelcomeScreen(
                             .scale(pulseScale)
                             .alpha(0.3f)
                             .background(
-                                color = Color(0xFF3B82F6),
+                                color = colorScheme.primary,
                                 shape = CircleShape
                             )
                     )
@@ -133,7 +134,7 @@ fun WelcomeScreen(
                     text = "Mission Control",
                     fontSize = 36.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
+                    color = colorScheme.onBackground,
                     textAlign = TextAlign.Center,
                     letterSpacing = (-0.5).sp
                 )
@@ -145,15 +146,15 @@ fun WelcomeScreen(
                     text = "Plataforma Inteligente",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF60A5FA),
+                    color = colorScheme.primary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .background(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    Color(0xFF60A5FA).copy(alpha = 0.1f),
-                                    Color(0xFF3B82F6).copy(alpha = 0.1f),
-                                    Color(0xFF60A5FA).copy(alpha = 0.1f)
+                                    colorScheme.primaryContainer.copy(alpha = 0.1f),
+                                    colorScheme.primary.copy(alpha = 0.1f),
+                                    colorScheme.primaryContainer.copy(alpha = 0.1f)
                                 )
                             ),
                             shape = RoundedCornerShape(20.dp)
@@ -168,7 +169,7 @@ fun WelcomeScreen(
                     text = "Sistema avançado de planejamento e monitoramento de missões autônomas para drones",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Normal,
-                    color = Color(0xFF94A3B8),
+                    color = colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     lineHeight = 22.sp,
                     modifier = Modifier.padding(horizontal = 8.dp)
@@ -214,8 +215,8 @@ fun WelcomeScreen(
                             .background(
                                 brush = Brush.horizontalGradient(
                                     colors = listOf(
-                                        Color(0xFF3B82F6),
-                                        Color(0xFF1D4ED8)
+                                        colorScheme.primary,
+                                        colorScheme.primaryContainer
                                     )
                                 )
                             ),
@@ -234,7 +235,7 @@ fun WelcomeScreen(
                                 text = "Entrar",
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = colorScheme.onPrimary
                             )
                         }
                     }
@@ -249,15 +250,15 @@ fun WelcomeScreen(
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color(0xFF1E293B).copy(alpha = 0.6f),
-                        contentColor = Color.White
+                        containerColor = colorScheme.surface.copy(alpha = 0.6f),
+                        contentColor = colorScheme.onSurface
                     ),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         width = 1.dp,
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                Color(0xFF475569),
-                                Color(0xFF334155)
+                                colorScheme.outline,
+                                colorScheme.primary
                             )
                         )
                     ),
@@ -276,7 +277,7 @@ fun WelcomeScreen(
                             text = "Criar Conta",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = colorScheme.onSurface
                         )
                     }
                 }
@@ -289,6 +290,7 @@ fun WelcomeScreen(
 
 @Composable
 fun StatusBadge() {
+    val colorScheme = MaterialTheme.colorScheme
     val pulseAnimation = rememberInfiniteTransition(label = "badge_pulse")
     val badgePulse by pulseAnimation.animateFloat(
         initialValue = 1f,
@@ -302,13 +304,13 @@ fun StatusBadge() {
 
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF3B82F6).copy(alpha = 0.1f),
+        color = colorScheme.primary.copy(alpha = 0.1f),
         border = ButtonDefaults.outlinedButtonBorder.copy(
             width = 1.dp,
             brush = Brush.horizontalGradient(
                 colors = listOf(
-                    Color(0xFF3B82F6).copy(alpha = 0.3f),
-                    Color(0xFF60A5FA).copy(alpha = 0.3f)
+                    colorScheme.primary.copy(alpha = 0.3f),
+                    colorScheme.primaryContainer.copy(alpha = 0.3f)
                 )
             )
         )
@@ -323,7 +325,7 @@ fun StatusBadge() {
                     .size(8.dp)
                     .scale(badgePulse)
                     .background(
-                        color = Color(0xFF3B82F6),
+                        color = colorScheme.primary,
                         shape = CircleShape
                     )
             )
@@ -332,7 +334,7 @@ fun StatusBadge() {
                 text = "Sistema Autônomo de Missões",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF60A5FA)
+                color = colorScheme.primary
             )
         }
     }
@@ -340,6 +342,7 @@ fun StatusBadge() {
 
 @Composable
 fun StatItem(label: String, value: String) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -347,14 +350,14 @@ fun StatItem(label: String, value: String) {
             text = value,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = Color(0xFF60A5FA)
+            color = colorScheme.primary
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF64748B),
+            color = colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }
@@ -362,12 +365,13 @@ fun StatItem(label: String, value: String) {
 
 @Composable
 fun StatDivider() {
+    val colorScheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .width(1.dp)
             .height(40.dp)
             .background(
-                color = Color(0xFF475569).copy(alpha = 0.5f)
+                color = colorScheme.outline.copy(alpha = 0.5f)
             )
     )
 }

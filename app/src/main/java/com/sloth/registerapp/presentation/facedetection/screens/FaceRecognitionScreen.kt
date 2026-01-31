@@ -118,11 +118,12 @@ fun FaceRegistrationContent(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(colorScheme.background)
     ) {
         when (val state = uiState) {
             is FaceRegistrationUiState.Scanning -> {
@@ -262,7 +263,7 @@ fun CameraPreviewScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f))
             )
 
             // Overlay de guia facial
@@ -311,7 +312,7 @@ fun CameraTopBar(
                 text = "Cadastro Facial",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         },
         navigationIcon = {
@@ -320,14 +321,14 @@ fun CameraTopBar(
                 modifier = Modifier
                     .padding(4.dp)
                     .background(
-                        color = Color.White.copy(alpha = 0.15f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
                         shape = CircleShape
                     )
             ) {
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
                     contentDescription = "Voltar",
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         },
@@ -337,8 +338,8 @@ fun CameraTopBar(
                 onClick = onOpenRegistered,
                 modifier = Modifier.padding(end = 8.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Color(0xFF6366F1).copy(alpha = 0.9f),
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
@@ -357,7 +358,7 @@ fun CameraTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Black.copy(alpha = 0.7f)
+            containerColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.7f)
         )
     )
 }
@@ -381,12 +382,12 @@ fun FaceGuideOverlay(analysisResult: FaceAnalysisResult) {
     val color = when (analysisResult) {
         is FaceAnalysisResult.AdvancedResult -> {
             when {
-                analysisResult.isStable -> Color(0xFF10B981)
-                else -> Color(0xFFF59E0B)
+                analysisResult.isStable -> MaterialTheme.colorScheme.secondary
+                else -> MaterialTheme.colorScheme.tertiary
             }
         }
-        is FaceAnalysisResult.FaceDetected -> Color(0xFFF59E0B)
-        else -> Color.White
+        is FaceAnalysisResult.FaceDetected -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.onSurface
     }
 
     Canvas(
@@ -437,24 +438,24 @@ fun InstructionsCard(
 ) {
     val (message, icon, color) = when (analysisResult) {
         is FaceAnalysisResult.NoFace ->
-            Triple("Posicione seu rosto no centro", Icons.Default.FaceRetouchingNatural, Color(0xFFF59E0B))
+            Triple("Posicione seu rosto no centro", Icons.Default.FaceRetouchingNatural, MaterialTheme.colorScheme.tertiary)
         is FaceAnalysisResult.MultipleFaces ->
-            Triple("Apenas uma pessoa por vez", Icons.Default.Groups, Color(0xFFEF4444))
+            Triple("Apenas uma pessoa por vez", Icons.Default.Groups, MaterialTheme.colorScheme.error)
         is FaceAnalysisResult.AdvancedResult -> {
             when {
                 !analysisResult.isCentered ->
-                    Triple("Centralize seu rosto", Icons.Default.CenterFocusWeak, Color(0xFFF59E0B))
+                    Triple("Centralize seu rosto", Icons.Default.CenterFocusWeak, MaterialTheme.colorScheme.tertiary)
                 !analysisResult.isWellLit ->
-                    Triple("Melhore a iluminação", Icons.Default.WbSunny, Color(0xFFF59E0B))
+                    Triple("Melhore a iluminação", Icons.Default.WbSunny, MaterialTheme.colorScheme.tertiary)
                 !analysisResult.isStable ->
-                    Triple("Mantenha a posição...", Icons.Default.Timer, Color(0xFF3B82F6))
+                    Triple("Mantenha a posição...", Icons.Default.Timer, MaterialTheme.colorScheme.primary)
                 else ->
-                    Triple("Pronto para capturar!", Icons.Default.CheckCircle, Color(0xFF10B981))
+                    Triple("Pronto para capturar!", Icons.Default.CheckCircle, MaterialTheme.colorScheme.secondary)
             }
         }
         is FaceAnalysisResult.Error ->
-            Triple("Erro na análise", Icons.Default.Error, Color(0xFFEF4444))
-        else -> Triple("Aguardando análise", Icons.Default.HourglassEmpty, Color.White)
+            Triple("Erro na análise", Icons.Default.Error, MaterialTheme.colorScheme.error)
+        else -> Triple("Aguardando análise", Icons.Default.HourglassEmpty, MaterialTheme.colorScheme.onSurface)
     }
 
     AnimatedVisibility(
@@ -465,7 +466,7 @@ fun InstructionsCard(
     ) {
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = Color.Black.copy(alpha = 0.85f)
+                containerColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.85f)
             ),
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.padding(horizontal = 24.dp)
@@ -486,7 +487,7 @@ fun InstructionsCard(
 
                 Text(
                     text = message,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -532,7 +533,7 @@ fun CaptureButton(
                     .size(100.dp)
                     .scale(ringScale)
                     .background(
-                        color = Color(0xFF10B981).copy(alpha = 0.3f),
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f),
                         shape = CircleShape
                     )
             )
@@ -544,7 +545,7 @@ fun CaptureButton(
             modifier = Modifier
                 .size(80.dp)
                 .scale(scale),
-            containerColor = if (enabled) Color(0xFF10B981) else Color(0xFF64748B),
+            containerColor = if (enabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
             elevation = FloatingActionButtonDefaults.elevation(
                 defaultElevation = 8.dp,
                 pressedElevation = 12.dp
@@ -553,7 +554,7 @@ fun CaptureButton(
             Icon(
                 imageVector = Icons.Default.CameraAlt,
                 contentDescription = "Capturar",
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(36.dp)
             )
         }
@@ -571,8 +572,8 @@ fun ProcessingScreen(message: String) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0F172A),
-                        Color(0xFF1E293B)
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             ),
@@ -584,7 +585,7 @@ fun ProcessingScreen(message: String) {
         ) {
             CircularProgressIndicator(
                 modifier = Modifier.size(64.dp),
-                color = Color(0xFF6366F1),
+                color = MaterialTheme.colorScheme.primary,
                 strokeWidth = 6.dp
             )
 
@@ -592,7 +593,7 @@ fun ProcessingScreen(message: String) {
 
             Text(
                 text = message,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
@@ -621,8 +622,8 @@ fun ResultScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0F172A),
-                        Color(0xFF1E293B)
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             )
@@ -639,7 +640,7 @@ fun ResultScreen(
                 text = if (isDuplicate) "Rosto Já Cadastrado" else "Rosto Capturado!",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -665,7 +666,7 @@ fun ResultScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFEF3C7)
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
                     ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -676,7 +677,7 @@ fun ResultScreen(
                         Icon(
                             imageVector = Icons.Default.Warning,
                             contentDescription = null,
-                            tint = Color(0xFFF59E0B),
+                            tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(32.dp)
                         )
 
@@ -686,12 +687,12 @@ fun ResultScreen(
                             Text(
                                 text = "Rosto já registrado",
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF92400E)
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                             Text(
                                 text = "Cadastrado como: $duplicateName",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF92400E)
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                         }
                     }
@@ -709,22 +710,22 @@ fun ResultScreen(
                 enabled = !isDuplicate,
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6366F1),
-                    unfocusedBorderColor = Color(0xFF475569),
-                    focusedLabelColor = Color(0xFF6366F1),
-                    unfocusedLabelColor = Color(0xFF94A3B8),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    disabledTextColor = Color(0xFF64748B),
-                    disabledBorderColor = Color(0xFF334155),
-                    disabledLabelColor = Color(0xFF64748B)
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 shape = RoundedCornerShape(12.dp),
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = if (isDuplicate) Color(0xFF64748B) else Color(0xFF6366F1)
+                        tint = if (isDuplicate) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                     )
                 }
             )
@@ -735,7 +736,7 @@ fun ResultScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF1E293B)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -749,14 +750,14 @@ fun ResultScreen(
                             Icon(
                                 imageVector = Icons.Default.Fingerprint,
                                 contentDescription = null,
-                                tint = Color(0xFF6366F1),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Embedding Gerado",
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
@@ -764,7 +765,7 @@ fun ResultScreen(
                             Icon(
                                 imageVector = if (showEmbedding) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                 contentDescription = if (showEmbedding) "Ocultar" else "Expandir",
-                                tint = Color(0xFF94A3B8)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -772,7 +773,7 @@ fun ResultScreen(
                     Text(
                         text = "Dimensões: ${embedding.size}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF94A3B8)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     AnimatedVisibility(visible = showEmbedding) {
@@ -781,13 +782,13 @@ fun ResultScreen(
                                 text = "Primeiros 10 valores:",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFCBD5E1)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = embedding.take(10).joinToString(", ") { "%.4f".format(it) },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF94A3B8)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -810,8 +811,8 @@ fun ResultScreen(
                     enabled = name.isNotBlank(),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981),
-                        disabledContainerColor = Color(0xFF334155)
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        disabledContainerColor = MaterialTheme.colorScheme.outline
                     )
                 ) {
                     Icon(
@@ -834,7 +835,7 @@ fun ResultScreen(
                     enabled = false,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        disabledContentColor = Color(0xFF64748B)
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
                     Icon(
@@ -856,10 +857,10 @@ fun ResultScreen(
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.linearGradient(listOf(Color(0xFF475569), Color(0xFF475569)))
+                    brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.outline, MaterialTheme.colorScheme.outline))
                 )
             ) {
                 Icon(
@@ -889,8 +890,8 @@ fun SavedScreen(
             .background(
                 Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF10B981),
-                        Color(0xFF059669)
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.secondary
                     )
                 )
             ),
@@ -916,7 +917,7 @@ fun SavedScreen(
                     .size(120.dp)
                     .scale(scale)
                     .background(
-                        color = Color.White.copy(alpha = 0.2f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -924,7 +925,7 @@ fun SavedScreen(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(80.dp)
                 )
             }
@@ -933,7 +934,7 @@ fun SavedScreen(
 
             Text(
                 text = "Cadastro Realizado!",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -942,7 +943,7 @@ fun SavedScreen(
 
             Text(
                 text = "$name foi cadastrado com sucesso",
-                color = Color.White.copy(alpha = 0.9f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center
             )
@@ -956,20 +957,20 @@ fun SavedScreen(
                     .fillMaxWidth()
                     .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.onSurface
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.PersonAdd,
                     contentDescription = null,
-                    tint = Color(0xFF059669),
+                    tint = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Cadastrar Novo Rosto",
-                    color = Color(0xFF059669),
+                    color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -982,10 +983,10 @@ fun SavedScreen(
                     .fillMaxWidth()
                     .height(56.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color.White
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.linearGradient(listOf(Color.White, Color.White))
+                    brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.onSurface))
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -1015,8 +1016,8 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF7F1D1D),
-                        Color(0xFF991B1B)
+                        MaterialTheme.colorScheme.error,
+                        MaterialTheme.colorScheme.error
                     )
                 )
             ),
@@ -1030,7 +1031,7 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
                 modifier = Modifier
                     .size(100.dp)
                     .background(
-                        color = Color.White.copy(alpha = 0.2f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -1038,7 +1039,7 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
                 Icon(
                     imageVector = Icons.Default.ErrorOutline,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(64.dp)
                 )
             }
@@ -1047,7 +1048,7 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
 
             Text(
                 text = "Erro no Processo",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -1056,7 +1057,7 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
 
             Text(
                 text = message,
-                color = Color.White.copy(alpha = 0.9f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
             )
@@ -1069,20 +1070,20 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
                     .fillMaxWidth()
                     .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.onSurface
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = null,
-                    tint = Color(0xFF991B1B),
+                    tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Tentar Novamente",
-                    color = Color(0xFF991B1B),
+                    color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -1104,8 +1105,8 @@ fun PermissionRequestScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF0F172A),
-                        Color(0xFF1E293B)
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             ),
@@ -1118,14 +1119,14 @@ fun PermissionRequestScreen(
                 .align(Alignment.TopStart)
                 .padding(16.dp)
                 .background(
-                    color = Color.White.copy(alpha = 0.1f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
                     shape = CircleShape
                 )
         ) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
                 contentDescription = "Voltar",
-                tint = Color.White
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
 
@@ -1137,7 +1138,7 @@ fun PermissionRequestScreen(
                 modifier = Modifier
                     .size(120.dp)
                     .background(
-                        color = Color(0xFF6366F1).copy(alpha = 0.2f),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -1145,7 +1146,7 @@ fun PermissionRequestScreen(
                 Icon(
                     imageVector = Icons.Default.CameraAlt,
                     contentDescription = null,
-                    tint = Color(0xFF6366F1),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(64.dp)
                 )
             }
@@ -1157,7 +1158,7 @@ fun PermissionRequestScreen(
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1166,7 +1167,7 @@ fun PermissionRequestScreen(
                 text = "Para cadastrar rostos, precisamos acessar sua câmera. Garantimos que suas imagens são processadas com segurança.",
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -1177,7 +1178,7 @@ fun PermissionRequestScreen(
                     .fillMaxWidth()
                     .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6366F1)
+                    containerColor = MaterialTheme.colorScheme.primary
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {

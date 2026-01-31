@@ -31,15 +31,22 @@ data class SyncStatus(
 
 @Composable
 fun SyncStatusBar(syncStatus: SyncStatus) {
+    val colorScheme = MaterialTheme.colorScheme
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            !syncStatus.isOnline -> Color(0xFFFFB74D) // Orange
-            syncStatus.failedOperations > 0 -> Color(0xFFEF5350) // Red
-            syncStatus.pendingOperations > 0 -> Color(0xFF42A5F5) // Blue
-            else -> Color(0xFF66BB6A) // Green
+            !syncStatus.isOnline -> colorScheme.tertiary
+            syncStatus.failedOperations > 0 -> colorScheme.error
+            syncStatus.pendingOperations > 0 -> colorScheme.primary
+            else -> colorScheme.secondary
         },
         animationSpec = tween(500), label = ""
     )
+    val contentColor = when {
+        !syncStatus.isOnline -> colorScheme.onTertiary
+        syncStatus.failedOperations > 0 -> colorScheme.onError
+        syncStatus.pendingOperations > 0 -> colorScheme.onPrimary
+        else -> colorScheme.onSecondary
+    }
 
     val icon: ImageVector
     val text: String
@@ -76,19 +83,19 @@ fun SyncStatusBar(syncStatus: SyncStatus) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = contentColor,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = text,
-                    color = Color.White,
+                    color = contentColor,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
             Text(
                 text = formatLastSync(syncStatus.lastSyncTimestamp),
-                color = Color.White.copy(alpha = 0.8f),
+                color = contentColor.copy(alpha = 0.8f),
                 style = MaterialTheme.typography.bodySmall
             )
         }

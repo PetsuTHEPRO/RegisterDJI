@@ -16,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +33,7 @@ fun RegisteredFacesScreen(
 ) {
     val faces by faceService.getAllFaces().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val colorScheme = MaterialTheme.colorScheme
 
     var searchQuery by remember { mutableStateOf("") }
     var showDeleteAllDialog by remember { mutableStateOf(false) }
@@ -47,19 +47,6 @@ fun RegisteredFacesScreen(
             faces.filter { it.name.contains(searchQuery, ignoreCase = true) }
         }
     }
-
-    // Cores harmônicas
-    val primaryGradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF6366F1), // Indigo
-            Color(0xFF8B5CF6)  // Purple
-        )
-    )
-
-    val surfaceColor = Color(0xFFF8F9FE)
-    val cardColor = Color.White
-    val accentColor = Color(0xFF6366F1)
-    val dangerColor = Color(0xFFEF4444)
 
     Scaffold(
         topBar = {
@@ -83,12 +70,12 @@ fun RegisteredFacesScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Voltar",
-                            tint = accentColor
+                            tint = colorScheme.primary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = surfaceColor
+                    containerColor = colorScheme.surface
                 )
             )
         }
@@ -96,7 +83,7 @@ fun RegisteredFacesScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(surfaceColor)
+                .background(colorScheme.background)
                 .padding(paddingValues)
         ) {
             if (faces.isEmpty()) {
@@ -140,9 +127,7 @@ fun RegisteredFacesScreen(
                             ) { face ->
                                 FaceListItem(
                                     face = face,
-                                    onDelete = { faceToDelete = face },
-                                    accentColor = accentColor,
-                                    dangerColor = dangerColor
+                                    onDelete = { faceToDelete = face }
                                 )
                             }
                         }
@@ -153,7 +138,7 @@ fun RegisteredFacesScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shadowElevation = 8.dp,
-                            color = surfaceColor
+                            color = colorScheme.surface
                         ) {
                             OutlinedButton(
                                 onClick = { showDeleteAllDialog = true },
@@ -161,10 +146,10 @@ fun RegisteredFacesScreen(
                                     .fillMaxWidth()
                                     .padding(16.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = dangerColor
+                                    contentColor = colorScheme.error
                                 ),
                                 border = ButtonDefaults.outlinedButtonBorder.copy(
-                                    brush = Brush.linearGradient(listOf(dangerColor, dangerColor))
+                                    brush = Brush.linearGradient(listOf(colorScheme.error, colorScheme.error))
                                 )
                             ) {
                                 Icon(
@@ -196,8 +181,7 @@ fun RegisteredFacesScreen(
                     faceToDelete = null
                 }
             },
-            onDismiss = { faceToDelete = null },
-            dangerColor = dangerColor
+            onDismiss = { faceToDelete = null }
         )
     }
 
@@ -213,7 +197,6 @@ fun RegisteredFacesScreen(
                 }
             },
             onDismiss = { showDeleteAllDialog = false },
-            dangerColor = dangerColor,
             isDestructive = true
         )
     }
@@ -225,6 +208,7 @@ fun SearchBar(
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
@@ -236,7 +220,7 @@ fun SearchBar(
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = null,
-                tint = Color(0xFF6366F1)
+                tint = colorScheme.primary
             )
         },
         trailingIcon = {
@@ -252,10 +236,10 @@ fun SearchBar(
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color(0xFF6366F1),
-            unfocusedBorderColor = Color(0xFFE0E0E0),
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White
+            focusedBorderColor = colorScheme.primary,
+            unfocusedBorderColor = colorScheme.outline,
+            focusedContainerColor = colorScheme.surface,
+            unfocusedContainerColor = colorScheme.surface
         )
     )
 }
@@ -263,15 +247,14 @@ fun SearchBar(
 @Composable
 fun FaceListItem(
     face: FaceEntity,
-    onDelete: () -> Unit,
-    accentColor: Color,
-    dangerColor: Color
+    onDelete: () -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp,
@@ -292,8 +275,8 @@ fun FaceListItem(
                     .background(
                         Brush.linearGradient(
                             colors = listOf(
-                                Color(0xFF6366F1),
-                                Color(0xFF8B5CF6)
+                                colorScheme.primary,
+                                colorScheme.tertiary
                             )
                         )
                     ),
@@ -303,7 +286,7 @@ fun FaceListItem(
                     text = face.name.firstOrNull()?.uppercase() ?: "?",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = colorScheme.onPrimary
                 )
             }
 
@@ -315,14 +298,14 @@ fun FaceListItem(
                     text = face.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1F2937),
+                    color = colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "ID: ${face.id}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF6B7280)
+                    color = colorScheme.onSurfaceVariant
                 )
             }
 
@@ -330,7 +313,7 @@ fun FaceListItem(
             IconButton(
                 onClick = onDelete,
                 colors = IconButtonDefaults.iconButtonColors(
-                    contentColor = dangerColor
+                    contentColor = colorScheme.error
                 )
             ) {
                 Icon(
@@ -345,6 +328,7 @@ fun FaceListItem(
 
 @Composable
 fun EmptyStateContent() {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -354,18 +338,18 @@ fun EmptyStateContent() {
     ) {
         Box(
             modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFEEF2FF)),
-            contentAlignment = Alignment.Center
-        ) {
+            .size(120.dp)
+            .clip(CircleShape)
+            .background(colorScheme.primary.copy(alpha = 0.1f)),
+        contentAlignment = Alignment.Center
+    ) {
             Icon(
-                imageVector = Icons.Default.PersonOff,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = Color(0xFF6366F1)
-            )
-        }
+            imageVector = Icons.Default.PersonOff,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = colorScheme.primary
+        )
+    }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -373,7 +357,7 @@ fun EmptyStateContent() {
             text = "Nenhuma pessoa cadastrada",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF1F2937),
+            color = colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
 
@@ -382,7 +366,7 @@ fun EmptyStateContent() {
         Text(
             text = "Comece cadastrando o primeiro rosto para utilizar o sistema",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF6B7280),
+            color = colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }
@@ -390,6 +374,7 @@ fun EmptyStateContent() {
 
 @Composable
 fun NoResultsContent(searchQuery: String) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -400,7 +385,7 @@ fun NoResultsContent(searchQuery: String) {
             imageVector = Icons.Default.SearchOff,
             contentDescription = null,
             modifier = Modifier.size(64.dp),
-            tint = Color(0xFF6B7280)
+            tint = colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -409,7 +394,7 @@ fun NoResultsContent(searchQuery: String) {
             text = "Nenhum resultado encontrado",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF1F2937)
+            color = colorScheme.onSurface
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -417,7 +402,7 @@ fun NoResultsContent(searchQuery: String) {
         Text(
             text = "Não encontramos ninguém com \"$searchQuery\"",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF6B7280),
+            color = colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }
@@ -429,9 +414,10 @@ fun DeleteConfirmationDialog(
     message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dangerColor: Color,
     isDestructive: Boolean = false
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    val dangerColor = colorScheme.error
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {

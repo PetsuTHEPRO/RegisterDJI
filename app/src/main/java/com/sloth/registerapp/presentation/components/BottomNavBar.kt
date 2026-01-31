@@ -37,12 +37,13 @@ fun BottomNavBar(
         BottomItem.Video
     )
 
-    val bg = Color(0xFF0B1220)
-    val stroke = Color.White.copy(alpha = 0.10f)
-    val activeBg = Color(0xFF4EA1FF).copy(alpha = 0.12f)
-    val activeStroke = Color(0xFF4EA1FF).copy(alpha = 0.25f)
-    val activeText = Color.White.copy(alpha = 0.92f)
-    val inactiveText = Color.White.copy(alpha = 0.55f)
+    val colorScheme = MaterialTheme.colorScheme
+    val bg = colorScheme.surface
+    val stroke = colorScheme.outline.copy(alpha = 0.10f)
+    val activeBg = colorScheme.primary.copy(alpha = 0.12f)
+    val activeStroke = colorScheme.primary.copy(alpha = 0.25f)
+    val activeText = colorScheme.onSurface.copy(alpha = 0.92f)
+    val inactiveText = colorScheme.onSurface.copy(alpha = 0.55f)
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route

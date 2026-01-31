@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -27,6 +28,7 @@ fun MapboxMapView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember { MapView(context) }
+    val colorScheme = MaterialTheme.colorScheme
 
     // Gerenciadores de anotação
     var pointAnnotationManager by remember { mutableStateOf<PointAnnotationManager?>(null) }
@@ -42,7 +44,7 @@ fun MapboxMapView(
                 .withPoint(Point.fromLngLat(waypoint.longitude, waypoint.latitude))
                 .withIconImage("default_marker")
                 .withTextField((index + 1).toString())
-                .withTextColor(Color.White.toArgb())
+                .withTextColor(colorScheme.onSurface.toArgb())
                 .withTextSize(12.0)
             pointAnnotationManager?.create(pointAnnotationOptions)
         }

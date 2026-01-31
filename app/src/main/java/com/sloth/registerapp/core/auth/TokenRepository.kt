@@ -26,6 +26,12 @@ class TokenRepository private constructor(private val context: Context) {
         }
     }
 
+    suspend fun clearToken() {
+        context.dataStore.edit { settings ->
+            settings.remove(tokenKey)
+        }
+    }
+
     companion object {
         @Volatile
         private var INSTANCE: TokenRepository? = null

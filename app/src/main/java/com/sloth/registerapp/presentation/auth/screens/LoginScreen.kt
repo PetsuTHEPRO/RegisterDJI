@@ -1,6 +1,7 @@
 package com.sloth.registerapp.presentation.auth.screens
 
 import android.util.Base64
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +33,7 @@ import androidx.navigation.NavController
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.SessionManager
+import com.sloth.registerapp.features.auth.data.remote.dto.LoginRequestDto
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -49,15 +51,9 @@ fun LoginScreen(
     // Adicionado: Contexto e CoroutineScope
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val tag = "LoginScreen"
 
-    // Cores do tema
-    val primaryBlue = Color(0xFF3B82F6)
-    val darkBlue = Color(0xFF1D4ED8)
-    val lightBlue = Color(0xFF60A5FA)
-    val darkBg = Color(0xFF0A0E27)
-    val cardBg = Color(0xFF0F1729)
-    val textGray = Color(0xFF94A3B8)
-    val textWhite = Color(0xFFE2E8F0)
+    val colorScheme = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
@@ -65,9 +61,9 @@ fun LoginScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        darkBg,
-                        Color(0xFF1A1F3A),
-                        darkBg
+                        colorScheme.background,
+                        colorScheme.surfaceVariant,
+                        colorScheme.background
                     )
                 )
             )
@@ -88,8 +84,8 @@ fun LoginScreen(
                 Surface(
                     modifier = Modifier.size(80.dp),
                     shape = RoundedCornerShape(20.dp),
-                    color = primaryBlue.copy(alpha = 0.1f),
-                    border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.3f))
+                    color = colorScheme.primary.copy(alpha = 0.1f),
+                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
@@ -109,7 +105,7 @@ fun LoginScreen(
                     text = "Mission Control",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = textWhite,
+                    color = colorScheme.onBackground,
                     style = MaterialTheme.typography.headlineMedium
                 )
 
@@ -117,7 +113,7 @@ fun LoginScreen(
                     text = "Bem-vindo de volta",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = textGray,
+                    color = colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
@@ -127,8 +123,8 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp)),
-                color = cardBg.copy(alpha = 0.95f),
-                border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f)),
+                color = colorScheme.surface.copy(alpha = 0.95f),
+                border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
                 shadowElevation = 16.dp
             ) {
                 Column(
@@ -142,25 +138,25 @@ fun LoginScreen(
                             username = it // Alterado de email para username
                             errorMessage = ""
                         },
-                        label = { Text("Usuário", color = textGray) }, // Alterado de Email para Usuário
-                        placeholder = { Text("seu_usuario", color = textGray.copy(alpha = 0.5f)) }, // Alterado de seu@email.com para seu_usuario
+                        label = { Text("Usuário", color = colorScheme.onSurfaceVariant) }, // Alterado de Email para Usuário
+                        placeholder = { Text("seu_usuario", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, // Alterado de seu@email.com para seu_usuario
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Person, // Alterado de Email para Person
                                 contentDescription = null,
-                                tint = primaryBlue
+                                tint = colorScheme.primary
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textWhite,
-                            unfocusedTextColor = textWhite,
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            cursorColor = primaryBlue
+                            focusedTextColor = colorScheme.onSurface,
+                            unfocusedTextColor = colorScheme.onSurface,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outline,
+                            focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            cursorColor = colorScheme.primary
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), // Alterado de Email para Text
                         singleLine = true
@@ -173,13 +169,13 @@ fun LoginScreen(
                             password = it
                             errorMessage = ""
                         },
-                        label = { Text("Senha", color = textGray) },
-                        placeholder = { Text("Digite sua senha", color = textGray.copy(alpha = 0.5f)) },
+                        label = { Text("Senha", color = colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("Digite sua senha", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = null,
-                                tint = primaryBlue
+                                tint = colorScheme.primary
                             )
                         },
                         trailingIcon = {
@@ -187,7 +183,7 @@ fun LoginScreen(
                                 Icon(
                                     imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (passwordVisible) "Ocultar senha" else "Mostrar senha",
-                                    tint = textGray
+                                    tint = colorScheme.onSurfaceVariant
                                 )
                             }
                         },
@@ -195,13 +191,13 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textWhite,
-                            unfocusedTextColor = textWhite,
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            cursorColor = primaryBlue
+                            focusedTextColor = colorScheme.onSurface,
+                            unfocusedTextColor = colorScheme.onSurface,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outline,
+                            focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            cursorColor = colorScheme.primary
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true
@@ -214,7 +210,7 @@ fun LoginScreen(
                     ) {
                         Text(
                             text = "Esqueceu a senha?",
-                            color = lightBlue,
+                            color = colorScheme.primary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -227,9 +223,9 @@ fun LoginScreen(
                         exit = fadeOut()
                     ) {
                         Surface(
-                            color = Color(0xFFEF4444).copy(alpha = 0.1f),
+                            color = colorScheme.error.copy(alpha = 0.1f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, colorScheme.error.copy(alpha = 0.3f))
                         ) {
                             Row(
                                 modifier = Modifier
@@ -240,13 +236,13 @@ fun LoginScreen(
                                 Icon(
                                     imageVector = Icons.Default.Error,
                                     contentDescription = null,
-                                    tint = Color(0xFFEF4444),
+                                    tint = colorScheme.error,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = errorMessage,
-                                    color = Color(0xFFF87171),
+                                    color = colorScheme.error,
                                     fontSize = 14.sp
                                 )
                             }
@@ -271,27 +267,47 @@ fun LoginScreen(
                                             val tokenRepository = TokenRepository.getInstance(context)
                                             val sessionManager = SessionManager.getInstance(context)
 
-                                            // Criar cabeçalho Basic Auth
-                                            val credentials = "$username:$password" // Alterado de email para username
-                                            val basicAuth = "Basic " + Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
-
-                                            // Fazer a chamada de API
-                                            val response = apiService.login(basicAuth)
-
-                                            // Buscar dados completos do usuário (username e email)
-                                            val userMe = apiService.getMe("Bearer ${response.token}")
+                                            // 1) Tenta login via BODY (mesmo fluxo do web)
+                                            val response = try {
+                                                Log.d(tag, "Tentando login via body")
+                                                apiService.loginWithBody(LoginRequestDto(username, password))
+                                            } catch (e: HttpException) {
+                                                if (e.code() == 401) {
+                                                    // 2) Fallback: Basic Auth (compatibilidade com backend antigo)
+                                                    Log.d(tag, "Login via body falhou (401). Tentando Basic Auth")
+                                                    val credentials = "$username:$password"
+                                                    val basicAuth = "Basic " + Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
+                                                    apiService.login(basicAuth)
+                                                } else {
+                                                    throw e
+                                                }
+                                            }
 
                                             // Salvar o token (mantido para compatibilidade)
                                             tokenRepository.saveToken(response.token)
                                             
-                                            // Salvar a sessão completa com dados do usuário
+                                            // Salvar sessão mínima (sem depender do auth/me)
                                             sessionManager.createSession(
                                                 token = response.token,
                                                 userId = response.userId,
-                                                username = userMe.username,
-                                                email = userMe.email,
+                                                username = username,
+                                                email = "",
                                                 expiryDays = 7L // Token válido por 7 dias
                                             )
+
+                                            // Tenta atualizar dados com auth/me, mas não bloqueia o login
+                                            try {
+                                                val userMe = apiService.getMe("Bearer ${response.token}")
+                                                sessionManager.createSession(
+                                                    token = response.token,
+                                                    userId = response.userId,
+                                                    username = userMe.username,
+                                                    email = userMe.email,
+                                                    expiryDays = 7L
+                                                )
+                                            } catch (e: Exception) {
+                                                Log.w(tag, "auth/me falhou após login, mantendo sessão mínima.")
+                                            }
 
                                             // Navegar para o dashboard
                                             navController.navigate("dashboard") {
@@ -299,11 +315,13 @@ fun LoginScreen(
                                             }
 
                                         } catch (e: HttpException) {
+                                            Log.e(tag, "Login HTTP ${e.code()}: ${e.message()}")
                                             errorMessage = when (e.code()) {
                                                 401 -> "Usuário ou senha inválidos." // Alterado de Email para Usuário
                                                 else -> "Erro ${e.code()}: ${e.message()}"
                                             }
                                         } catch (e: Exception) {
+                                            Log.e(tag, "Login error: ${e.message}", e)
                                             errorMessage = "Falha na conexão. Verifique sua internet."
                                         } finally {
                                             isLoading = false
@@ -327,14 +345,14 @@ fun LoginScreen(
                                 .fillMaxSize()
                                 .background(
                                     brush = Brush.horizontalGradient(
-                                        colors = listOf(primaryBlue, darkBlue)
+                                        colors = listOf(colorScheme.primary, colorScheme.primaryContainer)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isLoading) {
                                 CircularProgressIndicator(
-                                    color = Color.White,
+                                    color = colorScheme.onPrimary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             } else {
@@ -351,7 +369,7 @@ fun LoginScreen(
                                         text = "Entrar",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = colorScheme.onPrimary
                                     )
                                 }
                             }
@@ -368,14 +386,14 @@ fun LoginScreen(
             ) {
                 Text(
                     text = "Não tem uma conta?",
-                    color = textGray,
+                    color = colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 TextButton(onClick = onRegisterClick) {
                     Text(
                         text = "Registre-se",
-                        color = lightBlue,
+                        color = colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -393,8 +411,8 @@ fun LoginScreen(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF22C55E).copy(alpha = 0.1f),
-                        border = BorderStroke(1.dp, Color(0xFF22C55E).copy(alpha = 0.3f))
+                        color = colorScheme.secondary.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, colorScheme.secondary.copy(alpha = 0.3f))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -403,12 +421,12 @@ fun LoginScreen(
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
-                                    .background(Color(0xFF22C55E), RoundedCornerShape(50.dp))
+                                    .background(colorScheme.secondary, RoundedCornerShape(50.dp))
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Sistema Online",
-                                color = Color(0xFF22C55E),
+                                color = colorScheme.secondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -418,7 +436,7 @@ fun LoginScreen(
 
                 Text(
                     text = "Autonomous System v1.0",
-                    color = textGray.copy(alpha = 0.5f),
+                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 12.dp)
                 )

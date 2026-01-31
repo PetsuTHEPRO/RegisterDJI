@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalContext
+import com.sloth.registerapp.core.settings.RtmpSettingsRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,13 +43,7 @@ fun SettingsScreen(
     onAbout: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    // Cores do tema
-    val primaryBlue = Color(0xFF3B82F6)
-    val darkBlue = Color(0xFF1D4ED8)
-    val darkBg = Color(0xFF0A0E27)
-    val cardBg = Color(0xFF0F1729)
-    val textGray = Color(0xFF94A3B8)
-    val textWhite = Color(0xFFE2E8F0)
+    val colorScheme = MaterialTheme.colorScheme
 
     // Estados
     var theme by remember { mutableStateOf("Escuro") }
@@ -59,6 +56,17 @@ fun SettingsScreen(
     var streamQuality by remember { mutableStateOf("Automática") }
     var showGrid by remember { mutableStateOf(false) }
     var expandedSection by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val rtmpRepo = remember(context) { RtmpSettingsRepository.getInstance(context) }
+    val rtmpUrl by rtmpRepo.rtmpUrl.collectAsState(initial = RtmpSettingsRepository.DEFAULT_URL)
+    var rtmpUrlInput by remember { mutableStateOf(rtmpUrl) }
+
+    LaunchedEffect(rtmpUrl) {
+        if (rtmpUrlInput != rtmpUrl) {
+            rtmpUrlInput = rtmpUrl
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -66,9 +74,9 @@ fun SettingsScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        darkBg,
-                        Color(0xFF1A1F3A),
-                        darkBg
+                        colorScheme.background,
+                        colorScheme.surfaceVariant,
+                        colorScheme.background
                     )
                 )
             )
@@ -89,12 +97,12 @@ fun SettingsScreen(
                         onClick = onBackClick,
                         modifier = Modifier
                             .size(44.dp)
-                            .background(cardBg.copy(alpha = 0.8f), CircleShape)
+                            .background(colorScheme.surface.copy(alpha = 0.8f), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Voltar",
-                            tint = textWhite
+                            tint = colorScheme.onSurface
                         )
                     }
 
@@ -104,7 +112,7 @@ fun SettingsScreen(
                         text = "Configurações",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite
+                        color = colorScheme.onSurface
                     )
                 }
             }
@@ -120,8 +128,8 @@ fun SettingsScreen(
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
-                        color = cardBg.copy(alpha = 0.95f),
-                        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f)),
+                        color = colorScheme.surface.copy(alpha = 0.95f),
+                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
                         shadowElevation = 8.dp
                     ) {
                         Row(
@@ -135,8 +143,8 @@ fun SettingsScreen(
                                 onClick = onChangeProfilePhoto,
                                 modifier = Modifier.size(80.dp),
                                 shape = CircleShape,
-                                color = primaryBlue.copy(alpha = 0.2f),
-                                border = BorderStroke(3.dp, primaryBlue.copy(alpha = 0.5f))
+                                color = colorScheme.primary.copy(alpha = 0.2f),
+                                border = BorderStroke(3.dp, colorScheme.primary.copy(alpha = 0.5f))
                             ) {
                                 Box(
                                     contentAlignment = Alignment.Center,
@@ -146,7 +154,7 @@ fun SettingsScreen(
                                         text = userName.take(1).uppercase(),
                                         fontSize = 36.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = primaryBlue
+                                        color = colorScheme.primary
                                     )
                                 }
                             }
@@ -158,13 +166,13 @@ fun SettingsScreen(
                                     text = userName,
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = textWhite
+                                    color = colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = userEmail,
                                     fontSize = 14.sp,
-                                    color = textGray
+                                    color = colorScheme.onSurfaceVariant
                                 )
                             }
 
@@ -172,7 +180,7 @@ fun SettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Editar perfil",
-                                    tint = primaryBlue
+                                    tint = colorScheme.primary
                                 )
                             }
                         }
@@ -333,6 +341,44 @@ fun SettingsScreen(
                     }
                 }
 
+                // Seção: Streaming RTMP
+                item {
+                    ExpandableSection(
+                        title = "Streaming RTMP",
+                        icon = Icons.Default.Cast,
+                        isExpanded = expandedSection == "rtmp",
+                        onToggle = { expandedSection = if (expandedSection == "rtmp") null else "rtmp" }
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = rtmpUrlInput,
+                                onValueChange = { rtmpUrlInput = it },
+                                label = { Text("URL RTMP") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        rtmpRepo.setRtmpUrl(rtmpUrlInput.trim())
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.End)
+                            ) {
+                                Text("Salvar")
+                            }
+                            Text(
+                                text = "Atual: $rtmpUrl",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
                 // Seção: Permissões e Sobre
                 item {
                     ExpandableSection(
@@ -380,7 +426,7 @@ fun SettingsScreen(
                                 .fillMaxSize()
                                 .background(
                                     brush = Brush.horizontalGradient(
-                                        colors = listOf(Color(0xFFEF4444), Color(0xFFDC2626))
+                                        colors = listOf(colorScheme.error, colorScheme.errorContainer)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -392,13 +438,13 @@ fun SettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.Logout,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = colorScheme.onError
                                 )
                                 Text(
                                     text = "Sair da Conta",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = colorScheme.onError
                                 )
                             }
                         }
@@ -419,15 +465,13 @@ fun ExpandableSection(
     onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val primaryBlue = Color(0xFF3B82F6)
-    val cardBg = Color(0xFF0F1729)
-    val textWhite = Color(0xFFE2E8F0)
+    val colorScheme = MaterialTheme.colorScheme
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = cardBg.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = if (isExpanded) 0.5f else 0.2f)),
+        color = colorScheme.surface.copy(alpha = 0.95f),
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = if (isExpanded) 0.5f else 0.2f)),
         shadowElevation = if (isExpanded) 8.dp else 4.dp
     ) {
         Column {
@@ -445,13 +489,13 @@ fun ExpandableSection(
                     Surface(
                         modifier = Modifier.size(44.dp),
                         shape = RoundedCornerShape(12.dp),
-                        color = primaryBlue.copy(alpha = 0.1f)
+                        color = colorScheme.primary.copy(alpha = 0.1f)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
-                                tint = primaryBlue,
+                                tint = colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -463,14 +507,14 @@ fun ExpandableSection(
                         text = title,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite,
+                        color = colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
 
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
-                        tint = primaryBlue
+                        tint = colorScheme.primary
                     )
                 }
             }
@@ -499,14 +543,12 @@ fun SettingsItem(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    val textWhite = Color(0xFFE2E8F0)
-    val textGray = Color(0xFF94A3B8)
-    val cardBg = Color(0xFF0F1729)
+    val colorScheme = MaterialTheme.colorScheme
 
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = cardBg.copy(alpha = 0.4f)
+        color = colorScheme.surface.copy(alpha = 0.4f)
     ) {
         Row(
             modifier = Modifier
@@ -517,7 +559,7 @@ fun SettingsItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color(0xFF3B82F6),
+                tint = colorScheme.primary,
                 modifier = Modifier.size(24.dp)
             )
 
@@ -528,19 +570,19 @@ fun SettingsItem(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = textWhite
+                    color = colorScheme.onSurface
                 )
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = textGray
+                    color = colorScheme.onSurfaceVariant
                 )
             }
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = textGray.copy(alpha = 0.5f),
+                tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -555,13 +597,11 @@ fun SettingsSwitchItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    val textWhite = Color(0xFFE2E8F0)
-    val textGray = Color(0xFF94A3B8)
-    val cardBg = Color(0xFF0F1729)
+    val colorScheme = MaterialTheme.colorScheme
 
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = cardBg.copy(alpha = 0.4f)
+        color = colorScheme.surface.copy(alpha = 0.4f)
     ) {
         Row(
             modifier = Modifier
@@ -572,7 +612,7 @@ fun SettingsSwitchItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color(0xFF3B82F6),
+                tint = colorScheme.primary,
                 modifier = Modifier.size(24.dp)
             )
 
@@ -583,12 +623,12 @@ fun SettingsSwitchItem(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = textWhite
+                    color = colorScheme.onSurface
                 )
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = textGray
+                    color = colorScheme.onSurfaceVariant
                 )
             }
 
@@ -596,10 +636,10 @@ fun SettingsSwitchItem(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF3B82F6),
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = Color(0xFF475569)
+                    checkedThumbColor = colorScheme.onPrimary,
+                    checkedTrackColor = colorScheme.primary,
+                    uncheckedThumbColor = colorScheme.onSurface,
+                    uncheckedTrackColor = colorScheme.outline
                 )
             )
         }
@@ -615,14 +655,12 @@ fun SettingsDropdownItem(
     onOptionSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val textWhite = Color(0xFFE2E8F0)
-    val textGray = Color(0xFF94A3B8)
-    val cardBg = Color(0xFF0F1729)
+    val colorScheme = MaterialTheme.colorScheme
 
     Surface(
         onClick = { expanded = true },
         shape = RoundedCornerShape(12.dp),
-        color = cardBg.copy(alpha = 0.4f)
+        color = colorScheme.surface.copy(alpha = 0.4f)
     ) {
         Box {
             Row(
@@ -631,50 +669,50 @@ fun SettingsDropdownItem(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Color(0xFF3B82F6),
-                    modifier = Modifier.size(24.dp)
-                )
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
 
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = textWhite
-                    )
-                    Text(
-                        text = selectedOption,
-                        fontSize = 12.sp,
-                        color = Color(0xFF3B82F6)
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = textGray,
-                    modifier = Modifier.size(24.dp)
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface
+                )
+                Text(
+                    text = selectedOption,
+                    fontSize = 12.sp,
+                    color = colorScheme.primary
                 )
             }
 
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.background(cardBg)
-            ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = option,
-                                color = if (option == selectedOption) Color(0xFF3B82F6) else textWhite
-                            )
-                        },
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(colorScheme.surface)
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = option,
+                            color = if (option == selectedOption) colorScheme.primary else colorScheme.onSurface
+                        )
+                    },
                         onClick = {
                             onOptionSelected(option)
                             expanded = false

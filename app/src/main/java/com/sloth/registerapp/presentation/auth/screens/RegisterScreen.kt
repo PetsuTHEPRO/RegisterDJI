@@ -53,13 +53,7 @@ fun RegisterScreen(
     val scope = rememberCoroutineScope()
 
     // Cores do tema
-    val primaryBlue = Color(0xFF3B82F6)
-    val darkBlue = Color(0xFF1D4ED8)
-    val lightBlue = Color(0xFF60A5FA)
-    val darkBg = Color(0xFF0A0E27)
-    val cardBg = Color(0xFF0F1729)
-    val textGray = Color(0xFF94A3B8)
-    val textWhite = Color(0xFFE2E8F0)
+    val colorScheme = MaterialTheme.colorScheme
 
     Box(
         modifier = Modifier
@@ -67,9 +61,9 @@ fun RegisterScreen(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        darkBg,
-                        Color(0xFF1A1F3A),
-                        darkBg
+                        colorScheme.background,
+                        colorScheme.surfaceVariant,
+                        colorScheme.background
                     )
                 )
             )
@@ -90,8 +84,8 @@ fun RegisterScreen(
                 Surface(
                     modifier = Modifier.size(80.dp),
                     shape = RoundedCornerShape(20.dp),
-                    color = primaryBlue.copy(alpha = 0.1f),
-                    border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.3f))
+                    color = colorScheme.primary.copy(alpha = 0.1f),
+                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Box(
                         contentAlignment = Alignment.Center,
@@ -111,7 +105,7 @@ fun RegisterScreen(
                     text = "Mission Control",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = textWhite,
+                    color = colorScheme.onBackground,
                     style = MaterialTheme.typography.headlineMedium
                 )
 
@@ -119,7 +113,7 @@ fun RegisterScreen(
                     text = "Crie sua conta",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = textGray,
+                    color = colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
@@ -129,8 +123,8 @@ fun RegisterScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp)),
-                color = cardBg.copy(alpha = 0.95f),
-                border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f)),
+                color = colorScheme.surface.copy(alpha = 0.95f),
+                border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
                 shadowElevation = 16.dp
             ) {
                 Column(
@@ -144,25 +138,25 @@ fun RegisterScreen(
                             username = it
                             errorMessage = ""
                         },
-                        label = { Text("Nome de Usuário", color = textGray) },
-                        placeholder = { Text("Digite seu username", color = textGray.copy(alpha = 0.5f)) },
+                        label = { Text("Nome de Usuário", color = colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("Digite seu username", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = null,
-                                tint = primaryBlue
+                                tint = colorScheme.primary
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textWhite,
-                            unfocusedTextColor = textWhite,
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            cursorColor = primaryBlue
+                            focusedTextColor = colorScheme.onSurface,
+                            unfocusedTextColor = colorScheme.onSurface,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outline,
+                            focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            cursorColor = colorScheme.primary
                         ),
                         singleLine = true
                     )
@@ -174,25 +168,25 @@ fun RegisterScreen(
                             email = it
                             errorMessage = ""
                         },
-                        label = { Text("Email", color = textGray) },
-                        placeholder = { Text("seu@email.com", color = textGray.copy(alpha = 0.5f)) },
+                        label = { Text("Email", color = colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("seu@email.com", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Email,
                                 contentDescription = null,
-                                tint = primaryBlue
+                                tint = colorScheme.primary
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textWhite,
-                            unfocusedTextColor = textWhite,
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            cursorColor = primaryBlue
+                            focusedTextColor = colorScheme.onSurface,
+                            unfocusedTextColor = colorScheme.onSurface,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outline,
+                            focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            cursorColor = colorScheme.primary
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         singleLine = true
@@ -205,13 +199,13 @@ fun RegisterScreen(
                             password = it
                             errorMessage = ""
                         },
-                        label = { Text("Senha", color = textGray) },
-                        placeholder = { Text("Mínimo 6 caracteres", color = textGray.copy(alpha = 0.5f)) },
+                        label = { Text("Senha", color = colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("Mínimo 6 caracteres", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = null,
-                                tint = primaryBlue
+                                tint = colorScheme.primary
                             )
                         },
                         trailingIcon = {
@@ -219,7 +213,7 @@ fun RegisterScreen(
                                 Icon(
                                     imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (passwordVisible) "Ocultar senha" else "Mostrar senha",
-                                    tint = textGray
+                                    tint = colorScheme.onSurfaceVariant
                                 )
                             }
                         },
@@ -227,13 +221,13 @@ fun RegisterScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textWhite,
-                            unfocusedTextColor = textWhite,
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            cursorColor = primaryBlue
+                            focusedTextColor = colorScheme.onSurface,
+                            unfocusedTextColor = colorScheme.onSurface,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outline,
+                            focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            cursorColor = colorScheme.primary
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true
@@ -246,13 +240,13 @@ fun RegisterScreen(
                             confirmPassword = it
                             errorMessage = ""
                         },
-                        label = { Text("Confirmar Senha", color = textGray) },
-                        placeholder = { Text("Digite a senha novamente", color = textGray.copy(alpha = 0.5f)) },
+                        label = { Text("Confirmar Senha", color = colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("Digite a senha novamente", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = null,
-                                tint = primaryBlue
+                                tint = colorScheme.primary
                             )
                         },
                         trailingIcon = {
@@ -260,7 +254,7 @@ fun RegisterScreen(
                                 Icon(
                                     imageVector = if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (confirmPasswordVisible) "Ocultar senha" else "Mostrar senha",
-                                    tint = textGray
+                                    tint = colorScheme.onSurfaceVariant
                                 )
                             }
                         },
@@ -268,13 +262,13 @@ fun RegisterScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textWhite,
-                            unfocusedTextColor = textWhite,
-                            focusedBorderColor = primaryBlue,
-                            unfocusedBorderColor = Color(0xFF475569),
-                            focusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            unfocusedContainerColor = darkBg.copy(alpha = 0.6f),
-                            cursorColor = primaryBlue
+                            focusedTextColor = colorScheme.onSurface,
+                            unfocusedTextColor = colorScheme.onSurface,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outline,
+                            focusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            cursorColor = colorScheme.primary
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true,
@@ -288,9 +282,9 @@ fun RegisterScreen(
                         exit = fadeOut()
                     ) {
                         Surface(
-                            color = Color(0xFFEF4444).copy(alpha = 0.1f),
+                            color = colorScheme.error.copy(alpha = 0.1f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, colorScheme.error.copy(alpha = 0.3f))
                         ) {
                             Row(
                                 modifier = Modifier
@@ -301,13 +295,13 @@ fun RegisterScreen(
                                 Icon(
                                     imageVector = Icons.Default.Error,
                                     contentDescription = null,
-                                    tint = Color(0xFFEF4444),
+                                    tint = colorScheme.error,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = errorMessage,
-                                    color = Color(0xFFF87171),
+                                    color = colorScheme.error,
                                     fontSize = 14.sp
                                 )
                             }
@@ -322,7 +316,7 @@ fun RegisterScreen(
                     ) {
                         Text(
                             text = "⚠️ As senhas não coincidem",
-                            color = Color(0xFFF87171),
+                            color = colorScheme.error,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 4.dp)
                         )
@@ -390,14 +384,14 @@ fun RegisterScreen(
                                 .fillMaxSize()
                                 .background(
                                     brush = Brush.horizontalGradient(
-                                        colors = listOf(primaryBlue, darkBlue)
+                                        colors = listOf(colorScheme.primary, colorScheme.primaryContainer)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isLoading) {
                                 CircularProgressIndicator(
-                                    color = Color.White,
+                                    color = colorScheme.onPrimary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             } else {
@@ -414,7 +408,7 @@ fun RegisterScreen(
                                         text = "Criar Conta",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = colorScheme.onPrimary
                                     )
                                 }
                             }
@@ -431,14 +425,14 @@ fun RegisterScreen(
             ) {
                 Text(
                     text = "Já tem uma conta?",
-                    color = textGray,
+                    color = colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 TextButton(onClick = onNavigateToLogin) {
                     Text(
                         text = "Fazer Login",
-                        color = lightBlue,
+                        color = colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )

@@ -16,8 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -25,14 +23,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mapbox.geojson.Point
-import com.mapbox.maps.MapboxMap
-import com.mapbox.maps.plugin.annotation.annotations
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationManager
-import com.mapbox.maps.plugin.annotation.generated.PointAnnotationOptions
-import com.mapbox.maps.plugin.annotation.generated.PolylineAnnotationManager
-import com.mapbox.maps.plugin.annotation.generated.PolylineAnnotationOptions
-import com.mapbox.maps.plugin.annotation.generated.createPointAnnotationManager
-import com.mapbox.maps.plugin.annotation.generated.createPolylineAnnotationManager
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
 import com.sloth.registerapp.presentation.mission.model.Waypoint
@@ -53,13 +43,7 @@ data class MissionData(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MissionCreateScreen(onBackClick: () -> Unit) {
-    val primaryBlue = Color(0xFF3B82F6)
-    val darkBg = Color(0xFF0A0E27)
-    val cardBg = Color(0xFF0F1729)
-    val textGray = Color(0xFF94A3B8)
-    val textWhite = Color(0xFFE2E8F0)
-    val greenAccent = Color(0xFF22C55E)
-    val redAccent = Color(0xFFEF4444)
+    val colorScheme = MaterialTheme.colorScheme
 
     var currentStep by remember { mutableStateOf(0) }
     var missionData by remember { mutableStateOf(MissionData()) }
@@ -79,13 +63,17 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(darkBg, Color(0xFF1A1F3A))))
+            .background(
+                Brush.verticalGradient(
+                    listOf(colorScheme.background, colorScheme.surfaceVariant)
+                )
+            )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = cardBg,
+                color = colorScheme.surface,
                 shadowElevation = 8.dp
             ) {
                 Column {
@@ -96,13 +84,18 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = onBackClick) {
-                            Icon(Icons.Default.ArrowBack, null, tint = textGray)
+                            Icon(Icons.Default.ArrowBack, null, tint = colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.width(16.dp))
                         Text("🚁", fontSize = 32.sp)
                         Spacer(Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Criar Missão", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                            Text(
+                                "Criar Missão",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurface
+                            )
                             Text(
                                 when (currentStep) {
                                     0 -> "Configurações"
@@ -110,7 +103,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                                     else -> "Revisão"
                                 },
                                 fontSize = 13.sp,
-                                color = textGray
+                                color = colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -127,7 +120,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                                     .weight(1f)
                                     .height(4.dp)
                                     .background(
-                                        if (index <= currentStep) primaryBlue else darkBg,
+                                        if (index <= currentStep) colorScheme.primary else colorScheme.surfaceVariant,
                                         RoundedCornerShape(2.dp)
                                     )
                             )
@@ -146,18 +139,13 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
             ) {
                 AnimatedContent(targetState = currentStep, label = "step") { step ->
                     when (step) {
-                        0 -> ConfigStep(missionData, { missionData = it }, cardBg, primaryBlue, textWhite, textGray)
+                        0 -> ConfigStep(missionData, { missionData = it })
                         1 -> MapStep(
                             data = missionData,
                             onDataChange = { missionData = it },
-                            primary = primaryBlue,
-                            cardBg = cardBg,
-                            textWhite = textWhite,
-                            textGray = textGray,
-                            redAccent = redAccent,
                             onMapTouch = { isTouched -> isMapTouched = isTouched }
                         )
-                        else -> ReviewStep(missionData, cardBg, primaryBlue, textWhite, textGray, greenAccent)
+                        else -> ReviewStep(missionData)
                     }
                 }
             }
@@ -165,7 +153,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
             // Botões de navegação
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = cardBg,
+                color = colorScheme.surface,
                 shadowElevation = 12.dp
             ) {
                 Row(
@@ -200,11 +188,15 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                         modifier = Modifier.weight(1f).height(52.dp),
                         enabled = canProceed && !isLoading,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentStep == 2) greenAccent else primaryBlue
+                            containerColor = if (currentStep == 2) colorScheme.secondary else colorScheme.primary
                         )
                     ) {
                         if (isLoading) {
-                            CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            CircularProgressIndicator(
+                                Modifier.size(20.dp),
+                                color = colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
                         } else {
                             Text(
                                 when (currentStep) {
@@ -223,8 +215,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
         if (showSuccessDialog) {
             SuccessDialog(
                 onDismiss = { showSuccessDialog = false; onBackClick() },
-                missionData.name,
-                cardBg, greenAccent, textWhite
+                missionData.name
             )
         }
     }
@@ -234,13 +225,9 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
 fun MapStep(
     data: MissionData,
     onDataChange: (MissionData) -> Unit,
-    primary: Color,
-    cardBg: Color,
-    textWhite: Color,
-    textGray: Color,
-    redAccent: Color,
     onMapTouch: (Boolean) -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     var showAltitudeDialog by remember { mutableStateOf(false) }
     var pendingCoordinates by remember { mutableStateOf<Point?>(null) }
     
@@ -254,7 +241,7 @@ fun MapStep(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(colors = CardDefaults.cardColors(containerColor = primary.copy(0.15f))) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.primary.copy(0.15f))) {
              Row(
                 Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -262,15 +249,28 @@ fun MapStep(
                 Text("🗺️", fontSize = 24.sp)
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Clique no mapa para adicionar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
-                    Text("Primeiro clique: Ponto de Interesse", fontSize = 12.sp, color = textGray)
-                    Text("Próximos cliques: Waypoints", fontSize = 12.sp, color = textGray)
+                    Text(
+                        "Clique no mapa para adicionar",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        "Primeiro clique: Ponto de Interesse",
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Próximos cliques: Waypoints",
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = cardBg),
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(400.dp)
@@ -290,7 +290,7 @@ fun MapStep(
             MapboxMapView(
                 modifier = Modifier.fillMaxSize(),
                 waypoints = data.waypoints,
-                primaryColor = primary,
+                primaryColor = colorScheme.primary,
                 onMapReady = { map -> // 'map' aqui é MapboxMap
                     // Configura a câmera inicial
                     map.setCamera(
@@ -311,13 +311,13 @@ fun MapStep(
         }
 
         if (data.waypoints.isNotEmpty()) {
-             Card(colors = CardDefaults.cardColors(containerColor = cardBg)) {
+             Card(colors = CardDefaults.cardColors(containerColor = colorScheme.surface)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
                         "📍 ${data.waypoints.size} waypoint${if (data.waypoints.size != 1) "s" else ""}",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite
+                        color = colorScheme.onSurface
                     )
                     Spacer(Modifier.height(12.dp))
                     
@@ -330,11 +330,16 @@ fun MapStep(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = primary.copy(0.2f),
+                                color = colorScheme.primary.copy(0.2f),
                                 modifier = Modifier.size(32.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("${idx + 1}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = primary)
+                                    Text(
+                                        "${idx + 1}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colorScheme.primary
+                                    )
                                 }
                             }
                             
@@ -344,9 +349,13 @@ fun MapStep(
                                 Text(
                                     "${String.format("%.5f", wp.latitude)}, ${String.format("%.5f", wp.longitude)}",
                                     fontSize = 11.sp,
-                                    color = textGray
+                                    color = colorScheme.onSurfaceVariant
                                 )
-                                Text("Alt: ${wp.altitude}m", fontSize = 10.sp, color = textGray.copy(0.7f))
+                                Text(
+                                    "Alt: ${wp.altitude}m",
+                                    fontSize = 10.sp,
+                                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
                             }
                             
                             IconButton(
@@ -356,12 +365,20 @@ fun MapStep(
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.Delete, null, tint = redAccent, modifier = Modifier.size(18.dp))
+                                Icon(
+                                    Icons.Default.Delete,
+                                    null,
+                                    tint = colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                         
                         if (idx < data.waypoints.size - 1) {
-                            Divider(color = textGray.copy(0.2f), modifier = Modifier.padding(vertical = 4.dp))
+                            Divider(
+                                color = colorScheme.outline.copy(alpha = 0.2f),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
                         }
                     }
                 }
@@ -369,7 +386,7 @@ fun MapStep(
         }
 
         if (data.pointOfInterest.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = primary.copy(0.1f))) {
+            Card(colors = CardDefaults.cardColors(containerColor = colorScheme.primary.copy(0.1f))) {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -379,8 +396,13 @@ fun MapStep(
                     Text("📌", fontSize = 20.sp)
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("Ponto de Interesse", fontSize = 11.sp, color = textGray)
-                        Text(data.pointOfInterest, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                        Text("Ponto de Interesse", fontSize = 11.sp, color = colorScheme.onSurfaceVariant)
+                        Text(
+                            data.pointOfInterest,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.onSurface
+                        )
                     }
                 }
             }
@@ -409,7 +431,6 @@ fun MapStep(
                 showAltitudeDialog = false
                 pendingCoordinates = null
             },
-            cardBg, primary, textWhite
         )
     }
 }
@@ -417,10 +438,7 @@ fun MapStep(
 @Composable
 fun AltitudeDialog(
     onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit,
-    cardBg: Color,
-    primary: Color,
-    textWhite: Color
+    onConfirm: (Double) -> Unit
 ) {
     var altitude by remember { mutableStateOf("50") }
     val valid = altitude.toDoubleOrNull() != null && altitude.toDouble() > 0
@@ -457,12 +475,9 @@ fun AltitudeDialog(
 @Composable
 fun ConfigStep(
     data: MissionData,
-    onChange: (MissionData) -> Unit,
-    cardBg: Color,
-    primary: Color,
-    textWhite: Color,
-    textGray: Color
+    onChange: (MissionData) -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -470,9 +485,14 @@ fun ConfigStep(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(colors = CardDefaults.cardColors(containerColor = cardBg)) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.surface)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("📝 Informações Básicas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                Text(
+                    "📝 Informações Básicas",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
                 
                 OutlinedTextField(
                     value = data.name,
@@ -484,9 +504,14 @@ fun ConfigStep(
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = cardBg)) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.surface)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("⚡ Velocidades", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                Text(
+                    "⚡ Velocidades",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
                 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -510,16 +535,21 @@ fun ConfigStep(
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = cardBg)) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.surface)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("⚙️ Opções", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textWhite)
+                Text(
+                    "⚙️ Opções",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
                 
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Cancelar se perder sinal", color = textWhite, fontSize = 13.sp)
+                    Text("Cancelar se perder sinal", color = colorScheme.onSurface, fontSize = 13.sp)
                     Switch(
                         checked = data.exitOnSignalLost,
                         onCheckedChange = { onChange(data.copy(exitOnSignalLost = it)) }
@@ -531,7 +561,7 @@ fun ConfigStep(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Rotação do Gimbal", color = textWhite, fontSize = 13.sp)
+                    Text("Rotação do Gimbal", color = colorScheme.onSurface, fontSize = 13.sp)
                     Switch(
                         checked = data.gimbalPitchRotationEnabled,
                         onCheckedChange = { onChange(data.copy(gimbalPitchRotationEnabled = it)) }
@@ -552,13 +582,9 @@ fun ConfigStep(
 
 @Composable
 fun ReviewStep(
-    data: MissionData,
-    cardBg: Color,
-    primary: Color,
-    textWhite: Color,
-    textGray: Color,
-    greenAccent: Color
+    data: MissionData
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         Modifier
             .fillMaxWidth()
@@ -566,53 +592,57 @@ fun ReviewStep(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(colors = CardDefaults.cardColors(containerColor = greenAccent.copy(0.15f))) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.secondary.copy(0.15f))) {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("✅", fontSize = 32.sp)
                 Spacer(Modifier.width(16.dp))
                 Column {
-                    Text("Revisão da Missão", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textWhite)
-                    Text("Verifique os dados", fontSize = 12.sp, color = textGray)
+                    Text(
+                        "Revisão da Missão",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurface
+                    )
+                    Text("Verifique os dados", fontSize = 12.sp, color = colorScheme.onSurfaceVariant)
                 }
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = cardBg)) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.surface)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("📝 Básico", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textWhite)
-                InfoRow("Nome", data.name, textWhite, textGray)
-                InfoRow("POI", data.pointOfInterest, textWhite, textGray)
-                InfoRow("Waypoints", "${data.waypoints.size}", textWhite, textGray)
+                Text("📝 Básico", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+                InfoRow("Nome", data.name)
+                InfoRow("POI", data.pointOfInterest)
+                InfoRow("Waypoints", "${data.waypoints.size}")
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = cardBg)) {
+        Card(colors = CardDefaults.cardColors(containerColor = colorScheme.surface)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("⚡ Velocidades", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textWhite)
-                InfoRow("Auto", "${data.autoFlightSpeed} m/s", textWhite, textGray)
-                InfoRow("Máxima", "${data.maxFlightSpeed} m/s", textWhite, textGray)
-                InfoRow("Repetições", "${data.repeatTimes}x", textWhite, textGray)
+                Text("⚡ Velocidades", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+                InfoRow("Auto", "${data.autoFlightSpeed} m/s")
+                InfoRow("Máxima", "${data.maxFlightSpeed} m/s")
+                InfoRow("Repetições", "${data.repeatTimes}x")
             }
         }
     }
 }
 
 @Composable
-fun InfoRow(label: String, value: String, textWhite: Color, textGray: Color) {
+fun InfoRow(label: String, value: String) {
+    val colorScheme = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 13.sp, color = textGray)
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textWhite)
+        Text(label, fontSize = 13.sp, color = colorScheme.onSurfaceVariant)
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
     }
 }
 
 @Composable
 fun SuccessDialog(
     onDismiss: () -> Unit,
-    name: String,
-    cardBg: Color,
-    greenAccent: Color,
-    textWhite: Color
+    name: String
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -633,7 +663,7 @@ fun SuccessDialog(
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = greenAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.secondary)
             ) {
                 Text("Concluir", fontWeight = FontWeight.Bold)
             }

@@ -37,16 +37,7 @@ fun MissionsTableScreen(
     onDeleteMissionClick: (Int) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    // Cores do tema
-    val primaryBlue = Color(0xFF3B82F6)
-    val darkBlue = Color(0xFF1D4ED8)
-    val lightBlue = Color(0xFF60A5FA)
-    val darkBg = Color(0xFF0A0E27)
-    val cardBg = Color(0xFF0F1729)
-    val textGray = Color(0xFF94A3B8)
-    val textWhite = Color(0xFFE2E8F0)
-    val greenAccent = Color(0xFF22C55E)
-    val redAccent = Color(0xFFEF4444)
+    val colorScheme = MaterialTheme.colorScheme
 
     // Estado de animação
     var visible by remember { mutableStateOf(false) }
@@ -69,7 +60,7 @@ fun MissionsTableScreen(
                             text = "Missões",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = textWhite
+                            color = colorScheme.onSurface
                         )
                     }
                 },
@@ -78,12 +69,12 @@ fun MissionsTableScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Voltar",
-                            tint = textGray
+                            tint = colorScheme.onSurfaceVariant
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = cardBg
+                    containerColor = colorScheme.surface
                 ),
                 modifier = Modifier.height(80.dp)
             )
@@ -91,8 +82,8 @@ fun MissionsTableScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreateMissionClick,
-                containerColor = primaryBlue,
-                contentColor = Color.White,
+                containerColor = colorScheme.primary,
+                contentColor = colorScheme.onPrimary,
                 modifier = Modifier.size(56.dp)
             ) {
                 Icon(
@@ -111,9 +102,9 @@ fun MissionsTableScreen(
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            darkBg,
-                            Color(0xFF1A1F3A),
-                            darkBg
+                            colorScheme.background,
+                            colorScheme.surfaceVariant,
+                            colorScheme.background
                         )
                     )
                 )
@@ -142,13 +133,13 @@ fun MissionsTableScreen(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(60.dp),
-                                    color = primaryBlue,
+                                    color = colorScheme.primary,
                                     strokeWidth = 4.dp
                                 )
                                 Text(
                                     text = "Carregando missões...",
                                     fontSize = 16.sp,
-                                    color = textGray,
+                                    color = colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -175,12 +166,12 @@ fun MissionsTableScreen(
                                     text = "Nenhuma missão encontrada",
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = textWhite
+                                    color = colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Crie sua primeira missão para começar",
                                     fontSize = 14.sp,
-                                    color = textGray,
+                                    color = colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -189,7 +180,7 @@ fun MissionsTableScreen(
                                     modifier = Modifier.height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = primaryBlue
+                                        containerColor = colorScheme.primary
                                     )
                                 ) {
                                     Icon(
@@ -221,16 +212,7 @@ fun MissionsTableScreen(
                                     onDeleteClick = {
                                         missionToDelete = mission.id
                                         showDeleteDialog = true
-                                    },
-                                    primaryBlue = primaryBlue,
-                                    darkBlue = darkBlue,
-                                    cardBg = cardBg,
-                                    textWhite = textWhite,
-                                    textGray = textGray,
-                                    greenAccent = greenAccent,
-                                    redAccent = redAccent,
-                                    darkBg = darkBg, // Passed here
-                                    lightBlue = lightBlue // Passed here
+                                    }
                                 )
                             }
                             
@@ -248,19 +230,19 @@ fun MissionsTableScreen(
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
-                containerColor = cardBg,
+                containerColor = colorScheme.surface,
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.Warning,
                             contentDescription = null,
-                            tint = redAccent,
+                            tint = colorScheme.error,
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "Excluir Missão",
-                            color = textWhite,
+                            color = colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -268,7 +250,7 @@ fun MissionsTableScreen(
                 text = {
                     Text(
                         text = "Deseja realmente excluir esta missão? Esta ação não pode ser desfeita.",
-                        color = textGray,
+                        color = colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
                     )
                 },
@@ -280,7 +262,7 @@ fun MissionsTableScreen(
                             missionToDelete = null
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = redAccent
+                            containerColor = colorScheme.error
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
@@ -297,7 +279,7 @@ fun MissionsTableScreen(
                             missionToDelete = null
                         },
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = textGray
+                            contentColor = colorScheme.onSurfaceVariant
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
@@ -318,26 +300,18 @@ fun MissionCard(
     mission: Mission,
     onViewClick: () -> Unit,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    primaryBlue: Color,
-    darkBlue: Color,
-    cardBg: Color,
-    textWhite: Color,
-    textGray: Color,
-    greenAccent: Color,
-    redAccent: Color,
-    darkBg: Color, // Added parameter
-    lightBlue: Color // Added parameter
+    onDeleteClick: () -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
+    val colorScheme = MaterialTheme.colorScheme
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(6.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        color = cardBg.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+        color = colorScheme.surface.copy(alpha = 0.95f),
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f))
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
@@ -355,15 +329,15 @@ fun MissionCard(
                     // ID Badge
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = primaryBlue.copy(alpha = 0.2f),
-                        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.3f))
+                        color = colorScheme.primary.copy(alpha = 0.2f),
+                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f))
                     ) {
                         Text(
                             text = "#${mission.id}",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = lightBlue,
+                            color = colorScheme.primary,
                             fontFamily = FontFamily.Monospace // Used here
                         )
                     }
@@ -381,7 +355,7 @@ fun MissionCard(
                             text = mission.name,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = textWhite
+                            color = colorScheme.onSurface
                         )
                     }
                 }
@@ -392,14 +366,14 @@ fun MissionCard(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            darkBg.copy(alpha = 0.4f), // Used here
+                            colorScheme.surfaceVariant.copy(alpha = 0.4f),
                             RoundedCornerShape(10.dp)
                         )
                 ) {
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "Recolher" else "Expandir",
-                        tint = textGray
+                        tint = colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -421,8 +395,6 @@ fun MissionCard(
                         icon = "📍",
                         label = "Lat/Long",
                         value = "${String.format("%.4f", mission.latitude)}, ${String.format("%.4f", mission.longitude)}",
-                        textGray = textGray,
-                        textWhite = textWhite,
                         modifier = Modifier.weight(1f)
                     )
 
@@ -431,9 +403,7 @@ fun MissionCard(
                         icon = "📍",
                         label = "Waypoints",
                         value = "${mission.waypointCount}",
-                        textGray = textGray,
-                        textWhite = textWhite,
-                        accentColor = greenAccent,
+                        accentColor = colorScheme.secondary,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -457,9 +427,6 @@ fun MissionCard(
                             label = "Velocidade Auto",
                             value = "${mission.autoSpeed} m/s",
                             icon = "⚡",
-                            textGray = textGray,
-                            textWhite = textWhite,
-                            primaryBlue = primaryBlue,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -467,9 +434,6 @@ fun MissionCard(
                             label = "Velocidade Máx",
                             value = "${mission.maxSpeed} m/s",
                             icon = "🚀",
-                            textGray = textGray,
-                            textWhite = textWhite,
-                            primaryBlue = primaryBlue,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -477,7 +441,7 @@ fun MissionCard(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Divider(
-                        color = Color(0xFF475569).copy(alpha = 0.3f)
+                        color = colorScheme.outline.copy(alpha = 0.3f)
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -495,9 +459,9 @@ fun MissionCard(
                                 .height(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White
+                                contentColor = colorScheme.onSurface
                             ),
-                            border = BorderStroke(1.5.dp, Color.White)
+                            border = BorderStroke(1.5.dp, colorScheme.onSurface)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Visibility,
@@ -514,7 +478,7 @@ fun MissionCard(
                                 .height(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = primaryBlue
+                                containerColor = colorScheme.primary
                             ),
                             elevation = ButtonDefaults.buttonElevation(
                                 defaultElevation = 2.dp
@@ -535,9 +499,9 @@ fun MissionCard(
                                 .height(40.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = redAccent
+                                contentColor = colorScheme.error
                             ),
-                            border = BorderStroke(1.5.dp, redAccent)
+                            border = BorderStroke(1.5.dp, colorScheme.error)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -557,15 +521,14 @@ fun InfoChip(
     icon: String,
     label: String,
     value: String,
-    textGray: Color,
-    textWhite: Color,
     modifier: Modifier = Modifier,
     accentColor: Color? = null
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFF1E293B).copy(alpha = 0.6f)
+        color = colorScheme.surfaceVariant.copy(alpha = 0.6f)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -580,14 +543,14 @@ fun InfoChip(
                 Text(
                     text = label,
                     fontSize = 11.sp,
-                    color = textGray,
+                    color = colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = value,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = accentColor ?: textWhite,
+                    color = accentColor ?: colorScheme.onSurface,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                 )
             }
@@ -600,16 +563,14 @@ fun SpeedInfoCard(
     label: String,
     value: String,
     icon: String,
-    textGray: Color,
-    textWhite: Color,
-    primaryBlue: Color,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
-        color = primaryBlue.copy(alpha = 0.1f),
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+        color = colorScheme.primary.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f))
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -624,14 +585,14 @@ fun SpeedInfoCard(
                 Text(
                     text = label,
                     fontSize = 11.sp,
-                    color = textGray,
+                    color = colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = value,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = textWhite,
+                    color = colorScheme.onSurface,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                 )
             }

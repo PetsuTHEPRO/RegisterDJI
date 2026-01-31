@@ -14,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,8 +23,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.mapbox.geojson.Point
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
-import com.sloth.registerapp.presentation.app.theme.MissionControlTheme
 import com.sloth.registerapp.presentation.mission.model.Waypoint
+import androidx.compose.ui.graphics.Color
 
 enum class MissionStatus {
     IDLE,
@@ -78,46 +77,80 @@ fun MissionControlScreen(
         }
     }
     
-    // Usar tema centralizado
-    val primaryBlue = MissionControlTheme.primaryBlue
-    val darkBg = MissionControlTheme.darkBg
-    val cardBg = MissionControlTheme.cardBg
-    val textGray = MissionControlTheme.textGray
-    val textWhite = MissionControlTheme.textWhite
-    val greenOnline = MissionControlTheme.greenOnline
-    val redDanger = MissionControlTheme.redDanger
-    val yellowWarning = MissionControlTheme.yellowWarning
+    val colorScheme = MaterialTheme.colorScheme
 
     var showTelemetry by remember { mutableStateOf(true) }
     var showStopDialog by remember { mutableStateOf(false) }
 
     val statusColor = when (missionStatus) {
-        MissionStatus.IDLE -> textGray
-        MissionStatus.LOADING -> yellowWarning
-        MissionStatus.READY -> primaryBlue
-        MissionStatus.RUNNING -> greenOnline
-        MissionStatus.PAUSED -> yellowWarning
-        MissionStatus.STOPPED -> redDanger
-        MissionStatus.COMPLETED -> greenOnline
-        MissionStatus.ERROR -> redDanger
+        MissionStatus.IDLE -> colorScheme.onSurface.copy(alpha = 0.6f)
+        MissionStatus.LOADING -> colorScheme.tertiary
+        MissionStatus.READY -> colorScheme.primary
+        MissionStatus.RUNNING -> colorScheme.primary
+        MissionStatus.PAUSED -> colorScheme.tertiary
+        MissionStatus.STOPPED -> colorScheme.error
+        MissionStatus.COMPLETED -> colorScheme.primary
+        MissionStatus.ERROR -> colorScheme.error
     }
 
     // Lógica do FAB dinâmico
-    data class FABConfig(val icon: androidx.compose.ui.graphics.vector.ImageVector, val text: String, val action: () -> Unit, val color: Color)
+    data class FABConfig(
+        val icon: androidx.compose.ui.graphics.vector.ImageVector,
+        val text: String,
+        val action: () -> Unit,
+        val containerColor: Color,
+        val contentColor: Color
+    )
     
     val fabConfig = when (missionStatus) {
         MissionStatus.IDLE, MissionStatus.READY -> 
-            FABConfig(Icons.Default.PlayArrow, "Iniciar", onStartMission, greenOnline)
+            FABConfig(
+                Icons.Default.PlayArrow,
+                "Iniciar",
+                onStartMission,
+                colorScheme.primary,
+                colorScheme.onPrimary
+            )
         MissionStatus.LOADING ->
-            FABConfig(Icons.Default.HourglassEmpty, "Carregando", {}, yellowWarning)
+            FABConfig(
+                Icons.Default.HourglassEmpty,
+                "Carregando",
+                {},
+                colorScheme.tertiary,
+                colorScheme.onTertiary
+            )
         MissionStatus.RUNNING -> 
-            FABConfig(Icons.Default.Pause, "Pausar", onPauseMission, yellowWarning)
+            FABConfig(
+                Icons.Default.Pause,
+                "Pausar",
+                onPauseMission,
+                colorScheme.tertiary,
+                colorScheme.onTertiary
+            )
         MissionStatus.PAUSED -> 
-            FABConfig(Icons.Default.PlayArrow, "Retomar", onResumeMission, greenOnline)
+            FABConfig(
+                Icons.Default.PlayArrow,
+                "Retomar",
+                onResumeMission,
+                colorScheme.primary,
+                colorScheme.onPrimary
+            )
         MissionStatus.STOPPED, MissionStatus.ERROR ->
-            FABConfig(Icons.Default.Refresh, "Tentar Novamente", onStartMission, primaryBlue)
+            FABConfig(
+                Icons.Default.Refresh,
+                "Tentar Novamente",
+                onStartMission,
+                colorScheme.primary,
+                colorScheme.onPrimary
+            )
         MissionStatus.COMPLETED ->
-            FABConfig(Icons.Default.CheckCircle, "Concluída", {}, greenOnline)
+            FABConfig(
+                Icons.Default.CheckCircle,
+                "Concluída",
+                {},
+                colorScheme.primary,
+                colorScheme.onPrimary
+            )
     }
 
     // Calcular configuração da câmera com base nos waypoints
@@ -161,7 +194,7 @@ fun MissionControlScreen(
         MapboxMapView(
             modifier = Modifier.fillMaxSize(),
             waypoints = waypoints,
-            primaryColor = primaryBlue,
+            primaryColor = colorScheme.primary,
             onMapReady = { mapView ->
                 val mapboxMap = mapView
 
@@ -214,7 +247,8 @@ fun MissionControlScreen(
             icon = fabConfig.icon,
             text = fabConfig.text,
             onClick = fabConfig.action,
-            color = fabConfig.color,
+            containerColor = fabConfig.containerColor,
+            contentColor = fabConfig.contentColor,
             enabled = missionStatus != MissionStatus.LOADING && missionStatus != MissionStatus.COMPLETED,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -256,7 +290,7 @@ fun MissionControlScreen(
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F)),
+                    colors = CardDefaults.cardColors(containerColor = colorScheme.error),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -268,12 +302,12 @@ fun MissionControlScreen(
                     ) {
                         Text(
                             text = errorMessage,
-                            color = Color.White,
+                            color = colorScheme.onError,
                             fontSize = 14.sp,
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = onErrorDismiss) {
-                            Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("OK", color = colorScheme.onError, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -290,26 +324,25 @@ private fun MinimalMissionHeader(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val greenOnline = MissionControlTheme.greenOnline
-    val redDanger = MissionControlTheme.redDanger
+    val colorScheme = MaterialTheme.colorScheme
 
     Row(
         modifier = modifier
             .padding(8.dp)
-            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .background(colorScheme.scrim.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Botão de voltar
         IconButton(onClick = onBackClick, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = Color.White)
+            Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = colorScheme.onSurface)
         }
         
         // Título da missão (truncado)
         Text(
             text = missionName,
-            color = Color.White,
+            color = colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
             fontSize = 14.sp,
             maxLines = 1,
@@ -327,14 +360,14 @@ private fun MinimalMissionHeader(
         Icon(
             imageVector = Icons.Default.Battery6Bar,
             contentDescription = null,
-            tint = if (battery > 20) greenOnline else redDanger,
+            tint = if (battery > 20) colorScheme.primary else colorScheme.error,
             modifier = Modifier.size(18.dp)
         )
         
         // Porcentagem de bateria
         Text(
             text = "$battery%",
-            color = Color.White,
+            color = colorScheme.onSurface,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold
         )
@@ -347,11 +380,13 @@ private fun TelemetryToggleButton(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     FloatingActionButton(
         onClick = onToggle,
         modifier = modifier.size(48.dp),
-        containerColor = Color.Black.copy(alpha = 0.7f),
-        contentColor = Color.White
+        containerColor = colorScheme.scrim.copy(alpha = 0.7f),
+        contentColor = colorScheme.onSurface
     ) {
         Icon(
             imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
@@ -368,9 +403,11 @@ private fun TransparentTelemetryCard(
     gpsSignal: Int,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Column(
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .background(colorScheme.scrim.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -385,15 +422,16 @@ private fun DynamicMissionFAB(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     text: String,
     onClick: () -> Unit,
-    color: Color,
+    containerColor: Color,
+    contentColor: Color,
     enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     ExtendedFloatingActionButton(
         onClick = onClick,
         modifier = modifier,
-        containerColor = color,
-        contentColor = Color.White,
+        containerColor = containerColor,
+        contentColor = contentColor,
         icon = { Icon(icon, contentDescription = null) },
         text = { Text(text, fontWeight = FontWeight.Bold) },
         expanded = true
@@ -405,13 +443,13 @@ private fun StopMissionFAB(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val redDanger = MissionControlTheme.redDanger
+    val colorScheme = MaterialTheme.colorScheme
     
     FloatingActionButton(
         onClick = onClick,
         modifier = modifier.size(56.dp),
-        containerColor = redDanger,
-        contentColor = Color.White
+        containerColor = colorScheme.error,
+        contentColor = colorScheme.onError
     ) {
         Icon(Icons.Default.Stop, contentDescription = "Parar missão")
     }
@@ -419,6 +457,8 @@ private fun StopMissionFAB(
 
 @Composable
 private fun TelemetryRow(icon: String, label: String, value: String) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -427,14 +467,14 @@ private fun TelemetryRow(icon: String, label: String, value: String) {
         Text(
             text = "$label:",
             fontSize = 11.sp,
-            color = Color.White.copy(alpha = 0.7f),
+            color = colorScheme.onSurface.copy(alpha = 0.7f),
             fontWeight = FontWeight.Medium
         )
         Text(
             text = value,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = colorScheme.onSurface
         )
     }
 }
@@ -448,8 +488,7 @@ fun ConfirmDialog(
     onDismiss: () -> Unit,
     isDanger: Boolean = false
 ) {
-    val redDanger = Color(0xFFEF4444)
-    val primaryBlue = Color(0xFF3B82F6)
+    val colorScheme = MaterialTheme.colorScheme
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -457,7 +496,7 @@ fun ConfirmDialog(
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
-                tint = if (isDanger) redDanger else primaryBlue,
+                tint = if (isDanger) colorScheme.error else colorScheme.primary,
                 modifier = Modifier.size(48.dp)
             )
         },
@@ -475,7 +514,7 @@ fun ConfirmDialog(
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isDanger) redDanger else primaryBlue
+                    containerColor = if (isDanger) colorScheme.error else colorScheme.primary
                 )
             ) {
                 Text(confirmText, fontWeight = FontWeight.Bold)

@@ -3,6 +3,7 @@ package com.sloth.registerapp.presentation.facedetection.components
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.View
 import com.google.mlkit.vision.face.Face
 
@@ -13,18 +14,18 @@ class FaceOverlayView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val paint = Paint().apply {
-        color = Color.GREEN
+        color = resolveThemeColor(com.google.android.material.R.attr.colorPrimary, Color.GREEN)
         style = Paint.Style.STROKE
         strokeWidth = 8f
         isAntiAlias = true
     }
 
     private val textPaint = Paint().apply {
-        color = Color.GREEN
+        color = resolveThemeColor(com.google.android.material.R.attr.colorPrimary, Color.GREEN)
         textSize = 48f
         style = Paint.Style.FILL
         typeface = Typeface.DEFAULT_BOLD
-        setShadowLayer(4f, 2f, 2f, Color.BLACK)
+        setShadowLayer(4f, 2f, 2f, resolveThemeColor(android.R.attr.textColorPrimary, Color.BLACK))
     }
 
     private var faces: List<Face>? = null
@@ -34,6 +35,15 @@ class FaceOverlayView @JvmOverloads constructor(
     private var isFrontCamera = true
 
     private var rotation: Int = 0
+
+    private fun resolveThemeColor(attr: Int, fallback: Int): Int {
+        val typedValue = TypedValue()
+        return if (context.theme.resolveAttribute(attr, typedValue, true)) {
+            typedValue.data
+        } else {
+            fallback
+        }
+    }
 
     fun setFaces(
         faces: List<Face>,

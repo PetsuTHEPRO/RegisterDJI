@@ -15,6 +15,11 @@ class AuthInterceptor(private val tokenRepository: TokenRepository) : Intercepto
             return chain.proceed(request)
         }
 
+        // Se a requisição já possui Authorization, não duplica o header
+        if (request.header("Authorization") != null) {
+            return chain.proceed(request)
+        }
+
         val token = runBlocking { tokenRepository.token.first() }
         val requestBuilder = request.newBuilder()
         token?.let {

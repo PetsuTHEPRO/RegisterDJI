@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.sloth.registerapp.core.auth.SessionManager
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
@@ -34,6 +35,8 @@ class MissionListViewModel(application: Application) : AndroidViewModel(applicat
                 Log.d(TAG, "Missions fetched successfully: ${missions.size} missions")
             }.onFailure { error ->
                 if (error is HttpException && error.code() == 401) {
+                    TokenRepository.getInstance(getApplication()).clearToken()
+                    SessionManager.getInstance(getApplication()).clearSession()
                     _uiState.value = MissionListUiState.Unauthorized
                     Log.w(TAG, "Unauthorized access when fetching missions")
                 } else {

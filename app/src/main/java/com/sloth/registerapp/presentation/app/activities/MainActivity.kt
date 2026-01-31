@@ -4,11 +4,14 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -26,6 +29,7 @@ import com.sloth.registerapp.core.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.presentation.app.screens.DashboardScreen
 import com.sloth.registerapp.presentation.app.screens.WelcomeScreen
 import com.sloth.registerapp.presentation.mission.screens.DroneCameraScreen
+import com.sloth.registerapp.presentation.mission.screens.CellCameraScreen
 import com.sloth.registerapp.presentation.mission.screens.DroneControlScreen
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
@@ -49,7 +53,14 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val controller = WindowInsetsControllerCompat(window, window.decorView)
-            RegisterAppTheme {
+            // Recupera o tema do SettingsScreen (pode ser via ViewModel, DataStore, etc. - aqui exemplo simples)
+            var theme by remember { mutableStateOf("Escuro") }
+            val isDarkTheme = when (theme) {
+                "Claro" -> false
+                "Escuro" -> true
+                else -> isSystemInDarkTheme()
+            }
+            com.sloth.registerapp.presentation.app.theme.AppTheme(darkTheme = isDarkTheme) {
                 val navController = rememberNavController()
                 val context = LocalContext.current
                 val sessionManager = remember { com.sloth.registerapp.core.auth.SessionManager.getInstance(context) }
@@ -167,10 +178,14 @@ class MainActivity : ComponentActivity() {
                     composable("camera") {
                         DroneCameraScreen(
                             droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager() },
-                            onCellCameraClick = { /* TODO: open phone camera */ },
+                            onCellCameraClick = { navController.navigate("cell_camera") },
                             onSurfaceTextureAvailable = { _, _, _ -> /* TODO: bind texture to DJI feed */ },
                             onSurfaceTextureDestroyed = { false },
-                            isFeedAvailable = false,
+                            onBackClick = { navController.popBackStack() }
+                        )
+                    }
+                    composable("cell_camera") {
+                        CellCameraScreen(
                             onBackClick = { navController.popBackStack() }
                         )
                     }

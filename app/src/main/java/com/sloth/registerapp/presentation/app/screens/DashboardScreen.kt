@@ -46,27 +46,16 @@ fun DashboardScreen(
     onProfileClick: () -> Unit = {},
     onConnectDroneClick: () -> Unit = {}
 ) {
-    // Cores do tema
-    val primaryBlue = Color(0xFF3B82F6)
-    val darkBlue = Color(0xFF1D4ED8)
-    val darkBg = Color(0xFF0A0E27)
-    val cardBg = Color(0xFF0F1729)
-    val textGray = Color(0xFF94A3B8)
-    val textWhite = Color(0xFFE2E8F0)
-    val greenOnline = Color(0xFF22C55E)
-    val redOffline = Color(0xFFEF4444)
-
+    val colorScheme = MaterialTheme.colorScheme
     // Estados
     var visible by remember { mutableStateOf(false) }
-    
     // Sistema de Estados do Drone (3 cores dinâmicas)
     val statusColor = when {
-        droneStatus.contains("Pronto", ignoreCase = true) -> Color(0xFF3B82F6) // Azul
-        droneStatus.contains("Conectado", ignoreCase = true) -> greenOnline    // Verde
-        droneStatus.contains("Falha", ignoreCase = true) -> redOffline         // Vermelho
-        else -> redOffline  // Default para desconectado
+        droneStatus.contains("Pronto", ignoreCase = true) -> colorScheme.primary
+        droneStatus.contains("Conectado", ignoreCase = true) -> colorScheme.secondaryContainer
+        droneStatus.contains("Falha", ignoreCase = true) -> colorScheme.error
+        else -> colorScheme.error
     }
-
     // Modelos de drones
     val droneModels = listOf(
         DroneModel("DJI Phantom 4", "Drone profissional para mapeamento", "🚁"),
@@ -80,16 +69,8 @@ fun DashboardScreen(
         visible = true
     }
 
-    // Abas do Bottom Navigation (ajustado)
-    val dashboardTabs = listOf(
-        Triple("home", "Home", Icons.Default.Home),
-        Triple("missions", "Missões", Icons.Default.List),
-        Triple("telemetry", "Telemetria", Icons.Default.Speed),
-        Triple("video", "Vídeo", Icons.Default.PlayCircle)
-    )
-    var selectedTab by remember { mutableStateOf(0) }
-
     Scaffold(
+        modifier = Modifier.background(colorScheme.background),
         topBar = {
             TopAppBar(
                 title = {
@@ -102,20 +83,18 @@ fun DashboardScreen(
                             imageVector = Icons.Default.FlightTakeoff,
                             contentDescription = "Drone",
                             modifier = Modifier.size(28.dp),
-                            tint = primaryBlue
+                            tint = colorScheme.primary
                         )
                         Column {
                             Text(
                                 text = "Mission Control",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textWhite
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colorScheme.onSurface
                             )
                             Text(
                                 text = "Sistema de Drones",
-                                fontSize = 11.sp,
-                                color = textGray,
-                                fontWeight = FontWeight.Normal
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colorScheme.onSurface
                             )
                         }
                     }
@@ -125,37 +104,22 @@ fun DashboardScreen(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Configurações",
-                            tint = primaryBlue,
+                            tint = colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = cardBg
+                    containerColor = colorScheme.surface
                 ),
                 modifier = Modifier.height(80.dp)
             )
         },
-        bottomBar = {
-            NavigationBar(
-                containerColor = Color(0xFF0B1220)
-            ) {
-                dashboardTabs.forEachIndexed { index, tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = {
-                            Icon(tab.third, contentDescription = tab.second)
-                        },
-                        label = { Text(tab.second) },
-                        alwaysShowLabel = true
-                    )
-                }
-            }
-        }
+        // Remover bottomBar duplicado
     ) { paddingValues ->
         Column(
             modifier = Modifier
+                .background(colorScheme.background)
                 .padding(paddingValues)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
@@ -164,7 +128,6 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            
             // 1. Bem-vindo - PRIMEIRO
             AnimatedVisibility(
                 visible = visible,
@@ -175,9 +138,9 @@ fun DashboardScreen(
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = cardBg.copy(alpha = 0.95f),
-                    border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+                    shape = MaterialTheme.shapes.medium,
+                    color = colorScheme.surface,
+                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f))
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -188,19 +151,18 @@ fun DashboardScreen(
                             imageVector = Icons.Default.PersonAdd,
                             contentDescription = "Bem-vindo",
                             modifier = Modifier.size(32.dp),
-                            tint = primaryBlue
+                            tint = colorScheme.primary
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Bem-vindo, $userName!",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textWhite
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colorScheme.onSurface
                             )
                             Text(
                                 text = "Sistema autônomo de drones",
-                                fontSize = 13.sp,
-                                color = textGray
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colorScheme.onSurface
                             )
                         }
                     }
@@ -217,8 +179,8 @@ fun DashboardScreen(
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = cardBg.copy(alpha = 0.95f),
+                    shape = MaterialTheme.shapes.medium,
+                    color = colorScheme.surface,
                     border = BorderStroke(1.dp, statusColor.copy(alpha = 0.3f)),
                     shadowElevation = 8.dp
                 ) {
@@ -241,7 +203,7 @@ fun DashboardScreen(
                                 Text(
                                     text = "Status do Drone",
                                     fontSize = 14.sp,
-                                    color = textGray,
+                                    color = colorScheme.onSurface,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Row(
@@ -281,7 +243,7 @@ fun DashboardScreen(
                         text = "Ações Principais",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite
+                        color = colorScheme.onBackground
                     )
 
                     Row(
@@ -294,7 +256,7 @@ fun DashboardScreen(
                             title = "Live Feed",
                             subtitle = "Transmissão ao vivo",
                             gradient = Brush.linearGradient(
-                                colors = listOf(primaryBlue, darkBlue)
+                                colors = listOf(colorScheme.primary, colorScheme.secondary)
                             ),
                             onClick = onLiveFeedClick,
                             modifier = Modifier.weight(1f),
@@ -308,7 +270,7 @@ fun DashboardScreen(
                             title = "Missões",
                             subtitle = "Gerenciar missões",
                             gradient = Brush.linearGradient(
-                                colors = listOf(Color(0xFF8B5CF6), Color(0xFF7C3AED))
+                                colors = listOf(colorScheme.tertiary, colorScheme.secondary)
                             ),
                             onClick = onMissionsClick,
                             modifier = Modifier.weight(1f)
@@ -320,7 +282,7 @@ fun DashboardScreen(
                             title = "Controle",
                             subtitle = "Controle manual",
                             gradient = Brush.linearGradient(
-                                colors = listOf(Color(0xFFF59E0B), Color(0xFFD97706))
+                                colors = listOf(colorScheme.error, colorScheme.error.copy(alpha = 0.7f))
                             ),
                             onClick = onMissionControlClick,
                             modifier = Modifier.weight(1f)
@@ -342,7 +304,7 @@ fun DashboardScreen(
                         text = "Drones Compatíveis",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite
+                        color = colorScheme.onBackground
                     )
 
                     LazyRow(
@@ -372,7 +334,7 @@ fun DashboardScreen(
                         text = "Apoio Institucional",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite
+                        color = colorScheme.onBackground
                     )
 
                     Row(
@@ -406,8 +368,8 @@ fun DashboardScreen(
                     modifier = Modifier
                         .fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = cardBg.copy(alpha = 0.95f),
-                    border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+                    color = colorScheme.surface,
+                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f))
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -420,21 +382,21 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                tint = primaryBlue,
+                                tint = colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
                                 text = "Sobre o Projeto",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = textWhite
+                                color = colorScheme.onSurface
                             )
                         }
 
                         Text(
                             text = "Sistema autônomo para planejamento e monitoramento de missões de drones em tempo real com IA.",
                             fontSize = 13.sp,
-                            color = textGray,
+                            color = colorScheme.onSurface,
                             lineHeight = 18.sp
                         )
                     }
@@ -453,18 +415,18 @@ fun DashboardScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Divider(color = textGray.copy(alpha = 0.2f))
+                    Divider(color = colorScheme.onSurface.copy(alpha = 0.2f))
 
                     Text(
                         text = "Mission Control v1.0",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textGray
+                        color = colorScheme.onSurface
                     )
                     Text(
                         text = "© 2024 IFMA. Todos os direitos reservados.",
                         fontSize = 10.sp,
-                        color = textGray.copy(alpha = 0.6f)
+                        color = colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             }
@@ -487,7 +449,7 @@ fun DashboardScreen(
                         text = "Entre em Contato",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = textWhite
+                        color = colorScheme.onBackground
                     )
 
                     Row(
@@ -499,7 +461,7 @@ fun DashboardScreen(
                         ContactButton(icon = Icons.Default.Language, label = "Website")
                     }
 
-                    Divider(color = textGray.copy(alpha = 0.2f))
+                    Divider(color = colorScheme.onSurface.copy(alpha = 0.2f))
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -509,12 +471,12 @@ fun DashboardScreen(
                             text = "Mission Control v1.0",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = textGray
+                            color = colorScheme.onSurface
                         )
                         Text(
                             text = "© 2024 IFMA. Todos os direitos reservados.",
                             fontSize = 10.sp,
-                            color = textGray.copy(alpha = 0.6f)
+                            color = colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
                 }
@@ -534,6 +496,8 @@ fun MainActionCard(
     showBadge: Boolean = false,
     badgeText: String = ""
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -553,7 +517,7 @@ fun MainActionCard(
                         .align(Alignment.TopEnd)
                         .padding(12.dp),
                     shape = RoundedCornerShape(8.dp),
-                    color = Color.White.copy(alpha = 0.2f)
+                    color = colorScheme.onPrimary.copy(alpha = 0.2f)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -563,13 +527,13 @@ fun MainActionCard(
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
-                                .background(Color.White, CircleShape)
+                                .background(colorScheme.onPrimary, CircleShape)
                         )
                         Text(
                             text = badgeText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = colorScheme.onPrimary
                         )
                     }
                 }
@@ -585,20 +549,20 @@ fun MainActionCard(
                     imageVector = icon,
                     contentDescription = title,
                     modifier = Modifier.size(40.dp),
-                    tint = Color.White
+                    tint = colorScheme.onPrimary
                 )
                 Column {
                     Text(
                         text = title,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = colorScheme.onPrimary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = subtitle,
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = colorScheme.onPrimary.copy(alpha = 0.8f)
                     )
                 }
             }
@@ -612,10 +576,9 @@ fun DroneModelCard(
     name: String,
     description: String
 ) {
-    val cardBg = Color(0xFF0F1729)
-    val textWhite = Color(0xFFE2E8F0)
-    val textGray = Color(0xFF94A3B8)
-    val primaryBlue = Color(0xFF3B82F6)
+    val colorScheme = MaterialTheme.colorScheme
+    val cardBg = colorScheme.surface
+    val textWhite = colorScheme.onSurface
 
     Surface(
         modifier = Modifier
@@ -623,7 +586,7 @@ fun DroneModelCard(
             .height(140.dp),
         shape = RoundedCornerShape(16.dp),
         color = cardBg.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f)),
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
         shadowElevation = 4.dp
     ) {
         Column(
@@ -641,7 +604,7 @@ fun DroneModelCard(
                 Text(
                     text = description,
                     fontSize = 11.sp,
-                    color = textGray,
+                    color = colorScheme.onSurface,
                     lineHeight = 14.sp
                 )
             }
@@ -651,7 +614,8 @@ fun DroneModelCard(
 
 @Composable
 fun ProjectFeatureChip(text: String) {
-    val primaryBlue = Color(0xFF3B82F6)
+    val colorScheme = MaterialTheme.colorScheme
+    val primaryBlue = colorScheme.primary
 
     Surface(
         shape = RoundedCornerShape(20.dp),
@@ -675,16 +639,15 @@ fun SponsorCard(
     icon: String,
     modifier: Modifier = Modifier
 ) {
-    val cardBg = Color(0xFF0F1729)
-    val textWhite = Color(0xFFE2E8F0)
-    val textGray = Color(0xFF94A3B8)
-    val primaryBlue = Color(0xFF3B82F6)
+    val colorScheme = MaterialTheme.colorScheme
+    val cardBg = colorScheme.surface
+    val textWhite = colorScheme.onSurface
 
     Surface(
         modifier = modifier.height(140.dp),
         shape = RoundedCornerShape(16.dp),
-        color = cardBg.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f)),
+        color = cardBg,
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
         shadowElevation = 4.dp
     ) {
         Column(
@@ -706,7 +669,7 @@ fun SponsorCard(
             Text(
                 text = description,
                 fontSize = 11.sp,
-                color = textGray,
+                color = colorScheme.onSurface,
                 textAlign = TextAlign.Center
             )
         }
@@ -715,8 +678,9 @@ fun SponsorCard(
 
 @Composable
 fun ContactButton(icon: ImageVector, label: String) {
-    val primaryBlue = Color(0xFF3B82F6)
-    val textWhite = Color(0xFFE2E8F0)
+    val colorScheme = MaterialTheme.colorScheme
+    val primaryBlue = colorScheme.primary
+    val textWhite = colorScheme.onBackground
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -752,9 +716,9 @@ fun CompactDroneCard(
     icon: String,
     name: String
 ) {
-    val cardBg = Color(0xFF0F1729)
-    val textWhite = Color(0xFFE2E8F0)
-    val primaryBlue = Color(0xFF3B82F6)
+    val colorScheme = MaterialTheme.colorScheme
+    val cardBg = colorScheme.surface
+    val textWhite = colorScheme.onSurface
 
     Surface(
         modifier = Modifier
@@ -762,7 +726,7 @@ fun CompactDroneCard(
             .height(80.dp),
         shape = RoundedCornerShape(12.dp),
         color = cardBg,
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f))
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
@@ -788,15 +752,15 @@ fun CompactSponsorCard(
     icon: String,
     modifier: Modifier = Modifier
 ) {
-    val cardBg = Color(0xFF0F1729)
-    val textWhite = Color(0xFFE2E8F0)
-    val primaryBlue = Color(0xFF3B82F6)
+    val colorScheme = MaterialTheme.colorScheme
+    val cardBg = colorScheme.surface
+    val textWhite = colorScheme.onSurface
 
     Surface(
         modifier = modifier.height(80.dp),
         shape = RoundedCornerShape(12.dp),
         color = cardBg,
-        border = BorderStroke(1.dp, primaryBlue.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f))
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),

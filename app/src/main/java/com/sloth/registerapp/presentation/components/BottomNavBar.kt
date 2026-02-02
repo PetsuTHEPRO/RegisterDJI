@@ -19,10 +19,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.ui.unit.dp
 
 sealed class BottomItem(val route: String, val label: String, val icon: @Composable () -> Unit) {
-    object Home : BottomItem("home", "Início", { Icon(Icons.Filled.Home, contentDescription = null) })
-    object Telemetry : BottomItem("telemetry", "Telemetria", { Icon(Icons.Filled.Speed, contentDescription = null) })
-    object Missions : BottomItem("missions", "Missões", { Icon(Icons.Filled.List, contentDescription = null) })
-    object Video : BottomItem("video", "Vídeo", { Icon(Icons.Filled.PlayCircle, contentDescription = null) })
+    object Home : BottomItem("dashboard", "Início", { Icon(Icons.Filled.Home, contentDescription = null) })
+    object Live : BottomItem("camera", "Ao vivo", { Icon(Icons.Filled.PlayCircle, contentDescription = null) })
+    object Missions : BottomItem("mission", "Missões", { Icon(Icons.Filled.List, contentDescription = null) })
+    object Reports : BottomItem("report", "Relatório", { Icon(Icons.Filled.Assessment, contentDescription = null) })
 }
 
 @Composable
@@ -32,9 +32,9 @@ fun BottomNavBar(
 ) {
     val items = listOf(
         BottomItem.Home,
-        BottomItem.Telemetry,
+        BottomItem.Live,
         BottomItem.Missions,
-        BottomItem.Video
+        BottomItem.Reports
     )
 
     val colorScheme = MaterialTheme.colorScheme
@@ -84,7 +84,7 @@ fun BottomNavBar(
                         onClick = {
                             if (currentRoute != item.route) {
                                 navController.navigate(item.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    popUpTo("dashboard") { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }

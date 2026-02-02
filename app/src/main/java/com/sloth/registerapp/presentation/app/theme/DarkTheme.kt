@@ -49,9 +49,9 @@ val DarkColorScheme = darkColorScheme(
     outline = Color(0x1AFFFFFF),        // rgba(255,255,255,0.10)
     outlineVariant = Color(0x8CFFFFFF), // rgba(255,255,255,0.55)
 
-    // NÃO ESPECIFICADOS -> VERMELHO
-    primaryContainer = Color(0xFFFF0000),
-    onPrimaryContainer = Color(0xFFFF0000),
+    // Containers (usados em barras/áreas de destaque)
+    primaryContainer = Color(0xFF14223A),
+    onPrimaryContainer = Color(0xEBFFFFFF),
     secondaryContainer = Color(0xFFFF0000),
     onSecondaryContainer = Color(0xFFFF0000),
     tertiaryContainer = Color(0xFFFF0000),

@@ -137,6 +137,10 @@ fun DroneCameraScreen(
 
     LaunchedEffect(rtmpUrl) {
         rtmpStreamer.updateUrl(rtmpUrl)
+        if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
+            rtmpStreamer.stop()
+            rtmpStreamer.start()
+        }
     }
 
     LaunchedEffect(previewEnabled) {
@@ -335,6 +339,7 @@ fun DroneCameraScreen(
     DisposableEffect(Unit) {
         onDispose {
             rtmpStreamer.release()
+            droneController.stop()
         }
     }
 }

@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
+import com.sloth.registerapp.presentation.app.theme.AppTheme
 import kotlinx.coroutines.delay
 
 data class DroneModel(
@@ -69,15 +71,22 @@ fun DashboardScreen(
         visible = true
     }
 
-    Scaffold(
-        modifier = Modifier.background(colorScheme.background),
-        topBar = {
-            TopAppBar(
-                title = {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colorScheme.background)
+    ) {
+        TopAppBar(
+            title = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(start = 8.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.padding(start = 8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.FlightTakeoff,
@@ -98,8 +107,15 @@ fun DashboardScreen(
                             )
                         }
                     }
-                },
-                actions = {
+                }
+            },
+            actions = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(end = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -108,26 +124,23 @@ fun DashboardScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = colorScheme.surface
-                ),
-                modifier = Modifier.height(80.dp)
-            )
-        },
-        // Remover bottomBar duplicado
-    ) { paddingValues ->
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = colorScheme.primaryContainer
+            ),
+            windowInsets = WindowInsets(0, 0, 0, 0),
+            modifier = Modifier.height(64.dp)
+        )
+
         Column(
             modifier = Modifier
-                .background(colorScheme.background)
-                .padding(paddingValues)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 16.dp),
+                .padding(top = 10.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
             // 1. Bem-vindo - PRIMEIRO
             AnimatedVisibility(
                 visible = visible,
@@ -229,67 +242,6 @@ fun DashboardScreen(
             }
 
             // 3. Sobre o Projeto - TERCEIRO (REMOVIDO DAQUI)
-
-            // 4. Ações Principais (3 botões em linha) - QUARTO
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn() + slideInVertically(
-                    initialOffsetY = { it / 2 },
-                    animationSpec = tween(400, delayMillis = 400)
-                )
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "Ações Principais",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onBackground
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Botão 1: Live Feed
-                        MainActionCard(
-                            icon = Icons.Default.Videocam,
-                            title = "Live Feed",
-                            subtitle = "Transmissão ao vivo",
-                            gradient = Brush.linearGradient(
-                                colors = listOf(colorScheme.primary, colorScheme.secondary)
-                            ),
-                            onClick = onLiveFeedClick,
-                            modifier = Modifier.weight(1f),
-                            showBadge = droneStatus.contains("Conectado", ignoreCase = true),
-                            badgeText = "AO VIVO"
-                        )
-
-                        // Botão 2: Missões
-                        MainActionCard(
-                            icon = Icons.Default.Assignment,
-                            title = "Missões",
-                            subtitle = "Gerenciar missões",
-                            gradient = Brush.linearGradient(
-                                colors = listOf(colorScheme.tertiary, colorScheme.secondary)
-                            ),
-                            onClick = onMissionsClick,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // Botão 3: Controle
-                        MainActionCard(
-                            icon = Icons.Default.TouchApp,
-                            title = "Controle",
-                            subtitle = "Controle manual",
-                            gradient = Brush.linearGradient(
-                                colors = listOf(colorScheme.error, colorScheme.error.copy(alpha = 0.7f))
-                            ),
-                            onClick = onMissionControlClick,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
 
             // 5. Carrossel de Drones - QUINTO
             AnimatedVisibility(
@@ -403,36 +355,6 @@ fun DashboardScreen(
                 }
             }
 
-            // 7. Rodapé - SÉTIMO
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(animationSpec = tween(400, delayMillis = 700))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Divider(color = colorScheme.onSurface.copy(alpha = 0.2f))
-
-                    Text(
-                        text = "Vantly Neural v1.0",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = "© 2024 IFMA. Todos os direitos reservados.",
-                        fontSize = 10.sp,
-                        color = colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-            }
-
-
-
             // CÓDIGO ANTIGO - NÃO RENDERIZADO (mantido como referência)
             AnimatedVisibility(
                 visible = false,
@@ -481,6 +403,7 @@ fun DashboardScreen(
                     }
                 }
             }
+
         }
     }
 }
@@ -776,5 +699,27 @@ fun CompactSponsorCard(
                 color = textWhite
             )
         }
+    }
+}
+
+@Preview(name = "Dashboard - Light", showBackground = true)
+@Composable
+fun DashboardScreenPreviewLight() {
+    AppTheme(darkTheme = false) {
+        DashboardScreen(
+            droneStatus = "Conectado a: DJI Mavic",
+            userName = "Yuri"
+        )
+    }
+}
+
+@Preview(name = "Dashboard - Dark", showBackground = true)
+@Composable
+fun DashboardScreenPreviewDark() {
+    AppTheme(darkTheme = true) {
+        DashboardScreen(
+            droneStatus = "Conectado a: DJI Mavic",
+            userName = "Yuri"
+        )
     }
 }

@@ -13,9 +13,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -34,9 +40,11 @@ import com.sloth.registerapp.presentation.mission.screens.DroneControlScreen
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListUiState
+import com.sloth.registerapp.presentation.components.BottomNavBar
 import com.sloth.registerapp.presentation.auth.screens.LoginScreen
 import com.sloth.registerapp.presentation.auth.screens.RegisterScreen
 import com.sloth.registerapp.presentation.mission.activities.MissionControlActivity
+import com.sloth.registerapp.presentation.report.screens.ReportScreen
 import com.sloth.registerapp.presentation.settings.screens.SettingsScreen
 import dji.sdk.sdkmanager.DJISDKManager
 
@@ -101,22 +109,24 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("dashboard") {
                         val droneStatus by DJIConnectionHelper.connectionStatus.collectAsState()
-                        DashboardScreen(
-                            droneStatus = droneStatus,
-                            userName = userName ?: "Usuário",
-                            onMissionsClick = { navController.navigate("mission") },
-                            onMissionControlClick = {
-                                val intent = Intent(context, MissionControlActivity::class.java)
-                                context.startActivity(intent)
-                            },
-                            onLiveFeedClick = {
-                                navController.navigate("camera")
-                            },
-                            onConnectDroneClick = {
-                                DJISDKManager.getInstance().startConnectionToProduct()
-                            },
-                            onSettingsClick = { navController.navigate("settings") }
-                        )
+                        ScreenWithBottomBar(navController = navController) {
+                            DashboardScreen(
+                                droneStatus = droneStatus,
+                                userName = userName ?: "Usuário",
+                                onMissionsClick = { navController.navigate("mission") },
+                                onMissionControlClick = {
+                                    val intent = Intent(context, MissionControlActivity::class.java)
+                                    context.startActivity(intent)
+                                },
+                                onLiveFeedClick = {
+                                    navController.navigate("camera")
+                                },
+                                onConnectDroneClick = {
+                                    DJISDKManager.getInstance().startConnectionToProduct()
+                                },
+                                onSettingsClick = { navController.navigate("settings") }
+                            )
+                        }
                     }
                     composable("settings") {
                         SettingsScreen(
@@ -157,18 +167,20 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        MissionsTableScreen(
-                            missions = missions,
-                            isLoading = isLoading,
-                            onBackClick = { navController.popBackStack() },
-                            onCreateMissionClick = { navController.navigate("mission-create") },
-                            onViewMissionClick = { missionId ->
-                                val intent = Intent(context, MissionControlActivity::class.java).apply {
-                                    putExtra("MISSION_ID", missionId)
+                        ScreenWithBottomBar(navController = navController) {
+                            MissionsTableScreen(
+                                missions = missions,
+                                isLoading = isLoading,
+                                onBackClick = { navController.popBackStack() },
+                                onCreateMissionClick = { navController.navigate("mission-create") },
+                                onViewMissionClick = { missionId ->
+                                    val intent = Intent(context, MissionControlActivity::class.java).apply {
+                                        putExtra("MISSION_ID", missionId)
+                                    }
+                                    context.startActivity(intent)
                                 }
-                                context.startActivity(intent)
-                            }
-                        )
+                            )
+                        }
                     }
                     composable("mission-create") {
                         MissionCreateScreen(onBackClick = { navController.popBackStack() })
@@ -189,8 +201,31 @@ class MainActivity : ComponentActivity() {
                             onBackClick = { navController.popBackStack() }
                         )
                     }
+                    composable("report") {
+                        ScreenWithBottomBar(navController = navController) {
+                            ReportScreen()
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ScreenWithBottomBar(
+    navController: NavController,
+    content: @Composable () -> Unit
+) {
+    Scaffold(
+        bottomBar = { BottomNavBar(navController = navController) }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            content()
         }
     }
 }

@@ -56,6 +56,10 @@ fun CellCameraScreen(
 
     LaunchedEffect(rtmpUrl) {
         streamer.updateUrl(rtmpUrl)
+        if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
+            streamer.stop()
+            streamer.start()
+        }
     }
 
     DisposableEffect(openGlView) {

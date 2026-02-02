@@ -25,14 +25,22 @@ class DroneControllerManager {
     private val _droneState = MutableStateFlow(DroneState.ON_GROUND)
     val droneState: StateFlow<DroneState> = _droneState
 
-    private val _telemetry = MutableStateFlow(DroneTelemetry())
-    val telemetry: StateFlow<DroneTelemetry> = _telemetry
-
     private val scope = CoroutineScope(Dispatchers.IO)
+
+    private val telemetryManager = DroneTelemetryManager(scope)
+    val telemetry: StateFlow<DroneTelemetry> = telemetryManager.telemetry
     
     // Job para controlar o envio contínuo de comandos
     private var virtualStickJob: Job? = null
     private var isVirtualStickEnabled = false
+
+    init {
+        scope.launch {
+            telemetryManager.droneState.collect { state ->
+                _droneState.value = state
+            }
+        }
+    }
 
     private fun getFlightController(): FlightController? {
         val product = DJIConnectionHelper.getProductInstance()
@@ -43,6 +51,7 @@ class DroneControllerManager {
             null
         }
     }
+
 
     // ========== CONFIGURAÇÃO DO VIRTUAL STICK ==========
 
@@ -157,7 +166,7 @@ class DroneControllerManager {
 
             delay(4000)
             _droneState.value = DroneState.ON_GROUND
-            _telemetry.value = _telemetry.value.copy(altitude = 0f, speed = 0f)
+            telemetryManager.updateTelemetry(altitude = 0f, speed = 0f)
         }
     }
 
@@ -343,7 +352,7 @@ class DroneControllerManager {
             }
 
             _droneState.value = DroneState.EMERGENCY_STOP
-            _telemetry.value = _telemetry.value.copy(speed = 0f)
+            telemetryManager.updateTelemetry(speed = 0f)
         }
     }
 
@@ -378,13 +387,17 @@ class DroneControllerManager {
         gps: Int? = null,
         battery: Int? = null
     ) {
-        _telemetry.value = _telemetry.value.copy(
-            altitude = altitude ?: _telemetry.value.altitude,
-            speed = speed ?: _telemetry.value.speed,
-            distanceFromHome = distance ?: _telemetry.value.distanceFromHome,
-            gpsSatellites = gps ?: _telemetry.value.gpsSatellites,
-            batteryLevel = battery ?: _telemetry.value.batteryLevel
+        telemetryManager.updateTelemetry(
+            altitude = altitude,
+            speed = speed,
+            distance = distance,
+            gps = gps,
+            battery = battery
         )
+    }
+
+    fun stop() {
+        telemetryManager.stop()
     }
 
     fun isConnected(): Boolean = getFlightController() != null

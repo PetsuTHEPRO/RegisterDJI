@@ -2,7 +2,7 @@ package com.sloth.registerapp.features.mission.domain.model
 
 data class DroneTelemetry(
     val altitude: Float = 0f,              // Altitude em metros
-    val speed: Float = 0f,                 // Velocidade em km/h
+    val speed: Float = 0f,                 // Velocidade em m/s
     val distanceFromHome: Float = 0f,      // Distância da base em metros
     val gpsSatellites: Int = 0,            // Quantidade de satélites GPS
     val batteryLevel: Int = 100,           // Bateria em %

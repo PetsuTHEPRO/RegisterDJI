@@ -38,7 +38,6 @@ import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.presentation.app.components.VideoFeedView
-import com.sloth.registerapp.presentation.components.StreamingControl
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
 import kotlinx.coroutines.delay
@@ -271,9 +270,17 @@ fun DroneCameraScreen(
         ) {
             CameraControls(
                 isRecording = isRecording,
+                streamState = streamState,
                 onCellCameraClick = onCellCameraClick,
                 onTakePhotoClick = { Toast.makeText(context, "Capturando Foto (TODO)", Toast.LENGTH_SHORT).show() },
                 onRecordClick = { isRecording = !isRecording },
+                onStreamToggle = {
+                    if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
+                        rtmpStreamer.stop()
+                    } else {
+                        rtmpStreamer.start()
+                    }
+                },
                 onToggleTelemetry = { showTelemetry = !showTelemetry },
                 showTelemetry = showTelemetry
             )
@@ -293,22 +300,6 @@ fun DroneCameraScreen(
                     fontSize = 12.sp
                 )
             }
-        }
-
-        // Botão de streaming RTMP
-        AnimatedVisibility(
-            visible = showControls && visible,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
-        ) {
-            StreamingControl(
-                state = streamState,
-                onStart = { rtmpStreamer.start() },
-                onStop = { rtmpStreamer.stop() }
-            )
         }
 
         // Botão de Emergência
@@ -338,27 +329,7 @@ fun DroneCameraScreen(
             )
         }
 
-        // Controles de Movimento
-        AnimatedVisibility(
-            visible = showControls && visible,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 12.dp, bottom = 16.dp)
-        ) {
-            MovementControls(
-                canMove = canMove,
-                onUpClick = { droneController.moveUp(1f) },
-                onDownClick = { droneController.moveDown(1f) },
-                onForwardClick = { droneController.moveForward(2f) },
-                onBackwardClick = { droneController.moveBackward(2f) },
-                onLeftClick = { droneController.moveLeft(2f) },
-                onRightClick = { droneController.moveRight(2f) },
-                onRotateLeftClick = { droneController.rotateLeft(30f) },
-                onRotateRightClick = { droneController.rotateRight(30f) }
-            )
-        }
+        // Controles de Movimento removidos conforme solicitado
     }
 
     DisposableEffect(Unit) {
@@ -394,12 +365,21 @@ fun CompactHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Transparent)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .background(colorScheme.surfaceVariant.copy(alpha = 0.78f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(modifier = Modifier.size(36.dp))
+        IconButton(
+            onClick = onBackClick,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                Icons.Default.ArrowBack,
+                contentDescription = "Voltar",
+                tint = colorScheme.onSurface
+            )
+        }
         /*Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(modifier = Modifier.size(8.dp).background(statusInfo.second, CircleShape))
             Text(statusInfo.first, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusInfo.second)
@@ -470,10 +450,12 @@ fun CompactTelemetryRow(icon: ImageVector, value: String, iconColor: Color) {
 @Composable
 fun CameraControls(
     isRecording: Boolean,
+    streamState: StreamState,
     showTelemetry: Boolean,
     onCellCameraClick: () -> Unit,
     onTakePhotoClick: () -> Unit,
     onRecordClick: () -> Unit,
+    onStreamToggle: () -> Unit,
     onToggleTelemetry: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -486,6 +468,11 @@ fun CameraControls(
             icon = Icons.Default.CameraAlt,
             onClick = onTakePhotoClick,
             enabled = true,
+            color = buttonGray
+        )
+        SmallStreamingButton(
+            streamState = streamState,
+            onToggle = onStreamToggle,
             color = buttonGray
         )
         CompactControlButton(
@@ -507,6 +494,32 @@ fun CameraControls(
             color = buttonGray
         )
     }
+}
+
+@Composable
+fun SmallStreamingButton(
+    streamState: StreamState,
+    onToggle: () -> Unit,
+    color: Color
+) {
+    val isConnecting = streamState is StreamState.Connecting
+    val isStreaming = streamState is StreamState.Streaming
+    val icon = when {
+        isConnecting -> Icons.Default.HourglassTop
+        isStreaming -> Icons.Default.StopCircle
+        else -> Icons.Default.WifiTethering
+    }
+    val tint = when {
+        isStreaming -> MaterialTheme.colorScheme.error
+        else -> color
+    }
+    CompactControlButton(
+        icon = icon,
+        onClick = onToggle,
+        enabled = !isConnecting,
+        color = tint,
+        size = 36.dp
+    )
 }
 
 @Composable
@@ -549,57 +562,6 @@ fun FlightActionControls(
             enabled = droneState == DroneState.IN_AIR,
             color = colorScheme.tertiary,
             size = 50.dp
-        )
-    }
-}
-
-@Composable
-fun MovementControls(
-    modifier: Modifier = Modifier,
-    canMove: Boolean,
-    onUpClick: () -> Unit,
-    onDownClick: () -> Unit,
-    onForwardClick: () -> Unit,
-    onBackwardClick: () -> Unit,
-    onLeftClick: () -> Unit,
-    onRightClick: () -> Unit,
-    onRotateLeftClick: () -> Unit,
-    onRotateRightClick: () -> Unit
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        CompactControlButton(
-            icon = Icons.Default.RotateLeft,
-            onClick = onRotateLeftClick,
-            enabled = canMove,
-            color = colorScheme.onSurfaceVariant,
-            size = 44.dp
-        )
-        
-        Surface(
-            shape = RoundedCornerShape(100.dp),
-            color = colorScheme.surfaceVariant.copy(alpha = 0.7f),
-            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.35f))
-        ) {
-            Box(modifier = Modifier.size(120.dp).padding(8.dp)) {
-                val iconColor = if (canMove) colorScheme.secondary else colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                IconButton(onClick = { if (canMove) onForwardClick() }, modifier = Modifier.align(Alignment.TopCenter).size(40.dp)) { Icon(Icons.Default.KeyboardArrowUp, null, tint = iconColor, modifier = Modifier.size(30.dp)) }
-                IconButton(onClick = { if (canMove) onBackwardClick() }, modifier = Modifier.align(Alignment.BottomCenter).size(40.dp)) { Icon(Icons.Default.KeyboardArrowDown, null, tint = iconColor, modifier = Modifier.size(30.dp)) }
-                IconButton(onClick = { if (canMove) onLeftClick() }, modifier = Modifier.align(Alignment.CenterStart).size(40.dp)) { Icon(Icons.Default.KeyboardArrowLeft, null, tint = iconColor, modifier = Modifier.size(30.dp)) }
-                IconButton(onClick = { if (canMove) onRightClick() }, modifier = Modifier.align(Alignment.CenterEnd).size(40.dp)) { Icon(Icons.Default.KeyboardArrowRight, null, tint = iconColor, modifier = Modifier.size(30.dp)) }
-            }
-        }
-        
-        CompactControlButton(
-            icon = Icons.Default.RotateRight,
-            onClick = onRotateRightClick,
-            enabled = canMove,
-            color = colorScheme.onSurfaceVariant,
-            size = 44.dp
         )
     }
 }

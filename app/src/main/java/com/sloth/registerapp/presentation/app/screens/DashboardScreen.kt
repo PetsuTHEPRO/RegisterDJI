@@ -87,7 +87,7 @@ fun DashboardScreen(
                         )
                         Column {
                             Text(
-                                text = "Mission Control",
+                                text = "Vantly Neural",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = colorScheme.onSurface
                             )
@@ -418,7 +418,7 @@ fun DashboardScreen(
                     Divider(color = colorScheme.onSurface.copy(alpha = 0.2f))
 
                     Text(
-                        text = "Mission Control v1.0",
+                        text = "Vantly Neural v1.0",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.onSurface
@@ -468,7 +468,7 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "Mission Control v1.0",
+                            text = "Vantly Neural v1.0",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = colorScheme.onSurface

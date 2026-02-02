@@ -102,7 +102,7 @@ fun RegisterScreen(
 
                 // Título
                 Text(
-                    text = "Mission Control",
+                    text = "Vantly Neural",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colorScheme.onBackground,

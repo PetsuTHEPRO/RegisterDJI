@@ -131,7 +131,7 @@ fun WelcomeScreen(
 
                 // Title
                 Text(
-                    text = "Mission Control",
+                    text = "Vantly Neural",
                     fontSize = 36.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colorScheme.onBackground,

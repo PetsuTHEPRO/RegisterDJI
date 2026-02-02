@@ -1,16 +1,16 @@
 package com.sloth.registerapp.features.streaming.data
 
 import android.util.Log
-import android.view.SurfaceView
-import com.pedro.rtmp.utils.ConnectCheckerRtmp
-import com.pedro.rtplibrary.rtmp.RtmpCamera2
+import com.pedro.common.ConnectChecker
+import com.pedro.library.rtmp.RtmpCamera2
+import com.pedro.library.view.OpenGlView
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.streaming.domain.StreamingController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class PhoneRtmpStreamer(
-    private val surfaceView: SurfaceView,
+    private val openGlView: OpenGlView,
     private var rtmpUrl: String,
     private val config: VideoConfig = VideoConfig()
 ) : StreamingController {
@@ -24,34 +24,45 @@ class PhoneRtmpStreamer(
 
     private val tag = "PhoneRtmpStreamer"
 
-    private val rtmpCamera = RtmpCamera2(surfaceView, object : ConnectCheckerRtmp {
-        override fun onConnectionSuccessRtmp() {
+    private val connectChecker = object : ConnectChecker {
+        override fun onConnectionStarted(url: String) {
+            _state.value = StreamState.Connecting
+            Log.d(tag, "RTMP conectando: $url")
+        }
+
+        override fun onConnectionSuccess() {
             _state.value = StreamState.Streaming
             Log.d(tag, "RTMP conectado")
         }
 
-        override fun onConnectionFailedRtmp(reason: String) {
+        override fun onConnectionFailed(reason: String) {
             Log.e(tag, "Falha RTMP: $reason")
             _state.value = StreamState.Error("Falha RTMP: $reason")
-            if (rtmpCamera.isStreaming) {
+            if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
                 rtmpCamera.stopStream()
             }
         }
 
-        override fun onDisconnectRtmp() {
+        override fun onDisconnect() {
             _state.value = StreamState.Idle
             Log.d(tag, "RTMP desconectado")
         }
 
-        override fun onAuthErrorRtmp() {
+        override fun onAuthError() {
             _state.value = StreamState.Error("Erro de autenticação RTMP")
             Log.e(tag, "Erro de autenticação RTMP")
         }
 
-        override fun onAuthSuccessRtmp() {
+        override fun onAuthSuccess() {
             Log.d(tag, "Autenticação RTMP OK")
         }
-    })
+    }
+
+    private lateinit var rtmpCamera: RtmpCamera2
+
+    init {
+        rtmpCamera = RtmpCamera2(openGlView, connectChecker)
+    }
 
     override fun start() {
         if (_state.value is StreamState.Streaming || _state.value is StreamState.Connecting) return
@@ -60,8 +71,10 @@ class PhoneRtmpStreamer(
         try {
             val videoPrepared = rtmpCamera.prepareVideo()
             val audioPrepared = if (config.enableAudio) {
+                rtmpCamera.enableAudio()
                 rtmpCamera.prepareAudio()
             } else {
+                rtmpCamera.disableAudio()
                 true
             }
 
@@ -95,6 +108,7 @@ class PhoneRtmpStreamer(
     override fun release() {
         stop()
         stopPreview()
+        rtmpCamera.stopCamera()
     }
 
     fun updateUrl(url: String) {

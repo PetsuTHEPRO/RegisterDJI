@@ -3,6 +3,6 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
-    id("com.google.devtools.ksp") version "2.0.21-1.0.27" apply false
+    id("com.google.devtools.ksp") version "2.2.21-2.0.4" apply false
     id("com.autonomousapps.dependency-analysis") version "1.30.0" apply false
 }

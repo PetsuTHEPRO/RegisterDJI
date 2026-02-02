@@ -1,7 +1,6 @@
 package com.sloth.registerapp.presentation.mission.screens
 
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -35,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pedro.library.view.OpenGlView
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.features.streaming.data.PhoneRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
@@ -50,15 +50,15 @@ fun CellCameraScreen(
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
 
-    val surfaceView = remember { SurfaceView(context) }
-    val streamer = remember { PhoneRtmpStreamer(surfaceView, rtmpUrl) }
+    val openGlView = remember { OpenGlView(context) }
+    val streamer = remember { PhoneRtmpStreamer(openGlView, rtmpUrl) }
     val streamState by streamer.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(rtmpUrl) {
         streamer.updateUrl(rtmpUrl)
     }
 
-    DisposableEffect(surfaceView) {
+    DisposableEffect(openGlView) {
         val callback = object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 streamer.startPreview()
@@ -70,9 +70,9 @@ fun CellCameraScreen(
                 streamer.stopPreview()
             }
         }
-        surfaceView.holder.addCallback(callback)
+        openGlView.holder.addCallback(callback)
         onDispose {
-            surfaceView.holder.removeCallback(callback)
+            openGlView.holder.removeCallback(callback)
             streamer.release()
         }
     }
@@ -83,7 +83,7 @@ fun CellCameraScreen(
             .background(colorScheme.background)
     ) {
         AndroidView(
-            factory = { surfaceView },
+            factory = { openGlView },
             modifier = Modifier.fillMaxSize()
         )
 

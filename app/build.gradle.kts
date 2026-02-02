@@ -155,5 +155,5 @@ dependencies {
     implementation("com.mapbox.maps:android-ndk27:11.17.0")
 
     // RTMP streaming (camera do celular)
-    implementation("com.github.pedroSG94:rtmp-rtsp-stream-client-java:2.2.4")
+    implementation("com.github.pedroSG94.RootEncoder:library:2.6.7")
 }

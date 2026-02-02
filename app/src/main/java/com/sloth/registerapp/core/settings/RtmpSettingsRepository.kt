@@ -26,7 +26,7 @@ class RtmpSettingsRepository private constructor(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_URL = "rtmp://10.1.8.231:1935/live/drone_mission_1"
+        const val DEFAULT_URL = "rtmp://192.168.2.45:1935/live/drone_mission_1"
 
         @Volatile
         private var INSTANCE: RtmpSettingsRepository? = null

@@ -1,6 +1,6 @@
 [versions]
 agp = "8.8.2"
-kotlin = "2.0.21"
+kotlin = "2.2.21"
 dji-sdk = "4.18"
 coreKtx = "1.16.0"
 junit = "4.13.2"
@@ -81,4 +81,3 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-

@@ -14,15 +14,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 
 @Composable
 fun DroneControlScreen(onMissionsClick: () -> Unit) {
-    // TODO: Integrate real drone telemetry from DroneControllerManager
+    // TODO: Integrate real drone telemetry from DroneCommandManager
     // TODO: Bind DJI video feed surface texture from camera component
     // TODO: Implement emergency stop button with haptic feedback
     
-    val droneController = remember { DroneControllerManager() }
+    val droneController = remember { DroneCommandManager() }
     val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -60,4 +60,3 @@ fun DroneControlScreen(onMissionsClick: () -> Unit) {
         }
     }
 }
-

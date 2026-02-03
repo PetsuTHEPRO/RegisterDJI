@@ -20,6 +20,8 @@ object DJIConnectionHelper {
     private val _connectionStatus = MutableStateFlow("Aguardando inicialização...")
     val connectionStatus = _connectionStatus.asStateFlow()
 
+    private var isRegistered = false
+
     // StateFlow para emitir o produto (drone) quando ele se conecta
     private val _product = MutableStateFlow<BaseProduct?>(null)
     val product = _product.asStateFlow()
@@ -36,6 +38,7 @@ object DJIConnectionHelper {
             override fun onRegister(error: DJIError?) {
                 if (error == DJISDKError.REGISTRATION_SUCCESS) {
                     Log.d(TAG, "Registro do SDK bem-sucedido!")
+                    isRegistered = true
                     _connectionStatus.value = "Pronto para Conexão"
                     // Não precisa de runOnUiThread aqui, o Toast já faz isso se necessário
                     Toast.makeText(context, "Registro do SDK bem-sucedido!", Toast.LENGTH_SHORT).show()
@@ -49,7 +52,11 @@ object DJIConnectionHelper {
 
             override fun onProductDisconnect() {
                 Log.d(TAG, "Produto DJI desconectado.")
-                _connectionStatus.value = "Produto Desconectado"
+                _connectionStatus.value = if (isRegistered) {
+                    "Pronto para Conexão"
+                } else {
+                    "Produto Desconectado"
+                }
                 _product.value = null
             }
 
@@ -62,11 +69,30 @@ object DJIConnectionHelper {
 
             override fun onProductChanged(product: BaseProduct?) {
                 _product.value = product
+                refreshConnectionStatus()
             }
 
             override fun onComponentChange(key: BaseProduct.ComponentKey?, oldC: BaseComponent?, newC: BaseComponent?) {}
             override fun onInitProcess(event: DJISDKInitEvent?, totalProcess: Int) {}
             override fun onDatabaseDownloadProgress(current: Long, total: Long) {}
         })
+    }
+
+    fun refreshConnectionStatus() {
+        val currentProduct = DJISDKManager.getInstance().product
+        _product.value = currentProduct
+        val modelName = currentProduct?.model?.displayName ?: "Modelo Desconhecido"
+        _connectionStatus.value = when {
+            currentProduct == null && isRegistered -> "Pronto para Conexão"
+            currentProduct == null -> "Produto Desconectado"
+            currentProduct.isConnected -> "Conectado a: $modelName"
+            else -> "Conectando..."
+        }
+    }
+
+    fun tryReconnect() {
+        _connectionStatus.value = "Sincronizando..."
+        DJISDKManager.getInstance().startConnectionToProduct()
+        refreshConnectionStatus()
     }
 }

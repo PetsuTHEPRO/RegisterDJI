@@ -46,7 +46,7 @@ fun DashboardScreen(
     onMissionControlClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
-    onConnectDroneClick: () -> Unit = {}
+    onRefreshStatusClick: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
     // Estados
@@ -235,6 +235,16 @@ fun DashboardScreen(
                                         color = statusColor
                                     )
                                 }
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            IconButton(onClick = onRefreshStatusClick) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Recarregar status",
+                                    tint = colorScheme.primary
+                                )
                             }
                         }
                     }

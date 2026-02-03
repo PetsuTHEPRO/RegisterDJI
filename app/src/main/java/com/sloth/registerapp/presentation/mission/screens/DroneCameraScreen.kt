@@ -35,7 +35,7 @@ import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
-import com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.presentation.app.components.VideoFeedView
 import dji.sdk.camera.VideoFeeder
@@ -44,7 +44,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun DroneCameraScreen(
-    droneController: DroneControllerManager,
+    droneController: DroneCommandManager,
     onCellCameraClick: () -> Unit,
     onSurfaceTextureAvailable: (SurfaceTexture, Int, Int) -> Unit,
     onSurfaceTextureDestroyed: () -> Boolean,
@@ -276,8 +276,31 @@ fun DroneCameraScreen(
                 isRecording = isRecording,
                 streamState = streamState,
                 onCellCameraClick = onCellCameraClick,
-                onTakePhotoClick = { Toast.makeText(context, "Capturando Foto (TODO)", Toast.LENGTH_SHORT).show() },
-                onRecordClick = { isRecording = !isRecording },
+                onTakePhotoClick = {
+                    droneController.takePhoto { success, message ->
+                        val text = if (success) "Foto capturada" else "Erro ao fotografar: ${message ?: "desconhecido"}"
+                        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onRecordClick = {
+                    if (isRecording) {
+                        droneController.stopRecording { success, message ->
+                            if (success) {
+                                isRecording = false
+                            }
+                            val text = if (success) "Gravação parada" else "Erro ao parar gravação: ${message ?: "desconhecido"}"
+                            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        droneController.startRecording { success, message ->
+                            if (success) {
+                                isRecording = true
+                            }
+                            val text = if (success) "Gravação iniciada" else "Erro ao iniciar gravação: ${message ?: "desconhecido"}"
+                            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
                 onStreamToggle = {
                     if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
                         rtmpStreamer.stop()

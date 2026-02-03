@@ -44,6 +44,7 @@ import com.sloth.registerapp.presentation.components.BottomNavBar
 import com.sloth.registerapp.presentation.auth.screens.LoginScreen
 import com.sloth.registerapp.presentation.auth.screens.RegisterScreen
 import com.sloth.registerapp.presentation.mission.activities.MissionControlActivity
+import com.sloth.registerapp.presentation.report.screens.ReportDetailScreen
 import com.sloth.registerapp.presentation.report.screens.ReportScreen
 import com.sloth.registerapp.presentation.settings.screens.SettingsScreen
 import dji.sdk.sdkmanager.DJISDKManager
@@ -121,8 +122,8 @@ class MainActivity : ComponentActivity() {
                                 onLiveFeedClick = {
                                     navController.navigate("camera")
                                 },
-                                onConnectDroneClick = {
-                                    DJISDKManager.getInstance().startConnectionToProduct()
+                                onRefreshStatusClick = {
+                                    DJIConnectionHelper.tryReconnect()
                                 },
                                 onSettingsClick = { navController.navigate("settings") }
                             )
@@ -189,7 +190,7 @@ class MainActivity : ComponentActivity() {
                     // New: Drone camera feed as a Compose screen
                     composable("camera") {
                         DroneCameraScreen(
-                            droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager() },
+                            droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager() },
                             onCellCameraClick = { navController.navigate("cell_camera") },
                             onSurfaceTextureAvailable = { _, _, _ -> /* TODO: bind texture to DJI feed */ },
                             onSurfaceTextureDestroyed = { false },
@@ -203,7 +204,20 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("report") {
                         ScreenWithBottomBar(navController = navController) {
-                            ReportScreen()
+                            ReportScreen(
+                                onMissionClick = { missionId ->
+                                    navController.navigate("report_detail/$missionId")
+                                }
+                            )
+                        }
+                    }
+                    composable("report_detail/{missionId}") { backStackEntry ->
+                        val missionId = backStackEntry.arguments?.getString("missionId") ?: "unknown"
+                        ScreenWithBottomBar(navController = navController) {
+                            ReportDetailScreen(
+                                missionId = missionId,
+                                onBackClick = { navController.popBackStack() }
+                            )
                         }
                     }
                 }

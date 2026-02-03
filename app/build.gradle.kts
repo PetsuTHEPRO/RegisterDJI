@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.sloth.registerapp"
-        minSdk = 23
+        minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -156,4 +156,5 @@ dependencies {
 
     // RTMP streaming (camera do celular)
     implementation("com.github.pedroSG94.RootEncoder:library:2.6.7")
+
 }

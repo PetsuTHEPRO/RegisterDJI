@@ -799,6 +799,76 @@ class DroneMissionManager(
         }
     }
 
+    private fun extractTurnMode(wp: Any): WaypointTurnMode? {
+        val raw = when (wp) {
+            is ServerWaypoint -> wp.turn_mode
+            is Map<*, *> -> (wp["turn_mode"] ?: wp["turnMode"]) as? String
+            else -> null
+        } ?: return null
+
+        return try {
+            WaypointTurnMode.valueOf(raw.uppercase())
+        } catch (_: Exception) {
+            Log.w(TAG, "⚠️ turn_mode inválido: $raw")
+            null
+        }
+    }
+
+    private fun mapActionType(raw: String): WaypointActionType? {
+        return when (raw.uppercase()) {
+            "TAKE_PHOTO", "PHOTO", "START_TAKE_PHOTO" -> WaypointActionType.START_TAKE_PHOTO
+            "START_RECORD", "RECORD_START" -> WaypointActionType.START_RECORD
+            "STOP_RECORD", "RECORD_STOP" -> WaypointActionType.STOP_RECORD
+            "STAY", "HOVER", "WAIT" -> WaypointActionType.STAY
+            "ROTATE_AIRCRAFT", "ROTATE" -> WaypointActionType.ROTATE_AIRCRAFT
+            "GIMBAL_PITCH", "GIMBAL" -> WaypointActionType.GIMBAL_PITCH
+            "CAMERA_ZOOM", "ZOOM" -> WaypointActionType.CAMERA_ZOOM
+            "CAMERA_FOCUS", "FOCUS" -> WaypointActionType.CAMERA_FOCUS
+            "PHOTO_GROUPING" -> WaypointActionType.PHOTO_GROUPING
+            "FINE_TUNE_GIMBAL_PITCH", "FINE_GIMBAL_PITCH" -> WaypointActionType.FINE_TUNE_GIMBAL_PITCH
+            "RESET_GIMBAL_YAW" -> WaypointActionType.RESET_GIMBAL_YAW
+            else -> null
+        }
+    }
+
+    private fun parseWaypointAction(item: Any): WaypointAction? {
+        return when (item) {
+            is WaypointAction -> item
+            is WaypointActionType -> WaypointAction(item, 0)
+            is String -> mapActionType(item)?.let { WaypointAction(it, 0) }
+            is Map<*, *> -> {
+                val rawType = (item["type"] ?: item["actionType"] ?: item["name"] ?: item["action"] ?: item["command"]) as? String
+                val paramValue = (item["param"] ?: item["value"] ?: item["angle"] ?: item["duration"]) as? Number
+                if (rawType == null) {
+                    null
+                } else {
+                    val actionType = mapActionType(rawType)
+                    actionType?.let { WaypointAction(it, paramValue?.toInt() ?: 0) }
+                }
+            }
+            else -> null
+        }
+    }
+
+    private fun extractActions(wp: Any): List<WaypointAction> {
+        val rawActions: List<*>? = when (wp) {
+            is ServerWaypoint -> wp.actions
+            is Map<*, *> -> wp["actions"] as? List<*>
+            else -> null
+        }
+
+        if (rawActions.isNullOrEmpty()) return emptyList()
+
+        return rawActions.mapNotNull { item ->
+            if (item == null) return@mapNotNull null
+            val action = parseWaypointAction(item)
+            if (action == null) {
+                Log.w(TAG, "⚠️ Ação de waypoint não reconhecida: $item")
+            }
+            action
+        }
+    }
+
     private fun validateAndFilterWaypoints(waypoints: List<Any>): List<Waypoint> {
         if (waypoints.isEmpty()) {
             throw IllegalArgumentException("Nenhum waypoint fornecido")
@@ -809,7 +879,18 @@ class DroneMissionManager(
         val validWaypoints = waypoints.mapIndexed { index, wp ->
             val (latitude, longitude, altitude) = extractAndValidateCoordinates(wp) ?: return@mapIndexed null
             Log.d(TAG, "  ✓ Waypoint #${index + 1}: lat=$latitude, lng=$longitude, alt=${altitude.toFloat()}m")
-            Waypoint(latitude, longitude, altitude.toFloat())
+            val waypoint = Waypoint(latitude, longitude, altitude.toFloat())
+            extractTurnMode(wp)?.let { waypoint.turnMode = it }
+
+            val actions = extractActions(wp)
+            actions.forEach { action ->
+                val added = waypoint.addAction(action)
+                if (!added) {
+                    Log.w(TAG, "⚠️ Não foi possível adicionar ação $action ao waypoint #${index + 1}")
+                }
+            }
+
+            waypoint
         }.filterNotNull()
 
         if (validWaypoints.isEmpty()) {

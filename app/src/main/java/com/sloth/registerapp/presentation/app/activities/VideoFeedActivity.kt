@@ -29,7 +29,7 @@ class VideoFeedActivity : ComponentActivity() {
                     CellCameraScreen(onBackClick = { showCellCamera = false })
                 } else {
                     DroneCameraScreen(
-                        droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneControllerManager() },
+                        droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager() },
                         onCellCameraClick = { showCellCamera = true },
                         onSurfaceTextureAvailable = { _, _, _ -> /* TODO: bind texture to DJI feed */ },
                         onSurfaceTextureDestroyed = { false },

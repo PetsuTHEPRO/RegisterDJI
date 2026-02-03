@@ -9,6 +9,9 @@
 # VS Code
 .vscode/
 
+# Legacy app
+app-legado/
+
 # Local config
 local.properties
 .env
@@ -27,6 +30,5 @@ build/
 # OS / Misc
 .DS_Store
 
-# Docs (ignore all .md except README.md)
+# Docs
 *.md
-!README.md

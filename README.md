@@ -72,14 +72,6 @@ Refatoração do `DroneMissionManager` com foco em produção:
 - Cleanup e prevenção de memory leaks
 - Exemplos e documentação de integração
 
-Arquivos de apoio:
-- `README_REFACTORING.md`
-- `REFACTORING_GUIDE.md`
-- `INTEGRATION_GUIDE.md`
-- `OPERATION_FLOWS.md`
-- `QUICK_REFERENCE.md`
-- `CHANGES_SUMMARY.md`
-
 ## To-dos
 ### Concluído
 - Refatoração completa do `DroneMissionManager`

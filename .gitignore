@@ -1,15 +1,32 @@
+# IntelliJ / Android Studio
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+
+# VS Code
+.vscode/
+
+# Local config
 local.properties
+.env
+.env.*
+
+# Builds
+build/
+**/build/
+/captures
+.externalNativeBuild/
+.cxx/
+
+# Logs
+*.log
+
+# OS / Misc
+.DS_Store
+
+# Docs (ignore all .md except README.md)
+*.md
+!README.md

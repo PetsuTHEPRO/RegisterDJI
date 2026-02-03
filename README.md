@@ -1,143 +1,113 @@
-![Kotlin](https://img.shields.io/badge/Kotlin-1.9.23-7F52FF?style=for-the-badge&logo=kotlin)
+# Vantly Neural — Plataforma de Missões para Drones
 
-# DJI Drone Control App
+Aplicativo Android em Kotlin para planejamento, execução e monitoramento de missões de drones, com foco em operação autônoma, telemetria, streaming e reconhecimento facial. O projeto evoluiu para uma arquitetura mais modular, com separação entre `core`, `features` e `presentation`.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)
-![Status](https://img.shields.io/badge/status-Em%20Desenvolvimento-yellow.svg?style=for-the-badge)
+## Status
+Em desenvolvimento ativo. O fluxo principal (login → dashboard → missões → controle) já existe, e o módulo de missão foi refatorado para uso em produção (suspend functions, validações e timeouts).
 
-Um aplicativo Android robusto para controle de drones DJI, com streaming de vídeo em tempo real, detecção de rostos via ML Kit e modos de voo manual e automático.
+## Visão Geral
+O app integra:
+- Conexão com drones DJI (SDK)
+- Planejamento e execução de missões
+- Telemetria e controle do drone
+- Streaming RTMP (drone e celular)
+- Reconhecimento e cadastro de rostos
+- Autenticação e sessão de usuário
+- Telas em Jetpack Compose
 
-## 📖 Índice
-
-- [Visão Geral](#-visão-geral)
-- [Arquitetura e Tecnologias](#-arquitetura-e-tecnologias)
-- [Pré-requisitos](#-pré-requisitos)
-- [Como Instalar e Buildar](#-como-instalar-e-buildar)
-- [Como Usar](#-como-usar)
-- [Como Contribuir](#-como-contribuir)
-- [Licença](#-licença)
-
-## 🌟 Visão Geral
-
-Este projeto é um aplicativo Android construído em Kotlin que utiliza o SDK da DJI para criar uma solução completa de controle de drones. O aplicativo é dividido em três telas principais para uma experiência de usuário clara e funcional.
-
-### Telas Principais
-
-1.  **Tela Principal / Conexão (`MainActivity`)**
-    * Gerencia a conexão com o drone.
-    * Exibe o status da conexão (Conectado, Procurando, Desconectado).
-    * Mostra telemetria básica: bateria do drone, sinal de rádio e GPS.
-    * Navegação para as telas de Voo em Tempo Real e Painel de Controle.
-
-2.  **Voo em Tempo Real / FPV (`VideoFeedActivity`)**
-    * Exibe o feed de vídeo ao vivo da câmera do drone.
-    * Utiliza o ML Kit do Google para detectar rostos em tempo real.
-    * Desenha retângulos sobre os rostos detectados em uma camada de sobreposição (`OverlayView`).
-    * Permite ativar/desativar a detecção e salvar automaticamente imagens dos rostos encontrados.
-    * Exibe um indicador visual ("Rosto salvo!") ao capturar uma imagem.
-
-3.  **Painel de Controle (`ControlActivity`)**
-    * Oferece controle total sobre o drone através de duas abas:
-        * **Manual:** Inclui joysticks virtuais para controle de movimento, além de botões para decolar, pousar e retornar para casa (RTH).
-        * **Automático:** Permite executar missões pré-programadas, como orbitar um ponto ou seguir um alvo.
-
-## 🏗️ Arquitetura e Tecnologias
-
-O projeto é estruturado em pacotes por funcionalidade para garantir clareza, independência e reutilização de código.
-
-### Tecnologias Utilizadas
-
-* **Linguagem:** [Kotlin](https://kotlinlang.org/)
-* **Plataforma:** Android
-* **SDKs:**
-    * [DJI Mobile SDK](https://developer.dji.com/mobile-sdk/) - Para comunicação e controle do drone.
-    * [Google ML Kit (Vision)](https://developers.google.com/ml-kit/vision/face-detection) - Para detecção de rostos.
-* **Arquitetura:** Model-View-ViewModel (MVVM) implícito com separação de responsabilidades.
-
-### Estrutura dos Pacotes
+## Arquitetura e Estrutura
+Estrutura geral de pacotes (simplificada):
 
 ```
-com.seuprojeto.droneapp/
-│
-├── activities/       # (UI) Telas e lógica de interface do usuário
-│   ├── MainActivity.kt
-│   ├── VideoFeedActivity.kt
-│   └── ControlActivity.kt
-│
-├── dji/              # Lógica de conexão e comunicação com o drone
-│   ├── DJIConnectionHelper.kt
-│   └── DroneTelemetryManager.kt
-│
-├── vision/           # Módulos de visão computacional
-│   ├── FaceDetectionProcessor.kt
-│   ├── OverlayView.kt
-│   └── ImageSaver.kt
-│
-├── controls/         # Componentes e lógica de controle de voo
-│   ├── VirtualJoystickView.kt
-│   └── MissionManager.kt
-│
-└── utils/            # Classes utilitárias
-└── PermissionHelper.kt
+app/src/main/java/com/sloth/registerapp/
+├── core/
+│   ├── auth/               # Sessão, token, helpers de autenticação
+│   ├── dji/                # Integração com DJI SDK
+│   ├── network/            # Retrofit, WebSocket, conectividade
+│   ├── database/           # Room (AppDatabase, DAOs, Entities)
+│   ├── settings/           # Configuração (RTMP, etc.)
+│   ├── ui/theme/           # Tema base
+│   └── utils/              # Helpers (permissões, arquivos, datas)
+├── features/
+│   ├── auth/               # Domain + data de autenticação
+│   ├── facedetection/      # Domain + data (ML Kit + Room)
+│   ├── mission/            # Domain + data (missões, telemetria, drone)
+│   └── streaming/          # Streaming RTMP (drone/celular)
+└── presentation/
+    ├── app/                # Welcome, Dashboard, MainActivity
+    ├── auth/               # Login/Register
+    ├── facedetection/      # Telas e viewmodels de reconhecimento
+    ├── mission/            # Telas de missão, câmera, controle
+    ├── report/             # Relatórios
+    ├── settings/           # Configurações
+    └── shared/components/  # Componentes reutilizáveis
 ```
 
-## 📦 Pré-requisitos
+## Fluxo do Aplicativo
+Fluxo atual da navegação (MainActivity):
+1. **Welcome** → **Login** ou **Register**
+2. **Dashboard** (status do drone e atalhos)
+3. **Missions** (lista + criação)
+4. **Mission Control** (Activity dedicada)
+5. **Drone Camera / Cell Camera** (feeds)
+6. **Reports** (listagem + detalhe)
+7. **Settings**
 
-Antes de começar, certifique-se de que você tem o seguinte:
+## Funcionalidades
+- **Autenticação** com sessão persistente
+- **Dashboard** com status de conexão e ações rápidas
+- **Missões**: listar, criar e executar
+- **Controle de drone** (telemetria e comandos)
+- **Streaming RTMP** (drone e celular)
+- **Reconhecimento facial** (captura, registro e lista)
+- **Relatórios** por missão
+- **Tema e UI moderna** em Compose
 
-* [Android Studio](https://developer.android.com/studio) (versão mais recente recomendada).
-* Um drone DJI compatível com o Mobile SDK (ex: Mavic 3).
-* Uma conta de desenvolvedor DJI e uma **App Key** gerada no [DJI Developer Center](https://developer.dji.com/).
-* Um dispositivo Android físico para testar o aplicativo.
+## Alterações Recentes (Resumo)
+Refatoração do `DroneMissionManager` com foco em produção:
+- Callbacks → `suspend` functions
+- Timeouts para upload/start/stop
+- Validações robustas (waypoints, velocidades)
+- Exceptions customizadas
+- Cleanup e prevenção de memory leaks
+- Exemplos e documentação de integração
 
-## 🚀 Como Instalar e Buildar
+Arquivos de apoio:
+- `README_REFACTORING.md`
+- `REFACTORING_GUIDE.md`
+- `INTEGRATION_GUIDE.md`
+- `OPERATION_FLOWS.md`
+- `QUICK_REFERENCE.md`
+- `CHANGES_SUMMARY.md`
 
-Siga os passos abaixo para configurar e executar o projeto:
+## To-dos
+### Concluído
+- Refatoração completa do `DroneMissionManager`
+- Documentação técnica da refatoração
+- Exemplo de `MissionViewModel`
+- Exemplos de testes
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone [https://github.com/seu-usuario/seu-repositorio.git](https://github.com/seu-usuario/seu-repositorio.git)
-    ```
+### Pendente
+- Implementar Waypoint Mission real no `DroneCommandManager`
+- Concluir bind do feed DJI em `DroneCameraScreen` e `VideoFeedActivity`
+- Implementar upload de missão e WebSocket listener no `MissionRepositoryImpl`
+- Finalizar sincronização de missões (cache/conflitos)
+- Implementar recuperação de senha no login
+- Substituir `BASE_URL` de teste no `RetrofitClient`
+- Ajustar `AuthenticationHelper` para usar context real
+- Integrar telemetria real no `DroneControlScreen`
 
-2.  **Abra no Android Studio:**
-    * Abra o Android Studio.
-    * Selecione `Open an existing project` e navegue até a pasta do projeto clonado.
+## Pré-requisitos
+- Android Studio (recente)
+- Kotlin/Gradle atualizados
+- DJI Mobile SDK configurado
+- Dispositivo físico Android (para testes reais)
 
-3.  **Adicione sua Chave da API DJI:**
-    * Abra o arquivo `app/src/main/AndroidManifest.xml`.
-    * Encontre a linha que requer a chave da DJI e substitua `YOUR_DJI_APP_KEY` pela sua chave:
-      ```xml
-      <meta-data
-          android:name="com.dji.sdk.API_KEY"
-          android:value="YOUR_DJI_APP_KEY" />
-      ```
+## Como rodar
+1. Abra o projeto no Android Studio
+2. Configure a chave do DJI SDK no `AndroidManifest.xml`
+3. Sincronize o Gradle
+4. Rode em um dispositivo físico
 
-4.  **Sincronize e builde o projeto:**
-    * O Android Studio deve sincronizar o Gradle automaticamente. Se não, clique em `File -> Sync Project with Gradle Files`.
-    * Clique em `Build -> Make Project` para compilar o código.
-
-5.  **Execute o aplicativo:**
-    * Conecte seu dispositivo Android.
-    * Selecione o dispositivo e clique no botão `Run 'app'` (▶️).
-
-## 🎮 Como Usar
-
-1.  **Conexão:** Inicie o aplicativo e siga as instruções na tela para se conectar ao seu drone DJI. O status da conexão será exibido na tela principal.
-2.  **Voo em Tempo Real:** Toque no botão **"VOO EM TEMPO REAL"**. Você verá o feed de vídeo do drone. Use o botão de alternância para ativar/desativar a detecção de rostos. As imagens salvas serão armazenadas no seu dispositivo.
-3.  **Painel de Controle:** Toque no botão **"PAINEL DE CONTROLE"**.
-    * Na aba **"MANUAL"**, use os joysticks virtuais para pilotar o drone.
-    * Na aba **"AUTOMÁTICO"**, selecione e inicie uma das missões disponíveis.
-
-## 🤝 Como Contribuir
-
-Contribuições são sempre bem-vindas! Se você deseja contribuir com este projeto, siga estes passos:
-
-1.  **Faça um Fork** do projeto.
-2.  **Crie uma Branch** para sua nova feature (`git checkout -b feature/nova-feature`).
-3.  **Faça o Commit** de suas alterações (`git commit -m 'Adiciona nova feature'`).
-4.  **Faça o Push** para a sua branch (`git push origin feature/nova-feature`).
-5.  **Abra um Pull Request**.
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+## Licença
+MIT

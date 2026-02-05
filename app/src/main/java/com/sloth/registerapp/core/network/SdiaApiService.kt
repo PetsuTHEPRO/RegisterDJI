@@ -26,4 +26,7 @@ interface SdiaApiService {
 
     @GET("missions")
     suspend fun getMissions(): List<ServerMissionDto>
+
+    @POST("mission")
+    suspend fun createMission(@Body mission: ServerMissionDto): ServerMissionDto
 }

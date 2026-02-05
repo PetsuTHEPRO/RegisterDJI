@@ -42,7 +42,9 @@ fun MapboxMapView(
         waypoints.forEachIndexed { index, waypoint ->
             val pointAnnotationOptions = PointAnnotationOptions()
                 .withPoint(Point.fromLngLat(waypoint.longitude, waypoint.latitude))
-                .withIconImage("default_marker")
+                // Usa sprite padrão do estilo (evita depender de asset custom inexistente)
+                .withIconImage("marker-15")
+                .withIconSize(1.3)
                 .withTextField((index + 1).toString())
                 .withTextColor(colorScheme.onSurface.toArgb())
                 .withTextSize(12.0)

@@ -20,6 +20,7 @@ import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
 import com.sloth.registerapp.presentation.mission.screens.MissionControlScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionStatus
+import com.sloth.registerapp.presentation.mission.model.Waypoint
 import com.sloth.registerapp.presentation.mission.viewmodels.DroneExecutionViewModel
 import com.sloth.registerapp.presentation.mission.viewmodels.DroneExecutionViewModelFactory
 import kotlinx.coroutines.launch
@@ -69,6 +70,19 @@ class MissionControlActivity : ComponentActivity() {
                         MissionControlScreen(
                             missionName = missionData.name,
                             missionStatus = missionState.toUiStatus(),
+                            currentLocation = com.mapbox.geojson.Point.fromLngLat(
+                                missionData.poi_longitude,
+                                missionData.poi_latitude
+                            ),
+                            waypoints = missionData.waypoints.mapIndexed { index, waypoint ->
+                                Waypoint(
+                                    id = index + 1,
+                                    latitude = waypoint.latitude,
+                                    longitude = waypoint.longitude,
+                                    altitude = waypoint.altitude,
+                                    speed = missionData.auto_flight_speed
+                                )
+                            },
                             errorMessage = errorMessage,
                             onBackClick = { finish() },
                             onStartMission = { viewModel.startMission() },

@@ -22,12 +22,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.mapbox.geojson.Point
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
+import com.sloth.registerapp.core.auth.TokenRepository
+import com.sloth.registerapp.core.network.RetrofitClient
+import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
+import com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto
+import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
+import com.sloth.registerapp.features.mission.domain.usecase.CreateMissionUseCase
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
 import com.sloth.registerapp.presentation.mission.model.Waypoint
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 
 data class MissionData(
     var name: String = "",
@@ -44,12 +53,23 @@ data class MissionData(
 @Composable
 fun MissionCreateScreen(onBackClick: () -> Unit) {
     val colorScheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
 
     var currentStep by remember { mutableStateOf(0) }
     var missionData by remember { mutableStateOf(MissionData()) }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    val createMissionUseCase = remember {
+        CreateMissionUseCase(
+            MissionRepositoryImpl(
+                RetrofitClient.getInstance(context),
+                TokenRepository.getInstance(context)
+            )
+        )
+    }
     
     // Estado para controlar a interação com o mapa
     var isMapTouched by remember { mutableStateOf(false) }
@@ -178,9 +198,20 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                                 else -> {
                                     isLoading = true
                                     scope.launch {
-                                        delay(1500)
+                                        val missionDto = missionDataToServerDto(missionData)
+                                        val result = withContext(Dispatchers.IO) {
+                                            createMissionUseCase(missionDto)
+                                        }
+                                        result.onSuccess {
+                                            showSuccessDialog = true
+                                        }.onFailure { e ->
+                                            errorMessage = when (e) {
+                                                is IllegalArgumentException -> e.message ?: "Dados inválidos"
+                                                is HttpException -> "Erro ${e.code()} ao salvar missão"
+                                                else -> e.message ?: "Erro ao salvar missão"
+                                            }
+                                        }
                                         isLoading = false
-                                        showSuccessDialog = true
                                     }
                                 }
                             }
@@ -216,6 +247,19 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
             SuccessDialog(
                 onDismiss = { showSuccessDialog = false; onBackClick() },
                 missionData.name
+            )
+        }
+
+        if (errorMessage != null) {
+            AlertDialog(
+                onDismissRequest = { errorMessage = null },
+                title = { Text("Falha ao salvar missão") },
+                text = { Text(errorMessage ?: "Erro desconhecido") },
+                confirmButton = {
+                    Button(onClick = { errorMessage = null }) {
+                        Text("OK")
+                    }
+                }
             )
         }
     }
@@ -578,6 +622,45 @@ fun ConfigStep(
             }
         }
     }
+}
+
+private fun missionDataToServerDto(data: MissionData): ServerMissionDto {
+    val (poiLat, poiLng) = parsePoi(data.pointOfInterest, data.waypoints)
+    return ServerMissionDto(
+        auto_flight_speed = data.autoFlightSpeed.toDouble(),
+        exit_on_signal_lost = data.exitOnSignalLost,
+        finished_action = "NO_ACTION",
+        flight_path_mode = "NORMAL",
+        gimbal_pitch_rotation_enabled = data.gimbalPitchRotationEnabled,
+        goto_first_waypoint_mode = "SAFELY",
+        heading_mode = "AUTO",
+        id = 0,
+        max_flight_speed = data.maxFlightSpeed.toDouble(),
+        name = data.name,
+        poi_latitude = poiLat,
+        poi_longitude = poiLng,
+        repeat_times = data.repeatTimes,
+        waypoints = data.waypoints.map {
+            WaypointDto(
+                actions = emptyList(),
+                altitude = it.altitude,
+                latitude = it.latitude,
+                longitude = it.longitude,
+                turn_mode = "CLOCKWISE"
+            )
+        }
+    )
+}
+
+private fun parsePoi(pointOfInterest: String, waypoints: List<Waypoint>): Pair<Double, Double> {
+    val parts = pointOfInterest.split(":")
+    val lat = parts.getOrNull(0)?.toDoubleOrNull()
+    val lng = parts.getOrNull(1)?.toDoubleOrNull()
+    if (lat != null && lng != null) {
+        return lat to lng
+    }
+    val fallback = waypoints.firstOrNull()
+    return (fallback?.latitude ?: 0.0) to (fallback?.longitude ?: 0.0)
 }
 
 @Composable

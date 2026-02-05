@@ -1,5 +1,7 @@
 package com.sloth.registerapp.presentation.mission.screens
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.view.SurfaceHolder
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -59,6 +61,18 @@ fun CellCameraScreen(
         if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
             streamer.stop()
             streamer.start()
+        }
+    }
+
+    // Mantém a câmera do celular em horizontal, igual ao feed do drone.
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val previousOrientation = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        onDispose {
+            if (previousOrientation != null) {
+                activity.requestedOrientation = previousOrientation
+            }
         }
     }
 

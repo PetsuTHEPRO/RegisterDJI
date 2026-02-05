@@ -43,7 +43,11 @@ class MissionRepositoryImpl(
     }
 
     override suspend fun uploadMission(mission: ServerMissionDto): Result<ServerMissionDto> {
-        // TODO: Implementar upload de missão
-        return Result.failure(NotImplementedError("Upload de missão não implementado"))
+        return try {
+            val created = apiService.createMission(mission)
+            Result.success(created)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

@@ -1,5 +1,7 @@
 package com.sloth.registerapp.features.mission.data.remote.dto
 
+import com.google.gson.annotations.SerializedName
+
 data class ServerMissionDto(
     val auto_flight_speed: Double,
     val exit_on_signal_lost: Boolean,
@@ -18,6 +20,7 @@ data class ServerMissionDto(
 )
 
 data class WaypointDto(
+    @SerializedName(value = "waypoint_actions", alternate = ["actions"])
     val actions: List<Any>,
     val altitude: Double,
     val latitude: Double,

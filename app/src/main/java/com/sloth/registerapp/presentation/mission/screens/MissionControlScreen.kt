@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -208,6 +209,30 @@ fun MissionControlScreen(
             }
         )
 
+        // Gradientes para legibilidade dos overlays
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(colorScheme.background.copy(alpha = 0.85f), Color.Transparent)
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, colorScheme.background.copy(alpha = 0.85f))
+                    )
+                )
+        )
+
         // 2. Barra superior minimalista
         MinimalMissionHeader(
             missionName = missionName,
@@ -223,7 +248,7 @@ fun MissionControlScreen(
             onToggle = { showTelemetry = !showTelemetry },
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 8.dp, end = 8.dp)
+                .padding(top = 60.dp, end = 10.dp)
         )
 
         // 4. Card de telemetria (condicional e transparente)
@@ -233,7 +258,7 @@ fun MissionControlScreen(
             exit = fadeOut(),
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 60.dp, start = 8.dp)
+                .padding(top = 60.dp, start = 12.dp)
         ) {
             TransparentTelemetryCard(
                 altitude = altitude,
@@ -281,7 +306,7 @@ fun MissionControlScreen(
         }
         
         // 8. Alerta de erro sobreposto
-        if (errorMessage != null) {
+        if (!errorMessage.isNullOrBlank()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -301,7 +326,7 @@ fun MissionControlScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = errorMessage,
+                            text = errorMessage!!,
                             color = colorScheme.onError,
                             fontSize = 14.sp,
                             modifier = Modifier.weight(1f)
@@ -328,8 +353,8 @@ private fun MinimalMissionHeader(
 
     Row(
         modifier = modifier
-            .padding(8.dp)
-            .background(colorScheme.scrim.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .fillMaxWidth()
+            .background(colorScheme.surfaceVariant.copy(alpha = 0.78f))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

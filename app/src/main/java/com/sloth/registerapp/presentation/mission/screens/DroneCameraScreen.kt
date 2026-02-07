@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -33,7 +35,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.app.Activity
 import android.Manifest
-import androidx.compose.animation.core.animateDpAsState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
@@ -49,7 +50,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mapbox.maps.Style
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -67,7 +67,6 @@ fun DroneCameraScreen(
 
     // Estados
     var visible by remember { mutableStateOf(false) }
-    var showTelemetry by remember { mutableStateOf(true) }
     var isRecording by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
 
@@ -231,31 +230,31 @@ fun DroneCameraScreen(
             }
         }
 
-        // Gradientes
+        // Gradientes de leitura da HUD
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent)
+                    )
+                )
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(colorScheme.background.copy(alpha = 0.85f), Color.Transparent)
-                    )
-                )
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, colorScheme.background.copy(alpha = 0.85f))
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f))
                     )
                 )
         )
 
-        // Header
+        // Header fino estilo DJI
         AnimatedVisibility(visible = visible, enter = fadeIn() + slideInVertically { -it }) {
             CompactHeader(
                 droneState = droneState,
@@ -265,76 +264,80 @@ fun DroneCameraScreen(
             )
         }
 
-        // Telemetria
+        // HUD de telemetria linear (sem card)
         AnimatedVisibility(
-            visible = showTelemetry && visible,
-            enter = fadeIn() + slideInHorizontally { -it },
-            exit = fadeOut() + slideOutHorizontally { -it },
+            visible = showControls && visible,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 12.dp, top = 60.dp)
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp)
         ) {
-            TelemetryPanel(telemetry = telemetry)
+            TelemetryHudStrip(telemetry = telemetry)
         }
 
-        var miniMapExpanded by remember { mutableStateOf(false) }
-        var miniMapExpandNonce by remember { mutableStateOf(0) }
-        val miniMapWidth by animateDpAsState(if (miniMapExpanded) 320.dp else 170.dp, label = "miniMapWidth")
-        val miniMapHeight by animateDpAsState(if (miniMapExpanded) 220.dp else 120.dp, label = "miniMapHeight")
-
-        LaunchedEffect(miniMapExpandNonce) {
-            if (miniMapExpanded) {
-                delay(10_000)
-                miniMapExpanded = false
-            }
-        }
-
-        Surface(
+        // Mini mapa no canto inferior esquerdo + ações de voo sobrepostas
+        Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 60.dp, end = 10.dp)
-                .size(width = miniMapWidth, height = miniMapHeight)
-                .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                .clickable {
-                    miniMapExpanded = true
-                    miniMapExpandNonce += 1
-                },
-            color = colorScheme.surfaceVariant.copy(alpha = 0.78f),
-            shape = RoundedCornerShape(12.dp)
+                .align(Alignment.BottomStart)
+                .padding(start = 12.dp, bottom = 56.dp)
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (locationUiState.location != null) {
-                    MapboxMiniMapView(
-                        modifier = Modifier.fillMaxSize(),
-                        operatorLocation = locationUiState.location!!,
-                        styleUri = Style.STANDARD
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = locationUiState.errorMessage ?: "Aguardando GPS...",
-                            fontSize = 11.sp,
-                            color = colorScheme.onSurfaceVariant
+            Surface(
+                modifier = Modifier
+                    .size(width = 180.dp, height = 130.dp)
+                    .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                color = Color.Black.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (locationUiState.location != null) {
+                        MapboxMiniMapView(
+                            modifier = Modifier.fillMaxSize(),
+                            operatorLocation = locationUiState.location!!,
+                            styleUri = Style.STANDARD
                         )
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = locationUiState.errorMessage ?: "Aguardando GPS...",
+                                fontSize = 11.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
+
+            AnimatedVisibility(
+                visible = showControls && visible,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 10.dp, y = (-10).dp)
+            ) {
+                FlightActionControls(
+                    droneState = droneState,
+                    onTakeoffClick = { droneController.takeOff() },
+                    onLandClick = { droneController.land() }
+                )
+            }
         }
-        
-        // Controles de Câmera
+
+        // Controles de câmera
         AnimatedVisibility(
             visible = showControls && visible,
             enter = fadeIn() + slideInVertically { -it },
             exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 60.dp, end = 10.dp)
+                .padding(top = 44.dp, end = 10.dp)
         ) {
             CameraControls(
                 isRecording = isRecording,
@@ -371,9 +374,7 @@ fun DroneCameraScreen(
                     } else {
                         rtmpStreamer.start()
                     }
-                },
-                onToggleTelemetry = { showTelemetry = !showTelemetry },
-                showTelemetry = showTelemetry
+                }
             )
         }
 
@@ -399,28 +400,27 @@ fun DroneCameraScreen(
             enter = fadeIn() + slideInHorizontally { it },
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 12.dp)
+                .padding(end = 14.dp)
         ) {
             EmergencyStopButton(onClick = { droneController.emergencyStop() })
         }
 
-        // Controles de Decolar/Pousar
+        // Controles verticais (subir/descer)
         AnimatedVisibility(
             visible = showControls && visible,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 12.dp, bottom = 16.dp)
+                .align(Alignment.CenterEnd)
+                .padding(end = 72.dp)
         ) {
-            FlightActionControls(
-                droneState = droneState,
-                onTakeoffClick = { droneController.takeOff() },
-                onLandClick = { droneController.land() }
+            VerticalMovementControls(
+                enabled = canMove,
+                onMoveUpStart = { droneController.moveUp() },
+                onMoveDownStart = { droneController.moveDown() },
+                onStop = { droneController.stopMovement() }
             )
         }
-
-        // Controles de Movimento removidos conforme solicitado
     }
 
     DisposableEffect(Unit) {
@@ -442,100 +442,70 @@ fun CompactHeader(
     onBackClick: () -> Unit,
     onToggleControls: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-    val statusInfo = when (droneState) {
-        DroneState.ON_GROUND -> Pair("Solo", colorScheme.secondary)
-        DroneState.IN_AIR -> Pair("Voo", colorScheme.primary)
-        DroneState.TAKING_OFF -> Pair("Decolando", colorScheme.tertiary)
-        DroneState.LANDING -> Pair("Pousando", colorScheme.tertiary)
-        DroneState.DISCONNECTED -> Pair("Desconect.", colorScheme.onSurfaceVariant)
-        DroneState.EMERGENCY_STOP -> Pair("EMERG.", colorScheme.error)
-        DroneState.GOING_HOME -> Pair("Retornando", colorScheme.primary)
-        DroneState.ERROR -> Pair("Erro", colorScheme.error)
+    val statusText = when (droneState) {
+        DroneState.ON_GROUND -> "Pronto"
+        DroneState.IN_AIR -> "No ar"
+        DroneState.TAKING_OFF -> "Decolando"
+        DroneState.LANDING -> "Pousando"
+        DroneState.DISCONNECTED -> "Desconectado"
+        DroneState.EMERGENCY_STOP -> "Emergência"
+        DroneState.GOING_HOME -> "Retornando"
+        DroneState.ERROR -> "Erro"
     }
-
+    val colorScheme = MaterialTheme.colorScheme
+    val safeBattery = batteryLevel.coerceIn(0, 100)
+    val batteryColor = when {
+        safeBattery > 50 -> colorScheme.secondary
+        safeBattery > 20 -> colorScheme.tertiary
+        else -> colorScheme.error
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colorScheme.surfaceVariant.copy(alpha = 0.78f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(Color.Black.copy(alpha = 0.35f))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
             onClick = onBackClick,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier.size(26.dp)
         ) {
             Icon(
                 Icons.Default.ArrowBack,
                 contentDescription = "Voltar",
-                tint = colorScheme.onSurface
+                tint = Color.White.copy(alpha = 0.92f),
+                modifier = Modifier.size(14.dp)
             )
         }
-        /*Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(modifier = Modifier.size(8.dp).background(statusInfo.second, CircleShape))
-            Text(statusInfo.first, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusInfo.second)
-        }*/
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            val batteryColor = when {
-                batteryLevel > 50 -> colorScheme.secondary
-                batteryLevel > 20 -> colorScheme.tertiary
-                else -> colorScheme.error
-            }
-            Text("$batteryLevel%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = batteryColor)
-            Icon(Icons.Default.BatteryFull, null, tint = batteryColor, modifier = Modifier.size(18.dp))
-        }
-        Spacer(modifier = Modifier.size(36.dp))
-        /*IconButton(onClick = onSettingsClick, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.Settings, "Configurações", tint = textGray, modifier = Modifier.size(22.dp))
-        }*/
-    }
-}
 
-@Composable
-fun TelemetryPanel(telemetry: DroneTelemetry) {
-    val colorScheme = MaterialTheme.colorScheme
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.35f))
-    ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            CompactTelemetryRow(
-                icon = Icons.Default.Height,
-                value = String.format("%.1f m", telemetry.altitude),
-                iconColor = colorScheme.primary
-            )
-            CompactTelemetryRow(
-                icon = Icons.Default.Speed,
-                value = String.format("%.1f m/s", telemetry.speed),
-                iconColor = colorScheme.secondary
-            )
-            CompactTelemetryRow(
-                icon = Icons.Default.TripOrigin,
-                value = String.format("%.0f m", telemetry.distanceFromHome),
-                iconColor = colorScheme.primary
-            )
-            CompactTelemetryRow(
-                icon = Icons.Default.GpsFixed,
-                value = "${telemetry.gpsSatellites}",
-                iconColor = if (telemetry.gpsSatellites >= 6) colorScheme.secondary else colorScheme.tertiary
-            )
-        }
-    }
-}
-
-@Composable
-fun CompactTelemetryRow(icon: ImageVector, value: String, iconColor: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(icon, null, tint = iconColor, modifier = Modifier.size(16.dp))
         Text(
-            value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            text = statusText,
+            color = Color.White.copy(alpha = 0.88f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium
         )
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "${safeBattery}%",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = batteryColor
+            )
+            Icon(Icons.Default.BatteryFull, null, tint = batteryColor, modifier = Modifier.size(14.dp))
+        }
+        IconButton(
+            onClick = onToggleControls,
+            modifier = Modifier.size(26.dp)
+        ) {
+            Icon(
+                Icons.Default.Tune,
+                contentDescription = "Controles",
+                tint = Color.White.copy(alpha = 0.88f),
+                modifier = Modifier.size(14.dp)
+            )
+        }
     }
 }
 
@@ -543,12 +513,10 @@ fun CompactTelemetryRow(icon: ImageVector, value: String, iconColor: Color) {
 fun CameraControls(
     isRecording: Boolean,
     streamState: StreamState,
-    showTelemetry: Boolean,
     onCellCameraClick: () -> Unit,
     onTakePhotoClick: () -> Unit,
     onRecordClick: () -> Unit,
-    onStreamToggle: () -> Unit,
-    onToggleTelemetry: () -> Unit
+    onStreamToggle: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val buttonGray = colorScheme.onSurfaceVariant
@@ -574,16 +542,39 @@ fun CameraControls(
             color = if (isRecording) colorScheme.error else buttonGray
         )
         CompactControlButton(
-            icon = Icons.Default.Dashboard,
-            onClick = onToggleTelemetry,
-            enabled = true,
-            color = buttonGray
-        )
-        CompactControlButton(
             icon = Icons.Default.PhoneAndroid,
             onClick = onCellCameraClick,
             enabled = true,
             color = buttonGray
+        )
+    }
+}
+
+@Composable
+fun TelemetryHudStrip(telemetry: DroneTelemetry) {
+    Row(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.34f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HudMetric(icon = Icons.Default.Height, value = String.format("%.1fm", telemetry.altitude))
+        HudMetric(icon = Icons.Default.Speed, value = String.format("%.1fm/s", telemetry.speed))
+        HudMetric(icon = Icons.Default.TripOrigin, value = String.format("%.0fm", telemetry.distanceFromHome))
+        HudMetric(icon = Icons.Default.GpsFixed, value = "${telemetry.gpsSatellites}")
+    }
+}
+
+@Composable
+fun HudMetric(icon: ImageVector, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(12.dp))
+        Text(
+            text = value,
+            color = Color.White.copy(alpha = 0.9f),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium
         )
     }
 }
@@ -646,15 +637,70 @@ fun FlightActionControls(
             onClick = onTakeoffClick,
             enabled = droneState == DroneState.ON_GROUND,
             color = colorScheme.secondary,
-            size = 50.dp
+            size = 44.dp
         )
         CompactControlButton(
             icon = Icons.Default.FlightLand,
             onClick = onLandClick,
             enabled = droneState == DroneState.IN_AIR,
             color = colorScheme.tertiary,
-            size = 50.dp
+            size = 44.dp
         )
+    }
+}
+
+@Composable
+fun VerticalMovementControls(
+    enabled: Boolean,
+    onMoveUpStart: () -> Unit,
+    onMoveDownStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        HoldToMoveButton(
+            icon = Icons.Default.KeyboardArrowUp,
+            enabled = enabled,
+            onPressStart = onMoveUpStart,
+            onPressEnd = onStop
+        )
+        HoldToMoveButton(
+            icon = Icons.Default.KeyboardArrowDown,
+            enabled = enabled,
+            onPressStart = onMoveDownStart,
+            onPressEnd = onStop
+        )
+    }
+}
+
+@Composable
+fun HoldToMoveButton(
+    icon: ImageVector,
+    enabled: Boolean,
+    onPressStart: () -> Unit,
+    onPressEnd: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val tint = if (enabled) colorScheme.primary else colorScheme.onSurfaceVariant
+    Surface(
+        modifier = Modifier
+            .size(46.dp)
+            .pointerInput(enabled) {
+                detectTapGestures(
+                    onPress = {
+                        if (!enabled) return@detectTapGestures
+                        onPressStart()
+                        tryAwaitRelease()
+                        onPressEnd()
+                    }
+                )
+            },
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.45f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        }
     }
 }
 

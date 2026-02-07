@@ -5,6 +5,7 @@ import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
 import dji.common.flightcontroller.FlightControllerState
+import dji.sdk.battery.Battery
 import dji.sdk.flightcontroller.FlightController
 import dji.sdk.products.Aircraft
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +29,7 @@ class DroneTelemetryManager(
     val droneState: StateFlow<DroneState> = _droneState.asStateFlow()
 
     private var activeFlightController: FlightController? = null
+    private var activeBattery: Battery? = null
     private var telemetryJob: Job? = null
 
     init {
@@ -39,14 +41,20 @@ class DroneTelemetryManager(
         telemetryJob = scope.launch {
             DJIConnectionHelper.product.collect { product ->
                 val flightController = (product as? Aircraft)?.flightController
-                if (flightController == activeFlightController) return@collect
+                val battery = (product as? Aircraft)?.battery
+                if (flightController == activeFlightController && battery == activeBattery) return@collect
 
                 try {
                     activeFlightController?.setStateCallback(null)
                 } catch (_: Exception) {
                 }
+                try {
+                    activeBattery?.setStateCallback(null)
+                } catch (_: Exception) {
+                }
 
                 activeFlightController = flightController
+                activeBattery = battery
                 if (flightController == null) {
                     _droneState.value = DroneState.DISCONNECTED
                     return@collect
@@ -59,6 +67,16 @@ class DroneTelemetryManager(
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "⚠️ Não foi possível registrar callback de telemetria: ${e.message}")
+                }
+
+                try {
+                    battery?.setStateCallback { state ->
+                        _telemetry.value = _telemetry.value.copy(
+                            batteryLevel = state.chargeRemainingInPercent
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ Não foi possível registrar callback de bateria: ${e.message}")
                 }
             }
         }
@@ -87,7 +105,12 @@ class DroneTelemetryManager(
             activeFlightController?.setStateCallback(null)
         } catch (_: Exception) {
         }
+        try {
+            activeBattery?.setStateCallback(null)
+        } catch (_: Exception) {
+        }
         activeFlightController = null
+        activeBattery = null
         _droneState.value = DroneState.DISCONNECTED
     }
 

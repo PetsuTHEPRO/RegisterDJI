@@ -32,11 +32,8 @@ import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionsTableScreen
-import com.sloth.registerapp.core.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.presentation.app.screens.DashboardScreen
 import com.sloth.registerapp.presentation.app.screens.WelcomeScreen
-import com.sloth.registerapp.presentation.mission.screens.DroneCameraScreen
-import com.sloth.registerapp.presentation.mission.screens.CellCameraScreen
 import com.sloth.registerapp.presentation.mission.screens.DroneControlScreen
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
@@ -125,7 +122,8 @@ class MainActivity : ComponentActivity() {
                                     context.startActivity(intent)
                                 },
                                 onLiveFeedClick = {
-                                    navController.navigate("camera")
+                                    val intent = Intent(context, VideoFeedActivity::class.java)
+                                    context.startActivity(intent)
                                 },
                                 onRefreshStatusClick = {
                                     DJIConnectionHelper.tryReconnect()
@@ -195,22 +193,6 @@ class MainActivity : ComponentActivity() {
                     composable("mission-create") {
                         MissionCreateScreen(onBackClick = { navController.popBackStack() })
                     }
-
-                    // New: Drone camera feed as a Compose screen
-                    composable("camera") {
-                        DroneCameraScreen(
-                            droneController = remember { com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager() },
-                            onCellCameraClick = { navController.navigate("cell_camera") },
-                            onSurfaceTextureAvailable = { _, _, _ -> /* TODO: bind texture to DJI feed */ },
-                            onSurfaceTextureDestroyed = { false },
-                            onBackClick = { navController.popBackStack() }
-                        )
-                    }
-                    composable("cell_camera") {
-                        CellCameraScreen(
-                            onBackClick = { navController.popBackStack() }
-                        )
-                    }
                     composable("report") {
                         ScreenWithBottomBar(navController = navController) {
                             ReportScreen(
@@ -240,8 +222,17 @@ private fun ScreenWithBottomBar(
     navController: NavController,
     content: @Composable () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Scaffold(
-        bottomBar = { BottomNavBar(navController = navController) }
+        bottomBar = {
+            BottomNavBar(
+                navController = navController,
+                onLiveFeedClick = {
+                    val intent = Intent(context, VideoFeedActivity::class.java)
+                    context.startActivity(intent)
+                }
+            )
+        }
     ) { innerPadding ->
         Box(
             modifier = Modifier

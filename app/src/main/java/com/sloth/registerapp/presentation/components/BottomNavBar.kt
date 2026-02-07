@@ -28,6 +28,7 @@ sealed class BottomItem(val route: String, val label: String, val icon: @Composa
 @Composable
 fun BottomNavBar(
     navController: NavController,
+    onLiveFeedClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val items = listOf(
@@ -82,7 +83,9 @@ fun BottomNavBar(
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, itemBorder),
                         onClick = {
-                            if (currentRoute != item.route) {
+                            if (item.route == BottomItem.Live.route) {
+                                onLiveFeedClick()
+                            } else if (currentRoute != item.route) {
                                 navController.navigate(item.route) {
                                     popUpTo("dashboard") { saveState = true }
                                     launchSingleTop = true

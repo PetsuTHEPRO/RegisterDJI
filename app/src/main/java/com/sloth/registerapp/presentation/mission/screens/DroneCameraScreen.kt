@@ -32,7 +32,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.app.Activity
-import android.content.pm.ActivityInfo
 import android.Manifest
 import androidx.compose.animation.core.animateDpAsState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -135,18 +134,6 @@ fun DroneCameraScreen(
             if (window != null && view != null) {
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
-            }
-        }
-    }
-
-    // Força orientação horizontal durante o video feed
-    DisposableEffect(Unit) {
-        val activity = context as? Activity
-        val previousOrientation = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        onDispose {
-            if (previousOrientation != null) {
-                activity.requestedOrientation = previousOrientation
             }
         }
     }

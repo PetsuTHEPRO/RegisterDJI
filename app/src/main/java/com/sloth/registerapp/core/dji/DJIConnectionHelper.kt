@@ -21,6 +21,7 @@ object DJIConnectionHelper {
     val connectionStatus = _connectionStatus.asStateFlow()
 
     private var isRegistered = false
+    private var isRegistering = false
 
     // StateFlow para emitir o produto (drone) quando ele se conecta
     private val _product = MutableStateFlow<BaseProduct?>(null)
@@ -31,11 +32,18 @@ object DJIConnectionHelper {
 
     // Função principal que a MainActivity chamará
     fun registerApp(context: Context) {
+        if (isRegistered || isRegistering) {
+            refreshConnectionStatus()
+            return
+        }
+
+        isRegistering = true
         _connectionStatus.value = "Registrando aplicativo..."
         Log.d(TAG, "Iniciando o registro do SDK DJI...")
 
         DJISDKManager.getInstance().registerApp(context, object : DJISDKManager.SDKManagerCallback {
             override fun onRegister(error: DJIError?) {
+                isRegistering = false
                 if (error == DJISDKError.REGISTRATION_SUCCESS) {
                     Log.d(TAG, "Registro do SDK bem-sucedido!")
                     isRegistered = true

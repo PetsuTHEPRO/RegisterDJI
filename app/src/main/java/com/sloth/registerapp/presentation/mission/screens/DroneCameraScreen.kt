@@ -7,9 +7,11 @@ import androidx.compose.animation.*
 import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -31,6 +33,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.Manifest
+import androidx.compose.animation.core.animateDpAsState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
@@ -38,10 +44,15 @@ import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.presentation.app.components.VideoFeedView
+import com.sloth.registerapp.presentation.mission.components.MapboxMiniMapView
+import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mapbox.maps.Style
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun DroneCameraScreen(
     droneController: DroneCommandManager,
@@ -72,6 +83,15 @@ fun DroneCameraScreen(
     val rtmpStreamer = remember { DjiRtmpStreamer(rtmpUrl) }
     val streamState by rtmpStreamer.state.collectAsStateWithLifecycle()
     val previewEnabled = streamState !is StreamState.Streaming && streamState !is StreamState.Connecting
+
+    val locationViewModel: OperatorLocationViewModel = viewModel()
+    val locationUiState by locationViewModel.uiState.collectAsStateWithLifecycle()
+    val locationPermissions = rememberMultiplePermissionsState(
+        listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+    )
 
     val codecManager = remember { mutableStateOf<DJICodecManager?>(null) }
     val surfaceRef = remember { mutableStateOf<SurfaceTexture?>(null) }
@@ -133,6 +153,9 @@ fun DroneCameraScreen(
 
     LaunchedEffect(Unit) {
         visible = true
+        if (!locationPermissions.allPermissionsGranted) {
+            locationPermissions.launchMultiplePermissionRequest()
+        }
     }
 
     LaunchedEffect(rtmpUrl) {
@@ -149,6 +172,10 @@ fun DroneCameraScreen(
         } else {
             detachPreview()
         }
+    }
+
+    LaunchedEffect(locationPermissions.allPermissionsGranted) {
+        locationViewModel.setPermissionGranted(locationPermissions.allPermissionsGranted)
     }
 
     Box(
@@ -261,6 +288,56 @@ fun DroneCameraScreen(
                 .padding(start = 12.dp, top = 60.dp)
         ) {
             TelemetryPanel(telemetry = telemetry)
+        }
+
+        var miniMapExpanded by remember { mutableStateOf(false) }
+        var miniMapExpandNonce by remember { mutableStateOf(0) }
+        val miniMapWidth by animateDpAsState(if (miniMapExpanded) 320.dp else 170.dp, label = "miniMapWidth")
+        val miniMapHeight by animateDpAsState(if (miniMapExpanded) 220.dp else 120.dp, label = "miniMapHeight")
+
+        LaunchedEffect(miniMapExpandNonce) {
+            if (miniMapExpanded) {
+                delay(10_000)
+                miniMapExpanded = false
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 60.dp, end = 10.dp)
+                .size(width = miniMapWidth, height = miniMapHeight)
+                .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                .clickable {
+                    miniMapExpanded = true
+                    miniMapExpandNonce += 1
+                },
+            color = colorScheme.surfaceVariant.copy(alpha = 0.78f),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (locationUiState.location != null) {
+                    MapboxMiniMapView(
+                        modifier = Modifier.fillMaxSize(),
+                        operatorLocation = locationUiState.location!!,
+                        styleUri = Style.STANDARD
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = locationUiState.errorMessage ?: "Aguardando GPS...",
+                            fontSize = 11.sp,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
         
         // Controles de Câmera

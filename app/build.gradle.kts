@@ -157,4 +157,7 @@ dependencies {
     // RTMP streaming (camera do celular)
     implementation("com.github.pedroSG94.RootEncoder:library:2.6.7")
 
+    // Localização (GPS do operador)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
 }

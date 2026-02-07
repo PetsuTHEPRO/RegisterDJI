@@ -11,6 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Scaffold
@@ -47,7 +48,7 @@ import com.sloth.registerapp.presentation.mission.activities.MissionControlActiv
 import com.sloth.registerapp.presentation.report.screens.ReportDetailScreen
 import com.sloth.registerapp.presentation.report.screens.ReportScreen
 import com.sloth.registerapp.presentation.settings.screens.SettingsScreen
-import dji.sdk.sdkmanager.DJISDKManager
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -73,6 +74,10 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val context = LocalContext.current
                 val sessionManager = remember { com.sloth.registerapp.core.auth.SessionManager.getInstance(context) }
+                val tokenRepository = remember { com.sloth.registerapp.core.auth.TokenRepository.getInstance(context) }
+                val scope = rememberCoroutineScope()
+                val accessToken by tokenRepository.accessToken.collectAsState(initial = null)
+                val startDestination = if (accessToken.isNullOrBlank()) "welcome" else "dashboard"
                 val userName by sessionManager.username.collectAsState(initial = "Usuário")
                 val userEmail by sessionManager.email.collectAsState(initial = "usuario@labubu.com")
 
@@ -81,7 +86,7 @@ class MainActivity : ComponentActivity() {
                     controller.show(WindowInsetsCompat.Type.systemBars())
                 }
 
-                NavHost(navController = navController, startDestination = "welcome") {
+                NavHost(navController = navController, startDestination = startDestination) {
                     composable("welcome") {
                         WelcomeScreen(
                             onLoginClick = { navController.navigate("login") },
@@ -135,8 +140,12 @@ class MainActivity : ComponentActivity() {
                             userEmail = userEmail ?: "usuario@labubu.com",
                             onBackClick = { navController.popBackStack() },
                             onLogout = {
-                                navController.navigate("login") {
-                                    popUpTo("welcome") { inclusive = true }
+                                scope.launch {
+                                    tokenRepository.clearTokens()
+                                    sessionManager.clearSession()
+                                    navController.navigate("login") {
+                                        popUpTo("welcome") { inclusive = true }
+                                    }
                                 }
                             }
                         )

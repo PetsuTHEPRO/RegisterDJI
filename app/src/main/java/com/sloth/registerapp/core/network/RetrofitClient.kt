@@ -12,17 +12,22 @@ object RetrofitClient {
     //private const val BASE_URL = "http://10.1.8.115:5000/api/"
     private lateinit var apiService: SdiaApiService
 
+    fun baseUrl(): String = BASE_URL
+
     fun getInstance(context: Context): SdiaApiService {
         if (!::apiService.isInitialized) {
             val logging = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = HttpLoggingInterceptor.Level.BASIC
             }
 
-            val authInterceptor = AuthInterceptor(TokenRepository.getInstance(context))
+            val tokenRepository = TokenRepository.getInstance(context)
+            val authInterceptor = AuthInterceptor(tokenRepository)
+            val refreshAuthenticator = TokenRefreshAuthenticator(context, tokenRepository)
 
             val httpClient = OkHttpClient.Builder()
                 .addInterceptor(logging)
                 .addInterceptor(authInterceptor)
+                .authenticator(refreshAuthenticator)
                 .build()
 
             val retrofit = Retrofit.Builder()
@@ -35,4 +40,3 @@ object RetrofitClient {
         return apiService
     }
 }
-

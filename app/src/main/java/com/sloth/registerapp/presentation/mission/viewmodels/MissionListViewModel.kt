@@ -4,8 +4,6 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.sloth.registerapp.core.auth.SessionManager
-import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
 import com.sloth.registerapp.features.mission.domain.model.Mission
@@ -19,7 +17,7 @@ private const val TAG = "MissionListViewModel"
 class MissionListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val missionRepository = MissionRepositoryImpl(
-        com.sloth.registerapp.core.network.RetrofitClient.getInstance(application),
+        RetrofitClient.getInstance(application),
         com.sloth.registerapp.core.auth.TokenRepository.getInstance(application)
     )
 
@@ -35,10 +33,8 @@ class MissionListViewModel(application: Application) : AndroidViewModel(applicat
                 Log.d(TAG, "Missions fetched successfully: ${missions.size} missions")
             }.onFailure { error ->
                 if (error is HttpException && error.code() == 401) {
-                    TokenRepository.getInstance(getApplication()).clearToken()
-                    SessionManager.getInstance(getApplication()).clearSession()
                     _uiState.value = MissionListUiState.Unauthorized
-                    Log.w(TAG, "Unauthorized access when fetching missions")
+                    Log.w(TAG, "Unauthorized after retry/refresh flow")
                 } else {
                     _uiState.value = MissionListUiState.Error(error.message ?: "Unknown error")
                     Log.e(TAG, "Error fetching missions", error)

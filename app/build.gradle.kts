@@ -15,6 +15,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("boolean", "ALLOW_PUBLIC_FLIGHT_OPS", "true")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -38,6 +39,7 @@ android {
     buildFeatures {
         compose = true
         viewBinding = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -71,6 +73,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.datastore.preferences)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.camera.view)

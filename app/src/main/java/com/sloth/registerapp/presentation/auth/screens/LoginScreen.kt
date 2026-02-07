@@ -283,13 +283,21 @@ fun LoginScreen(
                                                 }
                                             }
 
-                                            // Salvar o token (mantido para compatibilidade)
-                                            tokenRepository.saveToken(response.token)
-                                            
+                                            val accessToken = response.resolvedAccessToken()
+                                            if (accessToken.isNullOrBlank()) {
+                                                throw IllegalStateException("Login sem access_token no payload")
+                                            }
+
+                                            // Salva access + refresh para renovação automática
+                                            tokenRepository.saveTokens(
+                                                accessToken = accessToken,
+                                                refreshToken = response.refreshToken
+                                            )
+
                                             // Salvar sessão mínima (sem depender do auth/me)
                                             sessionManager.createSession(
-                                                token = response.token,
-                                                userId = response.userId,
+                                                token = accessToken,
+                                                userId = response.resolvedUserId(),
                                                 username = username,
                                                 email = "",
                                                 expiryDays = 7L // Token válido por 7 dias
@@ -297,10 +305,10 @@ fun LoginScreen(
 
                                             // Tenta atualizar dados com auth/me, mas não bloqueia o login
                                             try {
-                                                val userMe = apiService.getMe("Bearer ${response.token}")
+                                                val userMe = apiService.getMe("Bearer $accessToken")
                                                 sessionManager.createSession(
-                                                    token = response.token,
-                                                    userId = response.userId,
+                                                    token = accessToken,
+                                                    userId = response.resolvedUserId(),
                                                     username = userMe.username,
                                                     email = userMe.email,
                                                     expiryDays = 7L

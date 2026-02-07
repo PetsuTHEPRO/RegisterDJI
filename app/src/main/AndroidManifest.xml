@@ -58,7 +58,7 @@
 
         <!-- Tela Principal - Nova App de Drone -->
         <activity
-            android:name="com.sloth.registerapp.presentation.app.activities.MainActivity"
+            android:name="com.sloth.registerapp.presentation.app.main.activities.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
@@ -86,7 +86,7 @@
 
         <!-- Feed de vídeo - LANDSCAPE -->
         <activity
-            android:name="com.sloth.registerapp.presentation.app.activities.DroneCameraActivity"
+            android:name="com.sloth.registerapp.presentation.video.activities.DroneCameraActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.RegisterApp"

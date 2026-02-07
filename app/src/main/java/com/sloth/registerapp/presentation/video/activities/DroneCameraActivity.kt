@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.app.activities
+package com.sloth.registerapp.presentation.video.activities
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -6,11 +6,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import com.sloth.registerapp.core.ui.theme.RegisterAppTheme
-import com.sloth.registerapp.presentation.mission.screens.CellCameraScreen
-import com.sloth.registerapp.presentation.mission.screens.DroneCameraScreen
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.sloth.registerapp.presentation.video.screens.CellCameraScreen
+import com.sloth.registerapp.presentation.video.screens.DroneCameraScreen
 
 class DroneCameraActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

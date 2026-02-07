@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:animateLayoutChanges="true"
-    tools:context=".presentation.app.activities.DroneCameraActivity">
+    tools:context=".presentation.video.activities.DroneCameraActivity">
 
     <!-- Video Feed -->
     <TextureView

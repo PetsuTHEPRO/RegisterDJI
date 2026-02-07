@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.mission.screens
+package com.sloth.registerapp.presentation.video.screens
 
 import android.graphics.SurfaceTexture
 import android.util.Log
@@ -43,7 +43,7 @@ import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
-import com.sloth.registerapp.presentation.app.components.VideoFeedView
+import com.sloth.registerapp.presentation.video.components.VideoFeedView
 import com.sloth.registerapp.presentation.mission.components.MapboxMiniMapView
 import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel

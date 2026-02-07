@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.components
+package com.sloth.registerapp.presentation.app.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

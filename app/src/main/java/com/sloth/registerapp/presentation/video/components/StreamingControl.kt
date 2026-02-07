@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.components
+package com.sloth.registerapp.presentation.video.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.padding

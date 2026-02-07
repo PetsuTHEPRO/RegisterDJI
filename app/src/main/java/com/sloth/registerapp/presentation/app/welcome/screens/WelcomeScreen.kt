@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.app.screens
+package com.sloth.registerapp.presentation.app.welcome.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background

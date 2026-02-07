@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.report.screens
+package com.sloth.registerapp.presentation.app.report.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn

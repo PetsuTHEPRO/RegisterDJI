@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.mission.screens
+package com.sloth.registerapp.presentation.video.screens
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
@@ -40,7 +40,7 @@ import com.pedro.library.view.OpenGlView
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.features.streaming.data.PhoneRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
-import com.sloth.registerapp.presentation.components.StreamingControl
+import com.sloth.registerapp.presentation.video.components.StreamingControl
 
 @Composable
 fun CellCameraScreen(

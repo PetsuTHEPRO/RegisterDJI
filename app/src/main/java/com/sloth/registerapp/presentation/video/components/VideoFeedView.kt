@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.app.components
+package com.sloth.registerapp.presentation.video.components
 
 import android.graphics.SurfaceTexture
 import android.view.TextureView

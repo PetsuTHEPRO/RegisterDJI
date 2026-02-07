@@ -1,4 +1,4 @@
-package com.sloth.registerapp.presentation.app.activities
+package com.sloth.registerapp.presentation.app.main.activities
 
 import android.content.Intent
 import android.os.Bundle
@@ -32,19 +32,20 @@ import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionsTableScreen
-import com.sloth.registerapp.presentation.app.screens.DashboardScreen
-import com.sloth.registerapp.presentation.app.screens.WelcomeScreen
+import com.sloth.registerapp.presentation.app.dashboard.screens.DashboardScreen
+import com.sloth.registerapp.presentation.app.welcome.screens.WelcomeScreen
 import com.sloth.registerapp.presentation.mission.screens.DroneControlScreen
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListUiState
-import com.sloth.registerapp.presentation.components.BottomNavBar
+import com.sloth.registerapp.presentation.app.components.BottomNavBar
 import com.sloth.registerapp.presentation.auth.screens.LoginScreen
 import com.sloth.registerapp.presentation.auth.screens.RegisterScreen
 import com.sloth.registerapp.presentation.mission.activities.MissionControlActivity
-import com.sloth.registerapp.presentation.report.screens.ReportDetailScreen
-import com.sloth.registerapp.presentation.report.screens.ReportScreen
-import com.sloth.registerapp.presentation.settings.screens.SettingsScreen
+import com.sloth.registerapp.presentation.app.report.screens.ReportDetailScreen
+import com.sloth.registerapp.presentation.app.report.screens.ReportScreen
+import com.sloth.registerapp.presentation.app.settings.screens.SettingsScreen
+import com.sloth.registerapp.presentation.video.activities.DroneCameraActivity
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {

@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
                                     context.startActivity(intent)
                                 },
                                 onRefreshStatusClick = {
-                                    DJIConnectionHelper.tryReconnect()
+                                    DJIConnectionHelper.tryReconnect(context)
                                 },
                                 onSettingsClick = { navController.navigate("settings") }
                             )

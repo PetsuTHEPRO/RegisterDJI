@@ -6,6 +6,9 @@ import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.dji.DJIException
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto as ServerWaypoint
+import com.sloth.registerapp.features.mission.domain.model.MissionExecutionMode
+import com.sloth.registerapp.features.mission.domain.model.MissionOutcome
+import com.sloth.registerapp.features.mission.domain.model.MissionOutcomeStatus
 import dji.common.error.DJIError
 import dji.common.mission.waypoint.*
 import dji.common.product.Model
@@ -78,6 +81,8 @@ class DroneMissionManager(
 
     private val _missionState = MutableStateFlow(MissionState.IDLE)
     val missionState = _missionState.asStateFlow()
+    private val _missionOutcome = MutableStateFlow<MissionOutcome?>(null)
+    val missionOutcome = _missionOutcome.asStateFlow()
 
     // Listener para rastrear eventos do operador
     private val missionListener = MissionListenerImpl()
@@ -315,6 +320,7 @@ class DroneMissionManager(
      */
     suspend fun prepareAndUploadMission(missionData: ServerMissionDto) {
         _missionState.value = MissionState.PREPARING
+        _missionOutcome.value = null
 
         try {
             Log.i(TAG, "🚀 Iniciando preparação de missão: ${missionData.name}")
@@ -391,6 +397,7 @@ class DroneMissionManager(
 
         } catch (e: Exception) {
             _missionState.value = MissionState.ERROR
+            markFailed("Erro ao preparar/upload missão: ${e.message}")
             Log.e(TAG, "❌ ERRO CRÍTICO ao preparar/upload missão: ${e.message}")
             e.printStackTrace()
             throw e
@@ -435,9 +442,15 @@ class DroneMissionManager(
                 stopMissionSuspend(operator)
             }
             _missionState.value = MissionState.EXECUTION_STOPPED
+            _missionOutcome.value = MissionOutcome(
+                status = MissionOutcomeStatus.ABORTED,
+                message = "Missão interrompida pelo operador",
+                executionMode = resolveExecutionMode()
+            )
             Log.i(TAG, "✅ Missão parada com sucesso!")
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
+            markFailed("Stop mission timeout (${STOP_TIMEOUT_MS}ms)")
             throw DJIException("Stop mission timeout (${STOP_TIMEOUT_MS}ms)", e)
         }
     }
@@ -559,6 +572,7 @@ class DroneMissionManager(
                 if (error == null) {
                     continuation.resume(Unit)
                 } else {
+                    markFailed("Falha ao parar: ${error.description}", error.errorCode)
                     continuation.resumeWithException(
                         DJIException("Falha ao parar: ${error.description}")
                     )
@@ -1042,6 +1056,7 @@ class DroneMissionManager(
             if (error != null) {
                 Log.e(TAG, "❌ Erro no download: ${error.description}")
                 _missionState.value = MissionState.ERROR
+                markFailed("Erro no download da missão: ${error.description}", error.errorCode)
                 return
             }
 
@@ -1096,11 +1111,30 @@ class DroneMissionManager(
         override fun onExecutionFinish(error: DJIError?) {
             if (error == null) {
                 _missionState.value = MissionState.FINISHED
+                _missionOutcome.value = MissionOutcome(
+                    status = MissionOutcomeStatus.COMPLETED,
+                    message = "Missão concluída sem falhas",
+                    executionMode = resolveExecutionMode()
+                )
                 Log.i(TAG, "✅ Missão concluída com sucesso!")
             } else {
                 _missionState.value = MissionState.ERROR
+                markFailed("Erro na conclusão: ${error.description}", error.errorCode)
                 Log.e(TAG, "❌ Erro na conclusão: ${error.description}")
             }
         }
+    }
+
+    private fun markFailed(message: String, errorCode: Int? = null) {
+        _missionOutcome.value = MissionOutcome(
+            status = MissionOutcomeStatus.FAILED,
+            message = message,
+            executionMode = resolveExecutionMode(),
+            errorCode = errorCode
+        )
+    }
+
+    private fun resolveExecutionMode(): MissionExecutionMode {
+        return MissionExecutionModeResolver.resolve(djiConnectionHelper)
     }
 }

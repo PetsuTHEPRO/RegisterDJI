@@ -3,6 +3,7 @@ package com.sloth.registerapp.features.mission.domain.usecase
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
 import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
+import com.sloth.registerapp.features.mission.domain.model.MissionOutcome
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -16,6 +17,7 @@ class ExecuteMissionUseCase(
      * Estado atual da missão
      */
     val missionState: StateFlow<MissionState> = droneMissionManager.missionState
+    val missionOutcome: StateFlow<MissionOutcome?> = droneMissionManager.missionOutcome
 
     /**
      * Prepara e faz upload da missão para o drone

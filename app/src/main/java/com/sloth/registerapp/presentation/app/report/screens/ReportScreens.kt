@@ -32,16 +32,21 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timelapse
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -51,21 +56,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
+import com.sloth.registerapp.features.mission.domain.model.MissionExecutionMode
+import com.sloth.registerapp.features.mission.domain.model.MissionOutcomeStatus
 
 private data class MissionReport(
     val id: String,
     val name: String,
-    val status: MissionStatus,
+    val status: MissionOutcomeStatus,
+    val executionMode: MissionExecutionMode,
     val date: String,
     val duration: String,
     val modelName: String
 )
-
-private enum class MissionStatus {
-    FAILED,
-    ABORTED,
-    COMPLETED
-}
 
 @Composable
 fun ReportScreen(
@@ -73,13 +75,24 @@ fun ReportScreen(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val visible = remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var selectedStatus by remember { mutableStateOf<MissionOutcomeStatus?>(null) }
 
     val missions = listOf(
-        MissionReport("m1", "Perímetro Norte", MissionStatus.COMPLETED, "12 Jan 2026", "18m 42s", "DJI Mavic 3"),
-        MissionReport("m2", "Linha de Transmissão", MissionStatus.ABORTED, "09 Jan 2026", "07m 05s", "DJI Phantom 4"),
-        MissionReport("m3", "Talhão 07", MissionStatus.FAILED, "05 Jan 2026", "03m 21s", "Autel EVO II"),
-        MissionReport("m4", "Alvo Urbano", MissionStatus.COMPLETED, "02 Jan 2026", "22m 10s", "DJI Inspire 2")
+        MissionReport("m1", "Perímetro Norte", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.REAL, "12 Jan 2026", "18m 42s", "DJI Mavic 3"),
+        MissionReport("m2", "Linha de Transmissão", MissionOutcomeStatus.ABORTED, MissionExecutionMode.REAL, "09 Jan 2026", "07m 05s", "DJI Phantom 4"),
+        MissionReport("m3", "Talhão 07", MissionOutcomeStatus.FAILED, MissionExecutionMode.SIMULATED, "05 Jan 2026", "03m 21s", "Autel EVO II"),
+        MissionReport("m4", "Alvo Urbano", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.UNKNOWN, "02 Jan 2026", "22m 10s", "DJI Inspire 2")
     )
+
+    val normalizedQuery = query.trim().lowercase()
+    val filteredMissions = missions.filter { mission ->
+        val matchesQuery = normalizedQuery.isBlank() ||
+            mission.name.lowercase().contains(normalizedQuery) ||
+            mission.date.lowercase().contains(normalizedQuery)
+        val matchesStatus = selectedStatus == null || mission.status == selectedStatus
+        matchesQuery && matchesStatus
+    }
 
     LaunchedEffect(Unit) {
         visible.value = true
@@ -104,10 +117,44 @@ fun ReportScreen(
                 fontSize = 13.sp,
                 color = colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = "Pesquisar")
+                },
+                label = { Text("Pesquisar por nome ou data") }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = selectedStatus == null,
+                    onClick = { selectedStatus = null },
+                    label = { Text("Todos") }
+                )
+                FilterChip(
+                    selected = selectedStatus == MissionOutcomeStatus.COMPLETED,
+                    onClick = { selectedStatus = MissionOutcomeStatus.COMPLETED },
+                    label = { Text("Concluída") }
+                )
+                FilterChip(
+                    selected = selectedStatus == MissionOutcomeStatus.ABORTED,
+                    onClick = { selectedStatus = MissionOutcomeStatus.ABORTED },
+                    label = { Text("Abortada") }
+                )
+                FilterChip(
+                    selected = selectedStatus == MissionOutcomeStatus.FAILED,
+                    onClick = { selectedStatus = MissionOutcomeStatus.FAILED },
+                    label = { Text("Falha") }
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        items(missions) { mission ->
+        items(filteredMissions) { mission ->
             AnimatedVisibility(
                 visible = visible.value,
                 enter = fadeIn() + slideInVertically(
@@ -248,19 +295,19 @@ private fun MissionReportCard(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val statusColor = when (mission.status) {
-        MissionStatus.COMPLETED -> colorScheme.secondary
-        MissionStatus.ABORTED -> colorScheme.tertiary
-        MissionStatus.FAILED -> colorScheme.error
+        MissionOutcomeStatus.COMPLETED -> colorScheme.secondary
+        MissionOutcomeStatus.ABORTED -> colorScheme.tertiary
+        MissionOutcomeStatus.FAILED -> colorScheme.error
     }
     val statusLabel = when (mission.status) {
-        MissionStatus.COMPLETED -> "Concluída"
-        MissionStatus.ABORTED -> "Abortada"
-        MissionStatus.FAILED -> "Falha"
+        MissionOutcomeStatus.COMPLETED -> "Concluída"
+        MissionOutcomeStatus.ABORTED -> "Abortada"
+        MissionOutcomeStatus.FAILED -> "Falha"
     }
     val statusIcon = when (mission.status) {
-        MissionStatus.COMPLETED -> Icons.Default.CheckCircle
-        MissionStatus.ABORTED -> Icons.Default.Warning
-        MissionStatus.FAILED -> Icons.Default.Error
+        MissionOutcomeStatus.COMPLETED -> Icons.Default.CheckCircle
+        MissionOutcomeStatus.ABORTED -> Icons.Default.Warning
+        MissionOutcomeStatus.FAILED -> Icons.Default.Error
     }
 
     Surface(
@@ -287,17 +334,14 @@ private fun MissionReportCard(
             }
 
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = mission.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    StatusChip(label = statusLabel, color = statusColor, icon = statusIcon)
-                }
+                Text(
+                    text = mission.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "${mission.date} • ${mission.duration}",
@@ -309,6 +353,13 @@ private fun MissionReportCard(
                     fontSize = 12.sp,
                     color = colorScheme.onSurfaceVariant
                 )
+                Text(
+                    text = "Modo: ${mission.executionMode.toUiLabel()}",
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                StatusChip(label = statusLabel, color = statusColor, icon = statusIcon)
             }
 
             Icon(
@@ -317,6 +368,14 @@ private fun MissionReportCard(
                 tint = colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+private fun MissionExecutionMode.toUiLabel(): String {
+    return when (this) {
+        MissionExecutionMode.REAL -> "Real"
+        MissionExecutionMode.SIMULATED -> "Simulada"
+        MissionExecutionMode.UNKNOWN -> "Indefinida"
     }
 }
 

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
 import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
+import com.sloth.registerapp.features.mission.domain.model.MissionOutcome
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -27,6 +28,7 @@ class DroneExecutionViewModel(
     // Estado da missão (MissionState da DroneMissionManager)
     private val _missionState = MutableStateFlow<MissionState>(MissionState.IDLE)
     val missionState = _missionState.asStateFlow()
+    val missionOutcome = missionManager.missionOutcome
 
     // Dados da missão
     private val _mission = MutableStateFlow<ServerMissionDto?>(null)

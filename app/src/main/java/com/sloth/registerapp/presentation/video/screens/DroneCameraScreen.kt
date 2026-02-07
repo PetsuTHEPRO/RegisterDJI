@@ -304,7 +304,7 @@ fun DroneCameraScreen(
 
                 Surface(
                     modifier = Modifier
-                        .size(width = 180.dp, height = 130.dp)
+                        .size(width = 164.dp, height = 118.dp)
                         .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
                     color = Color.Black.copy(alpha = 0.45f),
                     shape = RoundedCornerShape(12.dp)
@@ -375,6 +375,10 @@ fun DroneCameraScreen(
                     }
                 },
                 onStreamToggle = {
+                    if (!isFeedAvailable) {
+                        Toast.makeText(context, "Conecte o drone para transmitir", Toast.LENGTH_SHORT).show()
+                        return@CameraControls
+                    }
                     if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
                         rtmpStreamer.stop()
                     } else {

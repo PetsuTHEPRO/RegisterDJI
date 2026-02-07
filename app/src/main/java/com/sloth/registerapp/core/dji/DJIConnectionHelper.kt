@@ -9,8 +9,13 @@ import dji.sdk.base.BaseComponent
 import dji.sdk.base.BaseProduct
 import dji.sdk.sdkmanager.DJISDKInitEvent
 import dji.sdk.sdkmanager.DJISDKManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 object DJIConnectionHelper {
 
@@ -22,6 +27,9 @@ object DJIConnectionHelper {
 
     private var isRegistered = false
     private var isRegistering = false
+    private var appContext: Context? = null
+    private var reconnectJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.Main.immediate)
 
     // StateFlow para emitir o produto (drone) quando ele se conecta
     private val _product = MutableStateFlow<BaseProduct?>(null)
@@ -32,6 +40,7 @@ object DJIConnectionHelper {
 
     // Função principal que a MainActivity chamará
     fun registerApp(context: Context) {
+        appContext = context.applicationContext
         if (isRegistered || isRegistering) {
             refreshConnectionStatus()
             return
@@ -98,9 +107,42 @@ object DJIConnectionHelper {
         }
     }
 
-    fun tryReconnect() {
-        _connectionStatus.value = "Sincronizando..."
-        DJISDKManager.getInstance().startConnectionToProduct()
-        refreshConnectionStatus()
+    fun tryReconnect(context: Context? = null) {
+        context?.let { appContext = it.applicationContext }
+        val safeContext = appContext
+
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            _connectionStatus.value = "Sincronizando..."
+
+            // Se não registrou ainda, força o registro antes da reconexão.
+            if (!isRegistered && !isRegistering) {
+                if (safeContext != null) {
+                    registerApp(safeContext)
+                } else {
+                    _connectionStatus.value = "Contexto indisponível para reconexão"
+                    return@launch
+                }
+            }
+
+            // Tenta reconectar algumas vezes para não depender de restart do app.
+            repeat(4) { attempt ->
+                DJISDKManager.getInstance().startConnectionToProduct()
+                delay(1500)
+                refreshConnectionStatus()
+                if (_product.value != null) {
+                    Log.d(TAG, "Reconexão concluída na tentativa ${attempt + 1}")
+                    return@launch
+                }
+            }
+
+            // Fallback: força novo ciclo de registro se ainda não conectou.
+            if (_product.value == null && safeContext != null && !isRegistering) {
+                Log.w(TAG, "Reconexão sem sucesso. Forçando novo registro do SDK.")
+                isRegistered = false
+                registerApp(safeContext)
+            }
+            refreshConnectionStatus()
+        }
     }
 }

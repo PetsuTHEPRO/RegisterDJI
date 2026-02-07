@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
                                     context.startActivity(intent)
                                 },
                                 onLiveFeedClick = {
-                                    val intent = Intent(context, VideoFeedActivity::class.java)
+                                    val intent = Intent(context, DroneCameraActivity::class.java)
                                     context.startActivity(intent)
                                 },
                                 onRefreshStatusClick = {
@@ -228,7 +228,7 @@ private fun ScreenWithBottomBar(
             BottomNavBar(
                 navController = navController,
                 onLiveFeedClick = {
-                    val intent = Intent(context, VideoFeedActivity::class.java)
+                    val intent = Intent(context, DroneCameraActivity::class.java)
                     context.startActivity(intent)
                 }
             )

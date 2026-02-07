@@ -34,6 +34,8 @@ class DroneCommandManager {
     
     // Job para controlar o envio contínuo de comandos
     private var virtualStickJob: Job? = null
+    private var safetyStopJob: Job? = null
+    private var disableVirtualStickJob: Job? = null
     private var isVirtualStickEnabled = false
 
     init {
@@ -78,6 +80,17 @@ class DroneCommandManager {
     }
 
     private fun enableVirtualStick(enable: Boolean, onResult: (Boolean) -> Unit) {
+        if (enable) {
+            // Evita que um disable atrasado desligue o stick no meio de um novo comando
+            disableVirtualStickJob?.cancel()
+            disableVirtualStickJob = null
+        }
+
+        if (isVirtualStickEnabled == enable) {
+            onResult(true)
+            return
+        }
+
         val flightController = getFlightController()
         if (flightController == null) {
             Log.e(TAG, "❌ FlightController não disponível")
@@ -115,6 +128,16 @@ class DroneCommandManager {
                 flightController.sendVirtualStickFlightControlData(controlData, null)
                 delay(200) // DJI recomenda 200ms entre comandos
             }
+        }
+    }
+
+    private fun scheduleSafetyStop() {
+        safetyStopJob?.cancel()
+        safetyStopJob = scope.launch {
+            // Fail-safe: impede movimento indefinido por toque único/acidental.
+            delay(MOVE_SAFETY_TIMEOUT_MS)
+            Log.w(TAG, "⚠️ Safety timeout atingido. Parando movimento automaticamente.")
+            stopMovement()
         }
     }
 
@@ -218,6 +241,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(speed, 0f, 0f, 0f)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -231,6 +255,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(-speed, 0f, 0f, 0f)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -244,6 +269,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(0f, -speed, 0f, 0f)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -257,6 +283,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(0f, speed, 0f, 0f)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -272,6 +299,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(0f, 0f, 0f, speed)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -285,6 +313,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(0f, 0f, 0f, -speed)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -300,6 +329,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(0f, 0f, -speed, 0f)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -313,6 +343,7 @@ class DroneCommandManager {
             if (success) {
                 val controlData = FlightControlData(0f, 0f, speed, 0f)
                 startSendingCommands(controlData)
+                scheduleSafetyStop()
             }
         }
     }
@@ -325,6 +356,8 @@ class DroneCommandManager {
         // Cancela o job de envio contínuo
         virtualStickJob?.cancel()
         virtualStickJob = null
+        safetyStopJob?.cancel()
+        safetyStopJob = null
 
         // Envia comando de parada
         getFlightController()?.sendVirtualStickFlightControlData(
@@ -333,7 +366,8 @@ class DroneCommandManager {
         )
 
         // Desabilita Virtual Stick após 500ms
-        scope.launch {
+        disableVirtualStickJob?.cancel()
+        disableVirtualStickJob = scope.launch {
             delay(500)
             enableVirtualStick(false) {}
         }
@@ -350,6 +384,8 @@ class DroneCommandManager {
             // Para movimentos
             virtualStickJob?.cancel()
             virtualStickJob = null
+            safetyStopJob?.cancel()
+            safetyStopJob = null
 
             // Desativa virtual stick
             enableVirtualStick(false) {}
@@ -365,20 +401,6 @@ class DroneCommandManager {
 
             _droneState.value = DroneState.EMERGENCY_STOP
             telemetryManager.updateTelemetry(speed = 0f)
-        }
-    }
-
-    // ========== MOVIMENTAÇÃO PARA COORDENADAS ==========
-
-    fun moveTo(latitude: Double, longitude: Double, altitude: Float) {
-        if (!canMove()) return
-
-        scope.launch {
-            Log.d(TAG, "📍 Movendo para: $latitude, $longitude @ ${altitude}m")
-            
-            // TODO: Implementar WaypointMission
-            delay(5000)
-            Log.d(TAG, "✅ Chegou ao destino (simulado)")
         }
     }
 
@@ -409,6 +431,9 @@ class DroneCommandManager {
     }
 
     fun stop() {
+        stopMovement()
+        disableVirtualStickJob?.cancel()
+        disableVirtualStickJob = null
         telemetryManager.stop()
     }
 
@@ -467,5 +492,6 @@ class DroneCommandManager {
 
     companion object {
         private const val TAG = "DroneCommand"
+        private const val MOVE_SAFETY_TIMEOUT_MS = 1200L
     }
 }

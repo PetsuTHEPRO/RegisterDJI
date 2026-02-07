@@ -12,7 +12,7 @@ import com.sloth.registerapp.presentation.mission.screens.DroneCameraScreen
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
-class VideoFeedActivity : ComponentActivity() {
+class DroneCameraActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {

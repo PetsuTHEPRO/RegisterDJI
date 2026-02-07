@@ -50,6 +50,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mapbox.maps.Style
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -280,53 +284,55 @@ fun DroneCameraScreen(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 12.dp, bottom = 56.dp)
+                .padding(start = 12.dp, bottom = 24.dp)
         ) {
-            Surface(
-                modifier = Modifier
-                    .size(width = 180.dp, height = 130.dp)
-                    .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
-                color = Color.Black.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(12.dp)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.Start
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (locationUiState.location != null) {
-                        MapboxMiniMapView(
-                            modifier = Modifier.fillMaxSize(),
-                            operatorLocation = locationUiState.location!!,
-                            styleUri = Style.STANDARD
-                        )
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = locationUiState.errorMessage ?: "Aguardando GPS...",
-                                fontSize = 11.sp,
-                                color = colorScheme.onSurfaceVariant
+                AnimatedVisibility(
+                    visible = showControls && visible,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    FlightActionControls(
+                        droneState = droneState,
+                        onTakeoffClick = { droneController.takeOff() },
+                        onLandClick = { droneController.land() }
+                    )
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .size(width = 180.dp, height = 130.dp)
+                        .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                    color = Color.Black.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (locationUiState.location != null) {
+                            MapboxMiniMapView(
+                                modifier = Modifier.fillMaxSize(),
+                                operatorLocation = locationUiState.location!!,
+                                styleUri = Style.STANDARD
                             )
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = locationUiState.errorMessage ?: "Aguardando GPS...",
+                                    fontSize = 11.sp,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
-            }
-
-            AnimatedVisibility(
-                visible = showControls && visible,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 10.dp, y = (-10).dp)
-            ) {
-                FlightActionControls(
-                    droneState = droneState,
-                    onTakeoffClick = { droneController.takeOff() },
-                    onLandClick = { droneController.land() }
-                )
             }
         }
 
@@ -411,8 +417,8 @@ fun DroneCameraScreen(
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 72.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 24.dp)
         ) {
             VerticalMovementControls(
                 enabled = canMove,
@@ -462,48 +468,52 @@ fun CompactHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.35f))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .background(Color.Transparent)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
             onClick = onBackClick,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color.Black.copy(alpha = 0.25f), CircleShape)
         ) {
             Icon(
                 Icons.Default.ArrowBack,
                 contentDescription = "Voltar",
-                tint = Color.White.copy(alpha = 0.92f),
-                modifier = Modifier.size(14.dp)
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
             )
         }
 
         Text(
             text = statusText,
-            color = Color.White.copy(alpha = 0.88f),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
         )
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 "${safeBattery}%",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = batteryColor
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
-            Icon(Icons.Default.BatteryFull, null, tint = batteryColor, modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.BatteryFull, null, tint = batteryColor, modifier = Modifier.size(18.dp))
         }
         IconButton(
             onClick = onToggleControls,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier
+                .size(40.dp)
+                .background(Color.Black.copy(alpha = 0.25f), CircleShape)
         ) {
             Icon(
                 Icons.Default.Tune,
                 contentDescription = "Controles",
-                tint = Color.White.copy(alpha = 0.88f),
-                modifier = Modifier.size(14.dp)
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
             )
         }
     }
@@ -688,9 +698,20 @@ fun HoldToMoveButton(
                 detectTapGestures(
                     onPress = {
                         if (!enabled) return@detectTapGestures
-                        onPressStart()
-                        tryAwaitRelease()
-                        onPressEnd()
+                        coroutineScope {
+                            val repeatJob = launch {
+                                while (isActive) {
+                                    onPressStart()
+                                    delay(300)
+                                }
+                            }
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                repeatJob.cancel()
+                                onPressEnd()
+                            }
+                        }
                     }
                 )
             },

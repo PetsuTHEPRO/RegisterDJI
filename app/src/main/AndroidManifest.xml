@@ -86,7 +86,7 @@
 
         <!-- Feed de vídeo - LANDSCAPE -->
         <activity
-            android:name="com.sloth.registerapp.presentation.app.activities.VideoFeedActivity"
+            android:name="com.sloth.registerapp.presentation.app.activities.DroneCameraActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.RegisterApp"

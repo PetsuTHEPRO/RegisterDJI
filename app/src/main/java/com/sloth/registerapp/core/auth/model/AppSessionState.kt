@@ -1,8 +1,8 @@
 package com.sloth.registerapp.core.auth.model
 
-enum class LocalSessionState {
-    LOCAL_LOGGED_OUT,
-    LOCAL_LOGGED_IN
+sealed class LocalSessionState {
+    data object LOCAL_LOGGED_OUT : LocalSessionState()
+    data class LOCAL_LOGGED_IN(val userId: String) : LocalSessionState()
 }
 
 enum class NetworkState {
@@ -15,4 +15,3 @@ enum class ServerAuthState {
     SERVER_ACCESS_EXPIRED,
     SERVER_AUTH_REQUIRED
 }
-

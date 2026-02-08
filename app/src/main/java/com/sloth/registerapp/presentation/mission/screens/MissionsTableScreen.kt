@@ -31,6 +31,8 @@ import com.sloth.registerapp.features.mission.domain.model.Mission
 fun MissionsTableScreen(
     missions: List<Mission> = emptyList(),
     isLoading: Boolean = false,
+    canCreateMission: Boolean = true,
+    createBlockedMessage: String? = null,
     onCreateMissionClick: () -> Unit = {},
     onViewMissionClick: (Int) -> Unit = {},
     onEditMissionClick: (Int) -> Unit = {},
@@ -82,8 +84,8 @@ fun MissionsTableScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreateMissionClick,
-                containerColor = colorScheme.primary,
-                contentColor = colorScheme.onPrimary,
+                containerColor = if (canCreateMission) colorScheme.primary else colorScheme.surfaceVariant,
+                contentColor = if (canCreateMission) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(56.dp)
             ) {
                 Icon(
@@ -174,13 +176,22 @@ fun MissionsTableScreen(
                                     color = colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
                                 )
+                                if (!createBlockedMessage.isNullOrBlank()) {
+                                    Text(
+                                        text = createBlockedMessage,
+                                        fontSize = 13.sp,
+                                        color = colorScheme.tertiary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
                                     onClick = onCreateMissionClick,
+                                    enabled = canCreateMission,
                                     modifier = Modifier.height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = colorScheme.primary
+                                        containerColor = if (canCreateMission) colorScheme.primary else colorScheme.surfaceVariant
                                     )
                                 ) {
                                     Icon(
@@ -222,6 +233,25 @@ fun MissionsTableScreen(
                             }
                         }
                     }
+                }
+            }
+
+            if (!createBlockedMessage.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = colorScheme.tertiaryContainer.copy(alpha = 0.92f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, colorScheme.tertiary.copy(alpha = 0.35f))
+                ) {
+                    Text(
+                        text = createBlockedMessage,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        color = colorScheme.onTertiaryContainer,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

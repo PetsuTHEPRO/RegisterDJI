@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class SyncQueueEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val ownerUserId: String = "__guest__",
     val operationType: String,        // CREATE_MISSION, UPDATE_MISSION, DELETE_MISSION
     val entityId: String,             // ID da entidade
     val entityType: String,           // MISSION, FLIGHT, etc
@@ -22,6 +23,7 @@ data class SyncQueueEntity(
 data class MissionCacheEntity(
     @PrimaryKey
     val missionId: String,
+    val ownerUserId: String = "__guest__",
     val name: String,
     val description: String? = null,
     val missionData: String,           // JSON completo da missão
@@ -34,6 +36,7 @@ data class MissionCacheEntity(
 data class FlightReportEntity(
     @PrimaryKey
     val id: String,
+    val ownerUserId: String = "__guest__",
     val missionName: String,
     val aircraftName: String,
     val createdAtMs: Long,

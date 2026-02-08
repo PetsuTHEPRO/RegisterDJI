@@ -3,6 +3,7 @@ package com.sloth.registerapp.features.report.data.manager
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.sloth.registerapp.core.auth.LocalSessionManager
 import com.sloth.registerapp.core.database.AppDatabase
 import com.sloth.registerapp.core.database.FlightReportEntity
 import com.sloth.registerapp.features.report.domain.model.FlightReport
@@ -15,7 +16,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlin.math.max
 
 /**
@@ -32,6 +35,8 @@ class FlightReportManager(
 ) {
     private var timerJob: Job? = null
     private val gson = Gson()
+    private val localSessionManager = context?.applicationContext
+        ?.let { LocalSessionManager.getInstance(it) }
     private val flightReportDao = context?.applicationContext
         ?.let { AppDatabase.getInstance(it).flightReportDao() }
 
@@ -44,7 +49,7 @@ class FlightReportManager(
     init {
         if (flightReportDao != null) {
             scope.launch {
-                _reports.value = flightReportDao.getAll().map { it.toDomain() }
+                _reports.value = flightReportDao.getAll(resolveOwnerUserId()).map { it.toDomain() }
             }
         }
     }
@@ -111,7 +116,7 @@ class FlightReportManager(
         _currentSession.value = null
         if (flightReportDao != null) {
             scope.launch {
-                flightReportDao.insert(report.toEntity())
+                flightReportDao.insert(report.toEntity(ownerUserId = resolveOwnerUserId()))
             }
         }
         return report
@@ -144,9 +149,10 @@ class FlightReportManager(
         timerJob = null
     }
 
-    private fun FlightReport.toEntity(): FlightReportEntity {
+    private fun FlightReport.toEntity(ownerUserId: String): FlightReportEntity {
         return FlightReportEntity(
             id = id,
+            ownerUserId = ownerUserId,
             missionName = missionName,
             aircraftName = aircraftName,
             createdAtMs = createdAtMs,
@@ -175,5 +181,17 @@ class FlightReportManager(
             finalObservation = finalObservation,
             extraData = parsedExtras
         )
+    }
+
+    private fun resolveOwnerUserId(): String {
+        val manager = localSessionManager ?: return GUEST_OWNER_ID
+        return runBlocking {
+            val userId = manager.currentUserId.first()
+            if (userId.isNullOrBlank()) GUEST_OWNER_ID else userId
+        }
+    }
+
+    companion object {
+        private const val GUEST_OWNER_ID = "__guest__"
     }
 }

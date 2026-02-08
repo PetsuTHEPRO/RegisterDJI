@@ -30,6 +30,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.registerapp.core.utils.PermissionHelper
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.auth.LocalSessionManager
+import com.sloth.registerapp.core.auth.model.ServerAuthState
+import com.sloth.registerapp.core.network.ConnectivityMonitor
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionsTableScreen
@@ -78,15 +80,20 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val currentUserId by localSessionManager.currentUserId.collectAsState(initial = null)
                 val guestModeEnabled by localSessionManager.isGuestModeEnabled.collectAsState(initial = false)
-                val startDestination = if (!currentUserId.isNullOrBlank() || guestModeEnabled) "dashboard" else "welcome"
+                val serverAuthState by localSessionManager.serverAuthState.collectAsState(initial = ServerAuthState.SERVER_AUTH_REQUIRED)
                 val userName by localSessionManager.currentUsername.collectAsState(initial = "Usuário")
                 val userEmail by localSessionManager.currentEmail.collectAsState(initial = "usuario@labubu.com")
                 val accessToken by tokenRepository.accessToken.collectAsState(initial = null)
                 val isSessionActive by sessionManager.isSessionActive.collectAsState(initial = true)
-                val isLoggedIn = !currentUserId.isNullOrBlank() && !accessToken.isNullOrBlank()
+                val startDestination = if (!currentUserId.isNullOrBlank() || !accessToken.isNullOrBlank() || guestModeEnabled) "dashboard" else "welcome"
+                val isLoggedIn = !currentUserId.isNullOrBlank() && !guestModeEnabled
 
-                LaunchedEffect(accessToken, isSessionActive) {
-                    if (!accessToken.isNullOrBlank() && !isSessionActive) {
+                LaunchedEffect(accessToken, isSessionActive, currentUserId, guestModeEnabled) {
+                    if (!guestModeEnabled &&
+                        !accessToken.isNullOrBlank() &&
+                        !isSessionActive &&
+                        currentUserId.isNullOrBlank()
+                    ) {
                         tokenRepository.clearTokens()
                     }
                 }
@@ -180,6 +187,17 @@ class MainActivity : ComponentActivity() {
                     composable("mission") {
                         val viewModel: MissionListViewModel = viewModel(factory = MissionListViewModelFactory(application))
                         val uiState by viewModel.uiState.collectAsState()
+                        val canCreateMission = !currentUserId.isNullOrBlank()
+                        val isConnected by remember { ConnectivityMonitor.getInstance(context) }
+                            .isConnected
+                            .collectAsState(initial = true)
+                        val createBlockedMessage = when {
+                            !canCreateMission -> "Operação local disponível. Faça login para sincronizar com servidor."
+                            !isConnected -> "Sem internet, trabalhando localmente."
+                            uiState is MissionListUiState.Unauthorized || serverAuthState == ServerAuthState.SERVER_AUTH_REQUIRED ->
+                                "Faça login para sincronizar com servidor."
+                            else -> null
+                        }
 
                         // Buscar missões quando entrar na tela
                         LaunchedEffect(Unit) {
@@ -203,8 +221,18 @@ class MainActivity : ComponentActivity() {
                             MissionsTableScreen(
                                 missions = missions,
                                 isLoading = isLoading,
+                                canCreateMission = canCreateMission,
+                                createBlockedMessage = createBlockedMessage,
                                 onBackClick = { navController.popBackStack() },
-                                onCreateMissionClick = { navController.navigate("mission-create") },
+                                onCreateMissionClick = {
+                                    if (canCreateMission) {
+                                        navController.navigate("mission-create")
+                                    } else {
+                                        navController.navigate("login") {
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                },
                                 onViewMissionClick = { missionId ->
                                     val intent = Intent(context, MissionControlActivity::class.java).apply {
                                         putExtra("MISSION_ID", missionId)

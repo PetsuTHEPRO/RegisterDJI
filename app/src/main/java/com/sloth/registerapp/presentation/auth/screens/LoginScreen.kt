@@ -31,6 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.navigation.NavController
 import com.sloth.registerapp.core.auth.LocalSessionManager
+import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.SessionManager
@@ -291,40 +292,48 @@ fun LoginScreen(
                                                 throw IllegalStateException("Login sem access_token no payload")
                                             }
 
+                                            var effectiveUserId = response.resolvedUserId()
+                                            var effectiveUsername = username
+                                            var effectiveEmail = ""
+
+                                            // Tenta atualizar dados com auth/me para consolidar identidade
+                                            try {
+                                                val userMe = apiService.getMe("Bearer $accessToken")
+                                                if (effectiveUserId.isBlank()) {
+                                                    effectiveUserId = userMe.id
+                                                }
+                                                effectiveUsername = userMe.username.ifBlank { effectiveUsername }
+                                                effectiveEmail = userMe.email.orEmpty()
+                                            } catch (e: Exception) {
+                                                Log.w(tag, "auth/me falhou após login, mantendo sessão mínima.", e)
+                                            }
+
+                                            if (effectiveUserId.isBlank()) {
+                                                // Evita estado inconsistente quando backend não envia user_id no login.
+                                                effectiveUserId = "local:$username"
+                                            }
+
+                                            // Salvar sessão local primeiro para evitar corrida de estado no app.
+                                            sessionManager.createSession(
+                                                token = accessToken,
+                                                userId = effectiveUserId,
+                                                username = effectiveUsername,
+                                                email = effectiveEmail,
+                                                expiryDays = 7L // Token válido por 7 dias
+                                            )
+
                                             // Salva access + refresh para renovação automática
                                             tokenRepository.saveTokens(
                                                 accessToken = accessToken,
                                                 refreshToken = response.refreshToken
                                             )
 
-                                            // Salvar sessão mínima (sem depender do auth/me)
-                                            sessionManager.createSession(
-                                                token = accessToken,
-                                                userId = response.resolvedUserId(),
-                                                username = username,
-                                                email = "",
-                                                expiryDays = 7L // Token válido por 7 dias
-                                            )
-
-                                            // Tenta atualizar dados com auth/me, mas não bloqueia o login
-                                            try {
-                                                val userMe = apiService.getMe("Bearer $accessToken")
-                                                sessionManager.createSession(
-                                                    token = accessToken,
-                                                    userId = response.resolvedUserId(),
-                                                    username = userMe.username,
-                                                    email = userMe.email,
-                                                    expiryDays = 7L
-                                                )
-                                            } catch (e: Exception) {
-                                                Log.w(tag, "auth/me falhou após login, mantendo sessão mínima.")
-                                            }
-
                                             localSessionManager.loginLocal(
-                                                userId = response.resolvedUserId(),
-                                                username = username,
-                                                email = ""
+                                                userId = effectiveUserId,
+                                                username = effectiveUsername,
+                                                email = effectiveEmail
                                             )
+                                            localSessionManager.setServerAuthState(ServerAuthState.SERVER_AUTH_OK)
 
                                             // Navegar para o dashboard
                                             navController.navigate("dashboard") {

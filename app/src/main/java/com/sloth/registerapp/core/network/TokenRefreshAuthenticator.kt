@@ -3,8 +3,10 @@ package com.sloth.registerapp.core.network
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
+import com.sloth.registerapp.core.auth.LocalSessionManager
 import com.sloth.registerapp.core.auth.SessionManager
 import com.sloth.registerapp.core.auth.TokenRepository
+import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.dto.AuthTokensDto
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
@@ -56,6 +58,10 @@ class TokenRefreshAuthenticator(
             val newRefreshToken = refreshed.refreshToken ?: refreshToken
 
             tokenRepository.saveTokensBlocking(newAccessToken, newRefreshToken)
+            runBlocking {
+                LocalSessionManager.getInstance(appContext)
+                    .setServerAuthState(ServerAuthState.SERVER_AUTH_OK)
+            }
             Log.i(TAG, "Token refresh succeeded")
             return response.request.newBuilder()
                 .header("Authorization", "Bearer $newAccessToken")
@@ -102,10 +108,12 @@ class TokenRefreshAuthenticator(
     }
 
     private fun clearSessionAndAbort(): Request? {
-        Log.w(TAG, "Token refresh failed; clearing local session")
+        Log.w(TAG, "Token refresh failed; marking server auth required and clearing tokens")
         tokenRepository.clearTokensBlocking()
         runBlocking {
             SessionManager.getInstance(appContext).clearSession()
+            LocalSessionManager.getInstance(appContext)
+                .setServerAuthState(ServerAuthState.SERVER_AUTH_REQUIRED)
         }
         return null
     }

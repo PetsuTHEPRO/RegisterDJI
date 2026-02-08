@@ -32,6 +32,9 @@ interface MissionCacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(mission: MissionCacheEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(missions: List<MissionCacheEntity>)
+
     @Query("SELECT * FROM mission_cache WHERE missionId = :missionId")
     suspend fun getById(missionId: String): MissionCacheEntity?
 
@@ -40,4 +43,13 @@ interface MissionCacheDao {
 
     @Query("DELETE FROM mission_cache WHERE missionId = :missionId")
     suspend fun deleteById(missionId: String)
+}
+
+@Dao
+interface FlightReportDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(report: FlightReportEntity)
+
+    @Query("SELECT * FROM flight_reports ORDER BY startedAtMs DESC")
+    suspend fun getAll(): List<FlightReportEntity>
 }

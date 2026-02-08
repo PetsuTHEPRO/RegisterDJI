@@ -17,6 +17,7 @@ private const val TAG = "MissionListViewModel"
 class MissionListViewModel(application: Application) : AndroidViewModel(application) {
 
     private val missionRepository = MissionRepositoryImpl(
+        application,
         RetrofitClient.getInstance(application),
         com.sloth.registerapp.core.auth.TokenRepository.getInstance(application)
     )

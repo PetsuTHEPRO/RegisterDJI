@@ -29,6 +29,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.registerapp.core.utils.PermissionHelper
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.core.auth.LocalSessionManager
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionsTableScreen
@@ -71,13 +72,24 @@ class MainActivity : ComponentActivity() {
             com.sloth.registerapp.presentation.app.theme.AppTheme(darkTheme = isDarkTheme) {
                 val navController = rememberNavController()
                 val context = LocalContext.current
+                val localSessionManager = remember { LocalSessionManager.getInstance(context) }
                 val sessionManager = remember { com.sloth.registerapp.core.auth.SessionManager.getInstance(context) }
                 val tokenRepository = remember { com.sloth.registerapp.core.auth.TokenRepository.getInstance(context) }
                 val scope = rememberCoroutineScope()
+                val currentUserId by localSessionManager.currentUserId.collectAsState(initial = null)
+                val guestModeEnabled by localSessionManager.isGuestModeEnabled.collectAsState(initial = false)
+                val startDestination = if (!currentUserId.isNullOrBlank() || guestModeEnabled) "dashboard" else "welcome"
+                val userName by localSessionManager.currentUsername.collectAsState(initial = "Usuário")
+                val userEmail by localSessionManager.currentEmail.collectAsState(initial = "usuario@labubu.com")
                 val accessToken by tokenRepository.accessToken.collectAsState(initial = null)
-                val startDestination = if (accessToken.isNullOrBlank()) "welcome" else "dashboard"
-                val userName by sessionManager.username.collectAsState(initial = "Usuário")
-                val userEmail by sessionManager.email.collectAsState(initial = "usuario@labubu.com")
+                val isSessionActive by sessionManager.isSessionActive.collectAsState(initial = true)
+                val isLoggedIn = !currentUserId.isNullOrBlank() && !accessToken.isNullOrBlank()
+
+                LaunchedEffect(accessToken, isSessionActive) {
+                    if (!accessToken.isNullOrBlank() && !isSessionActive) {
+                        tokenRepository.clearTokens()
+                    }
+                }
 
                 navController.addOnDestinationChangedListener { _, _, _ ->
                     WindowCompat.setDecorFitsSystemWindows(window, true)
@@ -94,7 +106,16 @@ class MainActivity : ComponentActivity() {
                     composable("login") {
                         LoginScreen(
                             navController = navController,
-                            onRegisterClick = { navController.navigate("register") }
+                            onRegisterClick = { navController.navigate("register") },
+                            onSkipClick = {
+                                scope.launch {
+                                    localSessionManager.setGuestModeEnabled(true)
+                                    navController.navigate("dashboard") {
+                                        popUpTo("welcome") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
                         )
                     }
                     composable("register") {
@@ -137,12 +158,19 @@ class MainActivity : ComponentActivity() {
                         SettingsScreen(
                             userName = userName ?: "Usuário",
                             userEmail = userEmail ?: "usuario@labubu.com",
+                            isLoggedIn = isLoggedIn,
                             onBackClick = { navController.popBackStack() },
+                            onLoginClick = {
+                                navController.navigate("login") {
+                                    launchSingleTop = true
+                                }
+                            },
                             onLogout = {
                                 scope.launch {
                                     tokenRepository.clearTokens()
                                     sessionManager.clearSession()
-                                    navController.navigate("login") {
+                                    localSessionManager.logoutLocal()
+                                    navController.navigate("welcome") {
                                         popUpTo("welcome") { inclusive = true }
                                     }
                                 }
@@ -167,12 +195,7 @@ class MainActivity : ComponentActivity() {
                                     data.missions to false
                                 }
                                 is MissionListUiState.Error -> emptyList<Mission>() to false
-                                is MissionListUiState.Unauthorized -> {
-                                    navController.navigate("login") {
-                                        popUpTo("welcome") { inclusive = true }
-                                    }
-                                    emptyList<Mission>() to false
-                                }
+                                is MissionListUiState.Unauthorized -> emptyList<Mission>() to false
                             }
                         }
 

@@ -40,6 +40,7 @@ class MissionControlActivity : ComponentActivity() {
         }
 
         val missionRepository = MissionRepositoryImpl(
+            context = this,
             apiService = RetrofitClient.getInstance(this),
             tokenRepository = TokenRepository.getInstance(this)
         )

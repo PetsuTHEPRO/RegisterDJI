@@ -1,5 +1,10 @@
 package com.sloth.registerapp.features.report.data.manager
 
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.sloth.registerapp.core.database.AppDatabase
+import com.sloth.registerapp.core.database.FlightReportEntity
 import com.sloth.registerapp.features.report.domain.model.FlightReport
 import com.sloth.registerapp.features.report.domain.model.FlightReportSession
 import java.util.UUID
@@ -22,15 +27,27 @@ import kotlin.math.max
  * Estrutura preparada para evolução: campo extraData aceita novos dados sem quebrar contrato.
  */
 class FlightReportManager(
+    context: Context? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
     private var timerJob: Job? = null
+    private val gson = Gson()
+    private val flightReportDao = context?.applicationContext
+        ?.let { AppDatabase.getInstance(it).flightReportDao() }
 
     private val _currentSession = MutableStateFlow<FlightReportSession?>(null)
     val currentSession: StateFlow<FlightReportSession?> = _currentSession.asStateFlow()
 
     private val _reports = MutableStateFlow<List<FlightReport>>(emptyList())
     val reports: StateFlow<List<FlightReport>> = _reports.asStateFlow()
+
+    init {
+        if (flightReportDao != null) {
+            scope.launch {
+                _reports.value = flightReportDao.getAll().map { it.toDomain() }
+            }
+        }
+    }
 
     /**
      * Inicia uma nova sessão de relatório.
@@ -92,6 +109,11 @@ class FlightReportManager(
 
         _reports.value = listOf(report) + _reports.value
         _currentSession.value = null
+        if (flightReportDao != null) {
+            scope.launch {
+                flightReportDao.insert(report.toEntity())
+            }
+        }
         return report
     }
 
@@ -121,5 +143,37 @@ class FlightReportManager(
         timerJob?.cancel()
         timerJob = null
     }
-}
 
+    private fun FlightReport.toEntity(): FlightReportEntity {
+        return FlightReportEntity(
+            id = id,
+            missionName = missionName,
+            aircraftName = aircraftName,
+            createdAtMs = createdAtMs,
+            startedAtMs = startedAtMs,
+            endedAtMs = endedAtMs,
+            durationMs = durationMs,
+            finalObservation = finalObservation,
+            extraDataJson = gson.toJson(extraData)
+        )
+    }
+
+    private fun FlightReportEntity.toDomain(): FlightReport {
+        val mapType = object : TypeToken<Map<String, String>>() {}.type
+        val parsedExtras = runCatching {
+            gson.fromJson<Map<String, String>>(extraDataJson, mapType) ?: emptyMap()
+        }.getOrDefault(emptyMap())
+
+        return FlightReport(
+            id = id,
+            missionName = missionName,
+            aircraftName = aircraftName,
+            createdAtMs = createdAtMs,
+            startedAtMs = startedAtMs,
+            endedAtMs = endedAtMs,
+            durationMs = durationMs,
+            finalObservation = finalObservation,
+            extraData = parsedExtras
+        )
+    }
+}

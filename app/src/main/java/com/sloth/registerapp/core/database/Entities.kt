@@ -29,3 +29,17 @@ data class MissionCacheEntity(
     val cachedAt: Long = System.currentTimeMillis(),
     val syncedAt: Long? = null
 )
+
+@Entity(tableName = "flight_reports")
+data class FlightReportEntity(
+    @PrimaryKey
+    val id: String,
+    val missionName: String,
+    val aircraftName: String,
+    val createdAtMs: Long,
+    val startedAtMs: Long,
+    val endedAtMs: Long,
+    val durationMs: Long,
+    val finalObservation: String?,
+    val extraDataJson: String = "{}"
+)

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.navigation.NavController
+import com.sloth.registerapp.core.auth.LocalSessionManager
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.SessionManager
@@ -40,7 +41,8 @@ import retrofit2.HttpException
 @Composable
 fun LoginScreen(
     navController: NavController,
-    onRegisterClick: () -> Unit
+    onRegisterClick: () -> Unit,
+    onSkipClick: () -> Unit
 ) {
     var username by remember { mutableStateOf("") } // Alterado de email para username
     var password by remember { mutableStateOf("") }
@@ -266,6 +268,7 @@ fun LoginScreen(
                                             val apiService = RetrofitClient.getInstance(context)
                                             val tokenRepository = TokenRepository.getInstance(context)
                                             val sessionManager = SessionManager.getInstance(context)
+                                            val localSessionManager = LocalSessionManager.getInstance(context)
 
                                             // 1) Tenta login via BODY (mesmo fluxo do web)
                                             val response = try {
@@ -316,6 +319,12 @@ fun LoginScreen(
                                             } catch (e: Exception) {
                                                 Log.w(tag, "auth/me falhou após login, mantendo sessão mínima.")
                                             }
+
+                                            localSessionManager.loginLocal(
+                                                userId = response.resolvedUserId(),
+                                                username = username,
+                                                email = ""
+                                            )
 
                                             // Navegar para o dashboard
                                             navController.navigate("dashboard") {
@@ -406,6 +415,18 @@ fun LoginScreen(
                         fontSize = 14.sp
                     )
                 }
+            }
+
+            TextButton(
+                onClick = onSkipClick,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = "Pular por agora",
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
             }
 
             // Footer com informações

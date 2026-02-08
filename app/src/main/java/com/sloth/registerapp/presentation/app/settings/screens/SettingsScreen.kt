@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     userName: String = "Usuário",
     userEmail: String = "usuario@labubu.com",
+    isLoggedIn: Boolean = false,
     onBackClick: () -> Unit = {},
     onChangeProfilePhoto: () -> Unit = {},
     onChangeUsername: () -> Unit = {},
@@ -41,6 +42,7 @@ fun SettingsScreen(
     onActivityHistory: () -> Unit = {},
     onManagePermissions: () -> Unit = {},
     onAbout: () -> Unit = {},
+    onLoginClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -125,112 +127,114 @@ fun SettingsScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Perfil do Usuário
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        color = colorScheme.surface.copy(alpha = 0.95f),
-                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
-                        shadowElevation = 8.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                if (isLoggedIn) {
+                    // Perfil do Usuário
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            color = colorScheme.surface.copy(alpha = 0.95f),
+                            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
+                            shadowElevation = 8.dp
                         ) {
-                            // Avatar
-                            Surface(
-                                onClick = onChangeProfilePhoto,
-                                modifier = Modifier.size(80.dp),
-                                shape = CircleShape,
-                                color = colorScheme.primary.copy(alpha = 0.2f),
-                                border = BorderStroke(3.dp, colorScheme.primary.copy(alpha = 0.5f))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.fillMaxSize()
+                                // Avatar
+                                Surface(
+                                    onClick = onChangeProfilePhoto,
+                                    modifier = Modifier.size(80.dp),
+                                    shape = CircleShape,
+                                    color = colorScheme.primary.copy(alpha = 0.2f),
+                                    border = BorderStroke(3.dp, colorScheme.primary.copy(alpha = 0.5f))
                                 ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Text(
+                                            text = userName.take(1).uppercase(),
+                                            fontSize = 36.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = colorScheme.primary
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = userName.take(1).uppercase(),
-                                        fontSize = 36.sp,
+                                        text = userName,
+                                        fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = colorScheme.primary
+                                        color = colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = userEmail,
+                                        fontSize = 14.sp,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                IconButton(onClick = onChangeProfilePhoto) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Editar perfil",
+                                        tint = colorScheme.primary
                                     )
                                 }
                             }
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = userName,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = userEmail,
-                                    fontSize = 14.sp,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            IconButton(onClick = onChangeProfilePhoto) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Editar perfil",
-                                    tint = colorScheme.primary
-                                )
-                            }
                         }
                     }
-                }
 
-                // Seção: Conta e Segurança
-                item {
-                    ExpandableSection(
-                        title = "Conta e Segurança",
-                        icon = Icons.Default.Security,
-                        isExpanded = expandedSection == "account",
-                        onToggle = { expandedSection = if (expandedSection == "account") null else "account" }
-                    ) {
-                        SettingsItem(
-                            icon = Icons.Default.Person,
-                            title = "Alterar Nome de Usuário",
-                            subtitle = userName,
-                            onClick = onChangeUsername
-                        )
-                        SettingsItem(
-                            icon = Icons.Default.Email,
-                            title = "Alterar E-mail",
-                            subtitle = userEmail,
-                            onClick = onChangeEmail
-                        )
-                        SettingsItem(
-                            icon = Icons.Default.Lock,
-                            title = "Alterar Senha",
-                            subtitle = "••••••••",
-                            onClick = onChangePassword
-                        )
-                        SettingsSwitchItem(
-                            icon = Icons.Default.Shield,
-                            title = "Autenticação de Dois Fatores",
-                            subtitle = if (twoFactorEnabled) "Ativada" else "Desativada",
-                            checked = twoFactorEnabled,
-                            onCheckedChange = { 
-                                twoFactorEnabled = it
-                                if (it) onEnable2FA()
-                            }
-                        )
-                        SettingsItem(
-                            icon = Icons.Default.History,
-                            title = "Histórico de Atividade",
-                            subtitle = "Últimos logins",
-                            onClick = onActivityHistory
-                        )
+                    // Seção: Conta e Segurança
+                    item {
+                        ExpandableSection(
+                            title = "Conta e Segurança",
+                            icon = Icons.Default.Security,
+                            isExpanded = expandedSection == "account",
+                            onToggle = { expandedSection = if (expandedSection == "account") null else "account" }
+                        ) {
+                            SettingsItem(
+                                icon = Icons.Default.Person,
+                                title = "Alterar Nome de Usuário",
+                                subtitle = userName,
+                                onClick = onChangeUsername
+                            )
+                            SettingsItem(
+                                icon = Icons.Default.Email,
+                                title = "Alterar E-mail",
+                                subtitle = userEmail,
+                                onClick = onChangeEmail
+                            )
+                            SettingsItem(
+                                icon = Icons.Default.Lock,
+                                title = "Alterar Senha",
+                                subtitle = "••••••••",
+                                onClick = onChangePassword
+                            )
+                            SettingsSwitchItem(
+                                icon = Icons.Default.Shield,
+                                title = "Autenticação de Dois Fatores",
+                                subtitle = if (twoFactorEnabled) "Ativada" else "Desativada",
+                                checked = twoFactorEnabled,
+                                onCheckedChange = {
+                                    twoFactorEnabled = it
+                                    if (it) onEnable2FA()
+                                }
+                            )
+                            SettingsItem(
+                                icon = Icons.Default.History,
+                                title = "Histórico de Atividade",
+                                subtitle = "Últimos logins",
+                                onClick = onActivityHistory
+                            )
+                        }
                     }
                 }
 
@@ -410,10 +414,12 @@ fun SettingsScreen(
                     }
                 }
 
-                // Botão de Logout
+                // Botão de Login/Logout
                 item {
                     Button(
-                        onClick = onLogout,
+                        onClick = {
+                            if (isLoggedIn) onLogout() else onLoginClick()
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
@@ -428,7 +434,11 @@ fun SettingsScreen(
                                 .fillMaxSize()
                                 .background(
                                     brush = Brush.horizontalGradient(
-                                        colors = listOf(colorScheme.error, colorScheme.errorContainer)
+                                        colors = if (isLoggedIn) {
+                                            listOf(colorScheme.error, colorScheme.errorContainer)
+                                        } else {
+                                            listOf(colorScheme.primary, colorScheme.primaryContainer)
+                                        }
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -438,15 +448,15 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Logout,
+                                    imageVector = if (isLoggedIn) Icons.Default.Logout else Icons.Default.Login,
                                     contentDescription = null,
-                                    tint = colorScheme.onError
+                                    tint = if (isLoggedIn) colorScheme.onError else colorScheme.onPrimary
                                 )
                                 Text(
-                                    text = "Sair da Conta",
+                                    text = if (isLoggedIn) "Sair da Conta" else "Realizar Login",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = colorScheme.onError
+                                    color = if (isLoggedIn) colorScheme.onError else colorScheme.onPrimary
                                 )
                             }
                         }

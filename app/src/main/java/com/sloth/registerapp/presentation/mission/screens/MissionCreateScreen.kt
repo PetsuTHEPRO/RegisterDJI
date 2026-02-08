@@ -58,6 +58,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
     var currentStep by remember { mutableStateOf(0) }
     var missionData by remember { mutableStateOf(MissionData()) }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("A missão foi criada com sucesso!") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -65,6 +66,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
     val createMissionUseCase = remember {
         CreateMissionUseCase(
             MissionRepositoryImpl(
+                context,
                 RetrofitClient.getInstance(context),
                 TokenRepository.getInstance(context)
             )
@@ -202,7 +204,12 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                                         val result = withContext(Dispatchers.IO) {
                                             createMissionUseCase(missionDto)
                                         }
-                                        result.onSuccess {
+                                        result.onSuccess { createdMission ->
+                                            successMessage = if (createdMission.id < 0) {
+                                                "Missão salva localmente. Ela será enviada ao servidor quando houver conexão."
+                                            } else {
+                                                "A missão \"${missionData.name}\" foi criada com sucesso!"
+                                            }
                                             showSuccessDialog = true
                                         }.onFailure { e ->
                                             errorMessage = when (e) {
@@ -246,7 +253,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
         if (showSuccessDialog) {
             SuccessDialog(
                 onDismiss = { showSuccessDialog = false; onBackClick() },
-                missionData.name
+                message = successMessage
             )
         }
 
@@ -723,7 +730,7 @@ fun InfoRow(label: String, value: String) {
 @Composable
 fun SuccessDialog(
     onDismiss: () -> Unit,
-    name: String
+    message: String
 ) {
     val colorScheme = MaterialTheme.colorScheme
     AlertDialog(
@@ -737,7 +744,7 @@ fun SuccessDialog(
         },
         text = {
             Text(
-                "A missão \"$name\" foi criada com sucesso!",
+                message,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )

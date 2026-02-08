@@ -18,19 +18,33 @@ class MissionMediaManager private constructor(
     private val localSessionManager = LocalSessionManager.getInstance(appContext)
     private val missionMediaDao = AppDatabase.getInstance(appContext).missionMediaDao()
 
-    suspend fun registerPhotoCapture(missionId: String, dronePath: String? = null) {
+    suspend fun registerPhotoCapture(
+        missionId: String,
+        dronePath: String? = null,
+        localPath: String? = null,
+        source: MissionMediaSource = MissionMediaSource.DRONE_SD
+    ) {
         registerMedia(
             missionId = missionId,
             mediaType = MissionMediaType.PHOTO,
-            dronePath = dronePath
+            dronePath = dronePath,
+            localPath = localPath,
+            source = source
         )
     }
 
-    suspend fun registerVideoCapture(missionId: String, dronePath: String? = null) {
+    suspend fun registerVideoCapture(
+        missionId: String,
+        dronePath: String? = null,
+        localPath: String? = null,
+        source: MissionMediaSource = MissionMediaSource.DRONE_SD
+    ) {
         registerMedia(
             missionId = missionId,
             mediaType = MissionMediaType.VIDEO,
-            dronePath = dronePath
+            dronePath = dronePath,
+            localPath = localPath,
+            source = source
         )
     }
 
@@ -47,7 +61,9 @@ class MissionMediaManager private constructor(
     private suspend fun registerMedia(
         missionId: String,
         mediaType: MissionMediaType,
-        dronePath: String?
+        dronePath: String?,
+        localPath: String?,
+        source: MissionMediaSource
     ) {
         val ownerUserId = resolveOwnerUserId()
         missionMediaDao.insert(
@@ -56,12 +72,12 @@ class MissionMediaManager private constructor(
                 ownerUserId = ownerUserId,
                 missionId = missionId,
                 mediaType = mediaType.name,
-                source = MissionMediaSource.DRONE_SD.name,
+                source = source.name,
                 dronePath = dronePath,
-                localPath = null,
+                localPath = localPath,
                 createdAtMs = System.currentTimeMillis(),
                 sizeBytes = null,
-                isDownloaded = false
+                isDownloaded = source == MissionMediaSource.PHONE_LOCAL
             )
         )
     }

@@ -43,6 +43,9 @@ interface MissionCacheDao {
 
     @Query("DELETE FROM mission_cache WHERE missionId = :missionId AND ownerUserId = :ownerUserId")
     suspend fun deleteById(missionId: String, ownerUserId: String)
+
+    @Query("DELETE FROM mission_cache WHERE ownerUserId = :ownerUserId")
+    suspend fun deleteAllByOwner(ownerUserId: String)
 }
 
 @Dao
@@ -70,4 +73,13 @@ interface MissionMediaDao {
 
     @Query("UPDATE mission_media SET localPath = :localPath, isDownloaded = 1, source = 'PHONE_LOCAL' WHERE id = :id")
     suspend fun markDownloaded(id: String, localPath: String)
+}
+
+@Dao
+interface LoginHistoryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(item: LoginHistoryEntity)
+
+    @Query("SELECT * FROM login_history WHERE ownerUserId = :ownerUserId ORDER BY createdAtMs DESC LIMIT :limit")
+    suspend fun getRecentByOwner(ownerUserId: String, limit: Int): List<LoginHistoryEntity>
 }

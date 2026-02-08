@@ -13,7 +13,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
+import com.sloth.registerapp.core.utils.MeasurementConverter
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 
 @Composable
@@ -23,7 +26,12 @@ fun DroneControlScreen(onMissionsClick: () -> Unit) {
     // TODO: Implement emergency stop button with haptic feedback
     
     val droneController = remember { DroneCommandManager() }
+    val context = LocalContext.current
+    val measurementRepo = remember { MeasurementSettingsRepository.getInstance(context) }
     val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
+    val measurementSystem by measurementRepo.measurementSystem.collectAsStateWithLifecycle(
+        initialValue = MeasurementSettingsRepository.SYSTEM_METRIC
+    )
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Telemetry summary
@@ -33,8 +41,8 @@ fun DroneControlScreen(onMissionsClick: () -> Unit) {
                 .padding(8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text("Alt: ${telemetry.altitude}m")
-            Text("Vel: ${telemetry.speed} m/s")
+            Text("Alt: ${MeasurementConverter.formatAltitude(telemetry.altitude, measurementSystem)}")
+            Text("Vel: ${MeasurementConverter.formatSpeed(telemetry.speed, measurementSystem)}")
             Text("Bateria: ${telemetry.batteryLevel}%")
         }
 

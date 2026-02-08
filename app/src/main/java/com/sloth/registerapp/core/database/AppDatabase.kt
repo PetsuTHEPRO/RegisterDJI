@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [SyncQueueEntity::class, MissionCacheEntity::class, FlightReportEntity::class, MissionMediaEntity::class],
-    version = 4,
+    entities = [SyncQueueEntity::class, MissionCacheEntity::class, FlightReportEntity::class, MissionMediaEntity::class, LoginHistoryEntity::class],
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +18,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun missionCacheDao(): MissionCacheDao
     abstract fun flightReportDao(): FlightReportDao
     abstract fun missionMediaDao(): MissionMediaDao
+    abstract fun loginHistoryDao(): LoginHistoryDao
 
     companion object {
         @Volatile
@@ -78,6 +79,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS login_history (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        ownerUserId TEXT NOT NULL,
+                        usernameSnapshot TEXT NOT NULL,
+                        deviceLabel TEXT,
+                        ipOrNetwork TEXT,
+                        status TEXT NOT NULL,
+                        createdAtMs INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -85,7 +104,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "drone_app_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

@@ -64,7 +64,9 @@ import com.sloth.registerapp.core.auth.SessionManager
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.RetrofitClient
+import com.sloth.registerapp.features.auth.data.manager.LoginHistoryManager
 import com.sloth.registerapp.features.auth.data.remote.dto.LoginRequestDto
+import com.sloth.registerapp.features.auth.domain.model.LoginAttemptStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -85,6 +87,7 @@ fun LoginScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val loginHistoryManager = remember(context) { LoginHistoryManager.getInstance(context) }
     val tag = "LoginScreen"
     val colorScheme = MaterialTheme.colorScheme
 
@@ -365,6 +368,11 @@ fun LoginScreen(
                                                 email = effectiveEmail
                                             )
                                             localSessionManager.setServerAuthState(ServerAuthState.SERVER_AUTH_OK)
+                                            loginHistoryManager.recordLoginAttempt(
+                                                username = effectiveUsername.ifBlank { username },
+                                                status = LoginAttemptStatus.SUCCESS,
+                                                ownerUserId = effectiveUserId
+                                            )
 
                                             navController.navigate("dashboard") {
                                                 popUpTo("welcome") { inclusive = true }
@@ -376,9 +384,17 @@ fun LoginScreen(
                                             } else {
                                                 "Erro ${e.code()}: ${e.message()}"
                                             }
+                                            loginHistoryManager.recordLoginAttempt(
+                                                username = username,
+                                                status = LoginAttemptStatus.FAILED
+                                            )
                                             showError(message)
                                         } catch (e: Exception) {
                                             Log.e(tag, "Login error: ${e.message}", e)
+                                            loginHistoryManager.recordLoginAttempt(
+                                                username = username,
+                                                status = LoginAttemptStatus.FAILED
+                                            )
                                             showError("Falha na conexão. Verifique sua internet.")
                                         } finally {
                                             isLoading = false

@@ -39,12 +39,16 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
+import com.sloth.registerapp.core.settings.MediaStorageSettingsRepository
+import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
+import com.sloth.registerapp.core.utils.MeasurementConverter
 import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
+import com.sloth.registerapp.features.report.domain.model.MissionMediaSource
 import com.sloth.registerapp.presentation.video.components.VideoFeedView
 import com.sloth.registerapp.presentation.mission.components.MapboxMiniMapView
 import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
@@ -84,9 +88,17 @@ fun DroneCameraScreen(
     val isFeedAvailable = product != null
 
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
+    val mediaStorageRepo = remember { MediaStorageSettingsRepository.getInstance(context) }
+    val measurementRepo = remember { MeasurementSettingsRepository.getInstance(context) }
     val mediaManager = remember { MissionMediaManager.getInstance(context) }
     val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
+    val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsStateWithLifecycle(
+        initialValue = MediaStorageSettingsRepository.TARGET_PHONE
+    )
+    val measurementSystem by measurementRepo.measurementSystem.collectAsStateWithLifecycle(
+        initialValue = MeasurementSettingsRepository.SYSTEM_METRIC
+    )
     val rtmpStreamer = remember { DjiRtmpStreamer(rtmpUrl) }
     val streamState by rtmpStreamer.state.collectAsStateWithLifecycle()
     val previewEnabled = streamState !is StreamState.Streaming && streamState !is StreamState.Connecting
@@ -282,7 +294,10 @@ fun DroneCameraScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 8.dp)
         ) {
-            TelemetryHudStrip(telemetry = telemetry)
+            TelemetryHudStrip(
+                telemetry = telemetry,
+                measurementSystem = measurementSystem
+            )
         }
 
         // Mini mapa no canto inferior esquerdo + ações de voo sobrepostas
@@ -360,10 +375,20 @@ fun DroneCameraScreen(
                         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
                         if (success && !activeMissionId.isNullOrBlank()) {
                             scope.launch {
-                                mediaManager.registerPhotoCapture(
-                                    missionId = activeMissionId!!,
-                                    dronePath = "drone://photo/${System.currentTimeMillis()}.jpg"
-                                )
+                                val now = System.currentTimeMillis()
+                                if (mediaStorageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) {
+                                    mediaManager.registerPhotoCapture(
+                                        missionId = activeMissionId!!,
+                                        dronePath = "drone://photo/$now.jpg",
+                                        source = MissionMediaSource.DRONE_SD
+                                    )
+                                } else {
+                                    mediaManager.registerPhotoCapture(
+                                        missionId = activeMissionId!!,
+                                        localPath = "content://vantly/local/photo/$now.jpg",
+                                        source = MissionMediaSource.PHONE_LOCAL
+                                    )
+                                }
                             }
                         }
                     }
@@ -378,10 +403,20 @@ fun DroneCameraScreen(
                             Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
                             if (success && !activeMissionId.isNullOrBlank()) {
                                 scope.launch {
-                                    mediaManager.registerVideoCapture(
-                                        missionId = activeMissionId!!,
-                                        dronePath = "drone://video/${System.currentTimeMillis()}.mp4"
-                                    )
+                                    val now = System.currentTimeMillis()
+                                    if (mediaStorageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) {
+                                        mediaManager.registerVideoCapture(
+                                            missionId = activeMissionId!!,
+                                            dronePath = "drone://video/$now.mp4",
+                                            source = MissionMediaSource.DRONE_SD
+                                        )
+                                    } else {
+                                        mediaManager.registerVideoCapture(
+                                            missionId = activeMissionId!!,
+                                            localPath = "content://vantly/local/video/$now.mp4",
+                                            source = MissionMediaSource.PHONE_LOCAL
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -586,7 +621,10 @@ fun CameraControls(
 }
 
 @Composable
-fun TelemetryHudStrip(telemetry: DroneTelemetry) {
+fun TelemetryHudStrip(
+    telemetry: DroneTelemetry,
+    measurementSystem: String
+) {
     Row(
         modifier = Modifier
             .background(Color.Black.copy(alpha = 0.34f), RoundedCornerShape(10.dp))
@@ -594,9 +632,18 @@ fun TelemetryHudStrip(telemetry: DroneTelemetry) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HudMetric(icon = Icons.Default.Height, value = String.format("%.1fm", telemetry.altitude))
-        HudMetric(icon = Icons.Default.Speed, value = String.format("%.1fm/s", telemetry.speed))
-        HudMetric(icon = Icons.Default.TripOrigin, value = String.format("%.0fm", telemetry.distanceFromHome))
+        HudMetric(
+            icon = Icons.Default.Height,
+            value = MeasurementConverter.formatAltitude(telemetry.altitude, measurementSystem)
+        )
+        HudMetric(
+            icon = Icons.Default.Speed,
+            value = MeasurementConverter.formatSpeed(telemetry.speed, measurementSystem)
+        )
+        HudMetric(
+            icon = Icons.Default.TripOrigin,
+            value = MeasurementConverter.formatDistance(telemetry.distanceFromHome, measurementSystem)
+        )
         HudMetric(icon = Icons.Default.GpsFixed, value = "${telemetry.gpsSatellites}")
     }
 }

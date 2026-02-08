@@ -58,14 +58,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.features.report.data.manager.FlightReportManager
 import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
+import com.sloth.registerapp.features.report.domain.model.FlightReport
 import com.sloth.registerapp.features.report.domain.model.MissionMedia
 import com.sloth.registerapp.features.mission.domain.model.MissionExecutionMode
 import com.sloth.registerapp.features.mission.domain.model.MissionOutcomeStatus
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 private data class MissionReport(
-    val id: String,
+    val id: String, // id do relatório
+    val missionId: String, // id da missão para abrir detalhe/galeria
     val name: String,
     val status: MissionOutcomeStatus,
     val executionMode: MissionExecutionMode,
@@ -80,15 +86,13 @@ fun ReportScreen(
     onBackClick: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val flightReportManager = remember { FlightReportManager(context) }
+    val reports by flightReportManager.reports.collectAsStateWithLifecycle(initialValue = emptyList())
     var query by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf<MissionOutcomeStatus?>(null) }
 
-    val missions = listOf(
-        MissionReport("m1", "Perímetro Norte", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.REAL, "12 Jan 2026", "18m 42s", "DJI Mavic 3 Enterprise"),
-        MissionReport("m2", "Linha de Transmissão", MissionOutcomeStatus.ABORTED, MissionExecutionMode.REAL, "09 Jan 2026", "07m 05s", "DJI Phantom 4 RTK"),
-        MissionReport("m3", "Talhão 07", MissionOutcomeStatus.FAILED, MissionExecutionMode.SIMULATED, "05 Jan 2026", "03m 21s", "Autel EVO II Pro"),
-        MissionReport("m4", "Alvo Urbano", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.UNKNOWN, "02 Jan 2026", "22m 10s", "DJI Inspire 2")
-    )
+    val missions = remember(reports) { reports.map { it.toUiModel() } }
 
     val normalizedQuery = query.trim().lowercase()
     val filteredMissions = missions.filter { mission ->
@@ -178,8 +182,29 @@ fun ReportScreen(
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        items(filteredMissions, key = { it.id }) { mission ->
-            MissionReportCard(mission = mission, onClick = { onMissionClick(mission.id) })
+        if (filteredMissions.isEmpty()) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = colorScheme.surface,
+                    border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Text(
+                        text = if (missions.isEmpty()) {
+                            "Nenhum relatório disponível ainda."
+                        } else {
+                            "Nenhum relatório encontrado com os filtros atuais."
+                        },
+                        modifier = Modifier.padding(14.dp),
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            items(filteredMissions, key = { it.id }) { mission ->
+                MissionReportCard(mission = mission, onClick = { onMissionClick(mission.missionId) })
+            }
         }
     }
 }
@@ -435,4 +460,37 @@ private fun MissionReportCard(
             }
         }
     }
+}
+
+private fun FlightReport.toUiModel(): MissionReport {
+    val status = extraData["status"]
+        ?.let { runCatching { MissionOutcomeStatus.valueOf(it) }.getOrNull() }
+        ?: MissionOutcomeStatus.COMPLETED
+    val executionMode = extraData["executionMode"]
+        ?.let { runCatching { MissionExecutionMode.valueOf(it) }.getOrNull() }
+        ?: MissionExecutionMode.UNKNOWN
+    val missionId = extraData["missionId"] ?: id
+
+    return MissionReport(
+        id = id,
+        missionId = missionId,
+        name = missionName,
+        status = status,
+        executionMode = executionMode,
+        date = createdAtMs.toShortDate(),
+        duration = durationMs.toDurationLabel(),
+        modelName = aircraftName
+    )
+}
+
+private fun Long.toShortDate(): String {
+    val formatter = SimpleDateFormat("dd MMM yyyy", Locale("pt", "BR"))
+    return formatter.format(Date(this))
+}
+
+private fun Long.toDurationLabel(): String {
+    val totalSeconds = (this / 1000).coerceAtLeast(0)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "${minutes}m ${seconds.toString().padStart(2, '0')}s"
 }

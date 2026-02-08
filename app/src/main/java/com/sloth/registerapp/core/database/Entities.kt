@@ -61,3 +61,15 @@ data class MissionMediaEntity(
     val sizeBytes: Long? = null,
     val isDownloaded: Boolean = false
 )
+
+@Entity(tableName = "login_history")
+data class LoginHistoryEntity(
+    @PrimaryKey
+    val id: String,
+    val ownerUserId: String = "__guest__",
+    val usernameSnapshot: String,
+    val deviceLabel: String? = null,
+    val ipOrNetwork: String? = null,
+    val status: String, // SUCCESS, FAILED
+    val createdAtMs: Long = System.currentTimeMillis()
+)

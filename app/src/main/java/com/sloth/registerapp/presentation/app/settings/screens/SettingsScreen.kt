@@ -24,7 +24,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalContext
+import com.sloth.registerapp.core.settings.MediaStorageSettingsRepository
+import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
+import com.sloth.registerapp.features.mission.data.manager.MissionStorageManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,41 +36,46 @@ fun SettingsScreen(
     userName: String = "Usuário",
     userEmail: String = "usuario@labubu.com",
     isLoggedIn: Boolean = false,
+    selectedTheme: String = "Padrão do Sistema",
     onBackClick: () -> Unit = {},
     onChangeProfilePhoto: () -> Unit = {},
     onChangeUsername: () -> Unit = {},
-    onChangeEmail: () -> Unit = {},
     onChangePassword: () -> Unit = {},
-    onEnable2FA: () -> Unit = {},
-    onActivityHistory: () -> Unit = {},
+    onRecentLogins: () -> Unit = {},
     onManagePermissions: () -> Unit = {},
     onAbout: () -> Unit = {},
+    onPrivacyPolicy: () -> Unit = {},
+    onThemeChange: (String) -> Unit = {},
     onLoginClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
     // Estados
-    var theme by remember { mutableStateOf("Escuro") }
-    var units by remember { mutableStateOf("Métrico") }
     var notifications by remember { mutableStateOf(true) }
-    var twoFactorEnabled by remember { mutableStateOf(false) }
-    var wifiOnlySync by remember { mutableStateOf(true) }
-    var lowResDownload by remember { mutableStateOf(false) }
-    var autoCleanCache by remember { mutableStateOf(true) }
     var streamQuality by remember { mutableStateOf("Automática") }
-    var showGrid by remember { mutableStateOf(false) }
     var expandedSection by remember { mutableStateOf<String?>(null) }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
+    var cacheSizeBytes by remember { mutableLongStateOf(0L) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val rtmpRepo = remember(context) { RtmpSettingsRepository.getInstance(context) }
+    val mediaStorageRepo = remember(context) { MediaStorageSettingsRepository.getInstance(context) }
+    val measurementRepo = remember(context) { MeasurementSettingsRepository.getInstance(context) }
+    val missionStorageManager = remember(context) { MissionStorageManager.getInstance(context) }
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsState(initial = RtmpSettingsRepository.DEFAULT_URL)
+    val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsState(initial = MediaStorageSettingsRepository.TARGET_PHONE)
+    val measurementSystem by measurementRepo.measurementSystem.collectAsState(initial = MeasurementSettingsRepository.SYSTEM_METRIC)
     var rtmpUrlInput by remember { mutableStateOf(rtmpUrl) }
 
     LaunchedEffect(rtmpUrl) {
         if (rtmpUrlInput != rtmpUrl) {
             rtmpUrlInput = rtmpUrl
         }
+    }
+
+    LaunchedEffect(Unit) {
+        cacheSizeBytes = missionStorageManager.getMissionCacheSizeBytes()
     }
 
     Box(
@@ -181,13 +189,6 @@ fun SettingsScreen(
                                     )
                                 }
 
-                                IconButton(onClick = onChangeProfilePhoto) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Editar perfil",
-                                        tint = colorScheme.primary
-                                    )
-                                }
                             }
                         }
                     }
@@ -207,32 +208,16 @@ fun SettingsScreen(
                                 onClick = onChangeUsername
                             )
                             SettingsItem(
-                                icon = Icons.Default.Email,
-                                title = "Alterar E-mail",
-                                subtitle = userEmail,
-                                onClick = onChangeEmail
-                            )
-                            SettingsItem(
                                 icon = Icons.Default.Lock,
                                 title = "Alterar Senha",
                                 subtitle = "••••••••",
                                 onClick = onChangePassword
                             )
-                            SettingsSwitchItem(
-                                icon = Icons.Default.Shield,
-                                title = "Autenticação de Dois Fatores",
-                                subtitle = if (twoFactorEnabled) "Ativada" else "Desativada",
-                                checked = twoFactorEnabled,
-                                onCheckedChange = {
-                                    twoFactorEnabled = it
-                                    if (it) onEnable2FA()
-                                }
-                            )
                             SettingsItem(
                                 icon = Icons.Default.History,
-                                title = "Histórico de Atividade",
+                                title = "Últimos Logins",
                                 subtitle = "Últimos logins",
-                                onClick = onActivityHistory
+                                onClick = onRecentLogins
                             )
                         }
                     }
@@ -249,43 +234,19 @@ fun SettingsScreen(
                         SettingsDropdownItem(
                             icon = Icons.Default.Folder,
                             title = "Local de Salvamento",
-                            options = listOf("Memória Interna", "Cartão SD do Drone"),
-                            selectedOption = "Memória Interna",
-                            onOptionSelected = { }
+                            options = listOf("Celular", "SD do Drone"),
+                            selectedOption = mediaStorageTarget.toStorageLabel(),
+                            onOptionSelected = { label ->
+                                scope.launch {
+                                    mediaStorageRepo.setMediaStorageTarget(label.toStorageTarget())
+                                }
+                            }
                         )
                         SettingsItem(
                             icon = Icons.Default.CleaningServices,
-                            title = "Limpar Cache Agora",
-                            subtitle = "Liberar 250 MB",
-                            onClick = { }
-                        )
-                        SettingsSwitchItem(
-                            icon = Icons.Default.AutoDelete,
-                            title = "Auto-limpeza de Cache",
-                            subtitle = "Apagar itens com mais de 30 dias",
-                            checked = autoCleanCache,
-                            onCheckedChange = { autoCleanCache = it }
-                        )
-                        SettingsDropdownItem(
-                            icon = Icons.Default.DataUsage,
-                            title = "Limite de Cache",
-                            options = listOf("500 MB", "1 GB", "2 GB", "5 GB"),
-                            selectedOption = "1 GB",
-                            onOptionSelected = { }
-                        )
-                        SettingsSwitchItem(
-                            icon = Icons.Default.Wifi,
-                            title = "Sincronizar via Wi-Fi",
-                            subtitle = "Economizar dados móveis",
-                            checked = wifiOnlySync,
-                            onCheckedChange = { wifiOnlySync = it }
-                        )
-                        SettingsSwitchItem(
-                            icon = Icons.Default.HighQuality,
-                            title = "Baixar em Baixa Resolução",
-                            subtitle = "Economizar espaço",
-                            checked = lowResDownload,
-                            onCheckedChange = { lowResDownload = it }
+                            title = "Limpar missões salvas no dispositivo",
+                            subtitle = "Uso atual: ${cacheSizeBytes.toReadableBytes()}",
+                            onClick = { showClearCacheDialog = true }
                         )
                     }
                 }
@@ -302,15 +263,19 @@ fun SettingsScreen(
                             icon = Icons.Default.Palette,
                             title = "Tema do Aplicativo",
                             options = listOf("Claro", "Escuro", "Padrão do Sistema"),
-                            selectedOption = theme,
-                            onOptionSelected = { theme = it }
+                            selectedOption = selectedTheme,
+                            onOptionSelected = onThemeChange
                         )
                         SettingsDropdownItem(
                             icon = Icons.Default.Speed,
                             title = "Unidades de Medida",
                             options = listOf("Métrico (m, km/h)", "Imperial (ft, mph)"),
-                            selectedOption = units,
-                            onOptionSelected = { units = it }
+                            selectedOption = measurementSystem.toMeasurementLabel(),
+                            onOptionSelected = { label ->
+                                scope.launch {
+                                    measurementRepo.setMeasurementSystem(label.toMeasurementSystem())
+                                }
+                            }
                         )
                         SettingsSwitchItem(
                             icon = Icons.Default.Notifications,
@@ -336,13 +301,6 @@ fun SettingsScreen(
                             options = listOf("Automática", "Alta Definição (HD)", "Fluida"),
                             selectedOption = streamQuality,
                             onOptionSelected = { streamQuality = it }
-                        )
-                        SettingsSwitchItem(
-                            icon = Icons.Default.Grid3x3,
-                            title = "Exibir Grade na Tela",
-                            subtitle = "Regra dos Terços",
-                            checked = showGrid,
-                            onCheckedChange = { showGrid = it }
                         )
                     }
                 }
@@ -409,7 +367,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Policy,
                             title = "Política de Privacidade",
                             subtitle = "Termos e condições",
-                            onClick = { }
+                            onClick = onPrivacyPolicy
                         )
                     }
                 }
@@ -466,6 +424,36 @@ fun SettingsScreen(
                 item { Spacer(modifier = Modifier.height(20.dp)) }
             }
         }
+    }
+
+    if (showClearCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheDialog = false },
+            title = { Text("Limpar missões locais") },
+            text = {
+                Text(
+                    "Isso remove as missões salvas neste dispositivo (${cacheSizeBytes.toReadableBytes()}). Esta ação não pode ser desfeita."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            missionStorageManager.clearMissionCache()
+                            cacheSizeBytes = missionStorageManager.getMissionCacheSizeBytes()
+                            showClearCacheDialog = false
+                        }
+                    }
+                ) {
+                    Text("Limpar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
@@ -733,5 +721,47 @@ fun SettingsDropdownItem(
                 }
             }
         }
+    }
+}
+
+private fun String.toStorageLabel(): String {
+    return when (this) {
+        MediaStorageSettingsRepository.TARGET_DRONE_SD -> "SD do Drone"
+        else -> "Celular"
+    }
+}
+
+private fun String.toStorageTarget(): String {
+    return if (this == "SD do Drone") {
+        MediaStorageSettingsRepository.TARGET_DRONE_SD
+    } else {
+        MediaStorageSettingsRepository.TARGET_PHONE
+    }
+}
+
+private fun String.toMeasurementLabel(): String {
+    return if (this == MeasurementSettingsRepository.SYSTEM_IMPERIAL) {
+        "Imperial (ft, mph)"
+    } else {
+        "Métrico (m, km/h)"
+    }
+}
+
+private fun String.toMeasurementSystem(): String {
+    return if (startsWith("Imperial")) {
+        MeasurementSettingsRepository.SYSTEM_IMPERIAL
+    } else {
+        MeasurementSettingsRepository.SYSTEM_METRIC
+    }
+}
+
+private fun Long.toReadableBytes(): String {
+    if (this <= 0L) return "0 B"
+    val kb = this / 1024.0
+    val mb = kb / 1024.0
+    return if (mb >= 1.0) {
+        String.format("%.2f MB", mb)
+    } else {
+        String.format("%.1f KB", kb)
     }
 }

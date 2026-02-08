@@ -1,6 +1,7 @@
 package com.sloth.registerapp.core.network
 
 import com.sloth.registerapp.features.auth.data.remote.dto.LoginRequestDto
+import com.sloth.registerapp.core.network.dto.ApiStatusDto
 import com.sloth.registerapp.core.network.dto.AuthTokensDto
 import com.sloth.registerapp.core.network.dto.RefreshTokenRequestDto
 import com.sloth.registerapp.features.auth.data.remote.dto.RegisterRequestDto
@@ -13,13 +14,16 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 
 interface SdiaApiService {
+    @GET(".")
+    suspend fun getApiStatus(): ApiStatusDto
+
     @POST("auth/login")
     suspend fun login(@Header("Authorization") authHeader: String): AuthTokensDto
 
     @POST("auth/login")
     suspend fun loginWithBody(@Body request: LoginRequestDto): AuthTokensDto
 
-    @POST("auth/register") // NOVO: Endpoint para registrar um novo usuário
+    @POST("auth/register")
     suspend fun register(@Body request: RegisterRequestDto): RegisterResponseDto
 
     @POST("auth/refresh")

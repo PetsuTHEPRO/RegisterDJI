@@ -2,19 +2,50 @@ package com.sloth.registerapp.presentation.auth.screens
 
 import android.util.Base64
 import android.util.Log
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,15 +58,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.navigation.NavController
 import com.sloth.registerapp.core.auth.LocalSessionManager
+import com.sloth.registerapp.core.auth.SessionManager
+import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.RetrofitClient
-import com.sloth.registerapp.core.auth.TokenRepository
-import com.sloth.registerapp.core.auth.SessionManager
 import com.sloth.registerapp.features.auth.data.remote.dto.LoginRequestDto
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -45,18 +76,43 @@ fun LoginScreen(
     onRegisterClick: () -> Unit,
     onSkipClick: () -> Unit
 ) {
-    var username by remember { mutableStateOf("") } // Alterado de email para username
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
+    var isApiOnline by remember { mutableStateOf<Boolean?>(null) }
 
-    // Adicionado: Contexto e CoroutineScope
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val tag = "LoginScreen"
-
     val colorScheme = MaterialTheme.colorScheme
+
+    LaunchedEffect(Unit) {
+        val apiService = RetrofitClient.getInstance(context)
+        while (isActive) {
+            isApiOnline = runCatching {
+                val health = apiService.getApiStatus()
+                val text = "${health.status.orEmpty()} ${health.message.orEmpty()}".lowercase()
+                health.running == true ||
+                    text.contains("running") ||
+                    text.contains("rodando") ||
+                    text.contains("online") ||
+                    text.contains("ok")
+            }.getOrElse { false }
+            delay(12000)
+        }
+    }
+
+    fun showError(message: String) {
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                message = message,
+                withDismissAction = true,
+                duration = SnackbarDuration.Long
+            )
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -73,37 +129,58 @@ fun LoginScreen(
     ) {
         Column(
             modifier = Modifier
-                .padding(24.dp)
+                .fillMaxSize()
+                .padding(20.dp)
                 .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Logo e Título
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(
+                    onClick = onSkipClick,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = colorScheme.surface.copy(alpha = 0.75f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Fechar",
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(bottom = 32.dp)
+                modifier = Modifier.padding(bottom = 24.dp)
             ) {
-                // Ícone do Drone com pulse effect
                 Surface(
                     modifier = Modifier.size(80.dp),
                     shape = RoundedCornerShape(20.dp),
-                    color = colorScheme.primary.copy(alpha = 0.1f),
+                    color = colorScheme.primary.copy(alpha = 0.12f),
                     border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.3f))
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Text(
-                            text = "🚁",
-                            fontSize = 40.sp
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Perfil",
+                            tint = colorScheme.primary,
+                            modifier = Modifier.size(46.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Título
                 Text(
                     text = "Vantly Neural",
                     fontSize = 28.sp,
@@ -121,7 +198,6 @@ fun LoginScreen(
                 )
             }
 
-            // Card do Formulário
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -132,20 +208,21 @@ fun LoginScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Username Field
                     OutlinedTextField(
-                        value = username, // Alterado de email para username
-                        onValueChange = {
-                            username = it // Alterado de email para username
-                            errorMessage = ""
+                        value = username,
+                        onValueChange = { username = it },
+                        label = { Text("Usuário", color = colorScheme.onSurfaceVariant) },
+                        placeholder = {
+                            Text(
+                                "Digite seu usuário",
+                                color = colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                            )
                         },
-                        label = { Text("Usuário", color = colorScheme.onSurfaceVariant) }, // Alterado de Email para Usuário
-                        placeholder = { Text("seu_usuario", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, // Alterado de seu@email.com para seu_usuario
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Default.Person, // Alterado de Email para Person
+                                imageVector = Icons.Default.AccountCircle,
                                 contentDescription = null,
                                 tint = colorScheme.primary
                             )
@@ -161,19 +238,20 @@ fun LoginScreen(
                             unfocusedContainerColor = colorScheme.surfaceVariant.copy(alpha = 0.6f),
                             cursorColor = colorScheme.primary
                         ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), // Alterado de Email para Text
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                         singleLine = true
                     )
 
-                    // Password Field
                     OutlinedTextField(
                         value = password,
-                        onValueChange = {
-                            password = it
-                            errorMessage = ""
-                        },
+                        onValueChange = { password = it },
                         label = { Text("Senha", color = colorScheme.onSurfaceVariant) },
-                        placeholder = { Text("Digite sua senha", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                        placeholder = {
+                            Text(
+                                "Digite sua senha",
+                                color = colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                            )
+                        },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Lock,
@@ -206,9 +284,8 @@ fun LoginScreen(
                         singleLine = true
                     )
 
-                    // Link "Esqueceu a senha?"
                     TextButton(
-                        onClick = { /* TODO: Implementar recuperação de senha */ },
+                        onClick = { showError("Recuperação de senha ainda não implementada.") },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(
@@ -219,65 +296,25 @@ fun LoginScreen(
                         )
                     }
 
-                    // Mensagem de erro
-                    AnimatedVisibility(
-                        visible = errorMessage.isNotEmpty(),
-                        enter = fadeIn() + slideInVertically(),
-                        exit = fadeOut()
-                    ) {
-                        Surface(
-                            color = colorScheme.error.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, colorScheme.error.copy(alpha = 0.3f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Error,
-                                    contentDescription = null,
-                                    tint = colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = errorMessage,
-                                    color = colorScheme.error,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Botão de Login
                     Button(
                         onClick = {
                             when {
-                                username.isBlank() -> errorMessage = "Por favor, digite seu nome de usuário" // Alterado de email para nome de usuário
-                                // Validação de email removida
-                                password.isBlank() -> errorMessage = "Por favor, digite sua senha"
+                                username.isBlank() -> showError("Por favor, digite seu nome de usuário")
+                                password.isBlank() -> showError("Por favor, digite sua senha")
                                 else -> {
                                     isLoading = true
                                     scope.launch {
                                         try {
-                                            // Instanciar dependências
                                             val apiService = RetrofitClient.getInstance(context)
                                             val tokenRepository = TokenRepository.getInstance(context)
                                             val sessionManager = SessionManager.getInstance(context)
                                             val localSessionManager = LocalSessionManager.getInstance(context)
 
-                                            // 1) Tenta login via BODY (mesmo fluxo do web)
                                             val response = try {
                                                 Log.d(tag, "Tentando login via body")
                                                 apiService.loginWithBody(LoginRequestDto(username, password))
                                             } catch (e: HttpException) {
                                                 if (e.code() == 401) {
-                                                    // 2) Fallback: Basic Auth (compatibilidade com backend antigo)
                                                     Log.d(tag, "Login via body falhou (401). Tentando Basic Auth")
                                                     val credentials = "$username:$password"
                                                     val basicAuth = "Basic " + Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
@@ -296,12 +333,9 @@ fun LoginScreen(
                                             var effectiveUsername = username
                                             var effectiveEmail = ""
 
-                                            // Tenta atualizar dados com auth/me para consolidar identidade
                                             try {
                                                 val userMe = apiService.getMe("Bearer $accessToken")
-                                                if (effectiveUserId.isBlank()) {
-                                                    effectiveUserId = userMe.id
-                                                }
+                                                if (effectiveUserId.isBlank()) effectiveUserId = userMe.id
                                                 effectiveUsername = userMe.username.ifBlank { effectiveUsername }
                                                 effectiveEmail = userMe.email.orEmpty()
                                             } catch (e: Exception) {
@@ -309,20 +343,17 @@ fun LoginScreen(
                                             }
 
                                             if (effectiveUserId.isBlank()) {
-                                                // Evita estado inconsistente quando backend não envia user_id no login.
                                                 effectiveUserId = "local:$username"
                                             }
 
-                                            // Salvar sessão local primeiro para evitar corrida de estado no app.
                                             sessionManager.createSession(
                                                 token = accessToken,
                                                 userId = effectiveUserId,
                                                 username = effectiveUsername,
                                                 email = effectiveEmail,
-                                                expiryDays = 7L // Token válido por 7 dias
+                                                expiryDays = 7L
                                             )
 
-                                            // Salva access + refresh para renovação automática
                                             tokenRepository.saveTokens(
                                                 accessToken = accessToken,
                                                 refreshToken = response.refreshToken
@@ -335,20 +366,20 @@ fun LoginScreen(
                                             )
                                             localSessionManager.setServerAuthState(ServerAuthState.SERVER_AUTH_OK)
 
-                                            // Navegar para o dashboard
                                             navController.navigate("dashboard") {
                                                 popUpTo("welcome") { inclusive = true }
                                             }
-
                                         } catch (e: HttpException) {
                                             Log.e(tag, "Login HTTP ${e.code()}: ${e.message()}")
-                                            errorMessage = when (e.code()) {
-                                                401 -> "Usuário ou senha inválidos." // Alterado de Email para Usuário
-                                                else -> "Erro ${e.code()}: ${e.message()}"
+                                            val message = if (e.code() == 401) {
+                                                "Usuário ou senha inválidos."
+                                            } else {
+                                                "Erro ${e.code()}: ${e.message()}"
                                             }
+                                            showError(message)
                                         } catch (e: Exception) {
                                             Log.e(tag, "Login error: ${e.message}", e)
-                                            errorMessage = "Falha na conexão. Verifique sua internet."
+                                            showError("Falha na conexão. Verifique sua internet.")
                                         } finally {
                                             isLoading = false
                                         }
@@ -360,9 +391,7 @@ fun LoginScreen(
                             .fillMaxWidth()
                             .height(56.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         enabled = !isLoading,
                         contentPadding = PaddingValues(0.dp)
                     ) {
@@ -382,31 +411,20 @@ fun LoginScreen(
                                     modifier = Modifier.size(24.dp)
                                 )
                             } else {
-                                Row(
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "🚀",
-                                        fontSize = 20.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Entrar",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorScheme.onPrimary
-                                    )
-                                }
+                                Text(
+                                    text = "Entrar",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colorScheme.onPrimary
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // Link para Registro
             Row(
-                modifier = Modifier.padding(top = 24.dp),
+                modifier = Modifier.padding(top = 20.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -415,7 +433,7 @@ fun LoginScreen(
                     color = colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.size(4.dp))
                 TextButton(onClick = onRegisterClick) {
                     Text(
                         text = "Registre-se",
@@ -426,59 +444,51 @@ fun LoginScreen(
                 }
             }
 
-            TextButton(
-                onClick = onSkipClick,
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                Text(
-                    text = "Pular por agora",
-                    color = colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            val statusText = when (isApiOnline) {
+                true -> "Sistema Online"
+                false -> "Sistema Offline"
+                null -> "Verificando sistema"
+            }
+            val statusColor = when (isApiOnline) {
+                true -> colorScheme.secondary
+                false -> colorScheme.error
+                null -> colorScheme.tertiary
             }
 
-            // Footer com informações
-            Column(
-                modifier = Modifier.padding(top = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = statusColor.copy(alpha = 0.1f),
+                border = BorderStroke(1.dp, statusColor.copy(alpha = 0.3f))
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.secondary.copy(alpha = 0.1f),
-                        border = BorderStroke(1.dp, colorScheme.secondary.copy(alpha = 0.3f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(colorScheme.secondary, RoundedCornerShape(50.dp))
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Sistema Online",
-                                color = colorScheme.secondary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(statusColor, RoundedCornerShape(50.dp))
+                    )
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = statusText,
+                        color = statusColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-
-                Text(
-                    text = "Autonomous System v1.0",
-                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        )
     }
 }

@@ -1,55 +1,78 @@
 package com.sloth.registerapp.presentation.app.welcome.screens
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sloth.registerapp.R
 
 @Composable
 fun WelcomeScreen(
-    onLoginClick: () -> Unit,
-    onRegisterClick: () -> Unit
+    onLoginClick: () -> Unit
 ) {
-    // Animações
-    val infiniteTransition = rememberInfiniteTransition(label = "drone_float")
-    val droneOffset by infiniteTransition.animateFloat(
+    val infiniteTransition = rememberInfiniteTransition(label = "logo_float")
+    val logoOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = -20f,
+        targetValue = -12f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = FastOutSlowInEasing),
+            animation = tween(2600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "drone_animation"
+        label = "logo_animation"
     )
 
     val pulseAnimation = rememberInfiniteTransition(label = "pulse")
     val pulseScale by pulseAnimation.animateFloat(
         initialValue = 1f,
-        targetValue = 1.3f,
+        targetValue = 1.25f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
+            animation = tween(2200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse_scale"
     )
 
-    // Cores do tema centralizado
     val colorScheme = MaterialTheme.colorScheme
     val backgroundGradient = Brush.verticalGradient(
         colors = listOf(
@@ -64,13 +87,12 @@ fun WelcomeScreen(
             .fillMaxSize()
             .background(backgroundGradient)
     ) {
-        // Glowing orbs no background
         GlowingOrb(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset(x = (-50).dp, y = 50.dp),
             color = colorScheme.primary,
-            size = 200.dp
+            size = 220.dp
         )
 
         GlowingOrb(
@@ -78,7 +100,7 @@ fun WelcomeScreen(
                 .align(Alignment.BottomEnd)
                 .offset(x = 50.dp, y = 100.dp),
             color = colorScheme.tertiary,
-            size = 250.dp
+            size = 260.dp
         )
 
         Column(
@@ -88,48 +110,42 @@ fun WelcomeScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(60.dp))
+            Spacer(modifier = Modifier.height(50.dp))
 
-            // Hero Section
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Status Badge
                 StatusBadge()
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Drone Icon com animação
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
-                        .offset(y = droneOffset.dp),
+                        .size(118.dp)
+                        .offset(y = logoOffset.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Pulse effect
                     Box(
                         modifier = Modifier
-                            .size(120.dp)
+                            .size(118.dp)
                             .scale(pulseScale)
-                            .alpha(0.3f)
+                            .alpha(0.25f)
                             .background(
                                 color = colorScheme.primary,
                                 shape = CircleShape
                             )
                     )
 
-                    // Drone emoji
-                    Text(
-                        text = "🚁",
-                        fontSize = 80.sp,
-                        modifier = Modifier.offset(y = 4.dp)
+                    Image(
+                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                        contentDescription = "Logo Vantly Neural",
+                        modifier = Modifier.size(88.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(34.dp))
 
-                // Title
                 Text(
                     text = "Vantly Neural",
                     fontSize = 36.sp,
@@ -141,7 +157,6 @@ fun WelcomeScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Gradient subtitle
                 Text(
                     text = "Plataforma Inteligente",
                     fontSize = 18.sp,
@@ -162,11 +177,10 @@ fun WelcomeScreen(
                         .padding(horizontal = 16.dp, vertical = 6.dp)
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Description
                 Text(
-                    text = "Sistema avançado de planejamento e monitoramento de missões autônomas para drones",
+                    text = "Sistema de planejamento e monitoramento de missões com análise por machine learning para detecção de modelos em campo.",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Normal,
                     color = colorScheme.onSurfaceVariant,
@@ -175,37 +189,32 @@ fun WelcomeScreen(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
-                // Stats Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(label = "Autônomo", value = "100%")
+                    StatItem(label = "Planejamento", value = "Missões")
                     StatDivider()
-                    StatItem(label = "Monitoramento", value = "Real-time")
+                    StatItem(label = "Monitoramento", value = "Tempo real")
                     StatDivider()
-                    StatItem(label = "Detecção", value = "IA")
+                    StatItem(label = "Machine Learning", value = "Ativo")
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp)) // Replace weight spacer
+            Spacer(modifier = Modifier.height(34.dp))
 
-            // Buttons Section
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Primary Button (Login)
                 Button(
                     onClick = onLoginClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                     contentPadding = PaddingValues(0.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -214,81 +223,36 @@ fun WelcomeScreen(
                             .fillMaxSize()
                             .background(
                                 brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        colorScheme.primary,
-                                        colorScheme.primaryContainer
-                                    )
+                                    colors = listOf(colorScheme.primary, colorScheme.primaryContainer)
                                 )
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "🚀",
-                                fontSize = 20.sp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Entrar",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colorScheme.onPrimary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Secondary Button (Register)
-                OutlinedButton(
-                    onClick = onRegisterClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = colorScheme.surface.copy(alpha = 0.6f),
-                        contentColor = colorScheme.onSurface
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        width = 1.dp,
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                colorScheme.outline,
-                                colorScheme.primary
-                            )
-                        )
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
                         Text(
-                            text = "✨",
-                            fontSize = 20.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Criar Conta",
+                            text = "Entrar",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = colorScheme.onSurface
+                            color = colorScheme.onPrimary
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(32.dp))
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "Vantly Neural v1.0",
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+
+                Spacer(modifier = Modifier.height(22.dp))
             }
         }
     }
 }
 
 @Composable
-fun StatusBadge() {
+private fun StatusBadge() {
     val colorScheme = MaterialTheme.colorScheme
     val pulseAnimation = rememberInfiniteTransition(label = "badge_pulse")
     val badgePulse by pulseAnimation.animateFloat(
@@ -323,14 +287,11 @@ fun StatusBadge() {
                 modifier = Modifier
                     .size(8.dp)
                     .scale(badgePulse)
-                    .background(
-                        color = colorScheme.primary,
-                        shape = CircleShape
-                    )
+                    .background(colorScheme.primary, CircleShape)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Sistema Autônomo de Missões",
+                text = "Planejamento + IA para operações aéreas",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colorScheme.primary
@@ -340,16 +301,15 @@ fun StatusBadge() {
 }
 
 @Composable
-fun StatItem(label: String, value: String) {
+private fun StatItem(label: String, value: String) {
     val colorScheme = MaterialTheme.colorScheme
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = colorScheme.primary
+            color = colorScheme.primary,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -363,20 +323,18 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun StatDivider() {
+private fun StatDivider() {
     val colorScheme = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
             .width(1.dp)
             .height(40.dp)
-            .background(
-                color = colorScheme.outline.copy(alpha = 0.5f)
-            )
+            .background(colorScheme.outline.copy(alpha = 0.5f))
     )
 }
 
 @Composable
-fun GlowingOrb(
+private fun GlowingOrb(
     modifier: Modifier = Modifier,
     color: Color,
     size: Dp
@@ -387,10 +345,7 @@ fun GlowingOrb(
             .alpha(0.4f)
             .background(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        color.copy(alpha = 0.4f),
-                        Color.Transparent
-                    )
+                    colors = listOf(color.copy(alpha = 0.4f), Color.Transparent)
                 ),
                 shape = CircleShape
             )

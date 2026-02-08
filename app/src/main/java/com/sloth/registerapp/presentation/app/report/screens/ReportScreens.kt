@@ -1,16 +1,13 @@
 package com.sloth.registerapp.presentation.app.report.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.tween
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,45 +16,53 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Timelapse
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
+import androidx.core.net.toUri
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
+import com.sloth.registerapp.features.report.domain.model.MissionMedia
 import com.sloth.registerapp.features.mission.domain.model.MissionExecutionMode
 import com.sloth.registerapp.features.mission.domain.model.MissionOutcomeStatus
+import kotlinx.coroutines.launch
 
 private data class MissionReport(
     val id: String,
@@ -71,17 +76,17 @@ private data class MissionReport(
 
 @Composable
 fun ReportScreen(
-    onMissionClick: (String) -> Unit
+    onMissionClick: (String) -> Unit,
+    onBackClick: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val visible = remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf<MissionOutcomeStatus?>(null) }
 
     val missions = listOf(
-        MissionReport("m1", "Perímetro Norte", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.REAL, "12 Jan 2026", "18m 42s", "DJI Mavic 3"),
-        MissionReport("m2", "Linha de Transmissão", MissionOutcomeStatus.ABORTED, MissionExecutionMode.REAL, "09 Jan 2026", "07m 05s", "DJI Phantom 4"),
-        MissionReport("m3", "Talhão 07", MissionOutcomeStatus.FAILED, MissionExecutionMode.SIMULATED, "05 Jan 2026", "03m 21s", "Autel EVO II"),
+        MissionReport("m1", "Perímetro Norte", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.REAL, "12 Jan 2026", "18m 42s", "DJI Mavic 3 Enterprise"),
+        MissionReport("m2", "Linha de Transmissão", MissionOutcomeStatus.ABORTED, MissionExecutionMode.REAL, "09 Jan 2026", "07m 05s", "DJI Phantom 4 RTK"),
+        MissionReport("m3", "Talhão 07", MissionOutcomeStatus.FAILED, MissionExecutionMode.SIMULATED, "05 Jan 2026", "03m 21s", "Autel EVO II Pro"),
         MissionReport("m4", "Alvo Urbano", MissionOutcomeStatus.COMPLETED, MissionExecutionMode.UNKNOWN, "02 Jan 2026", "22m 10s", "DJI Inspire 2")
     )
 
@@ -89,35 +94,44 @@ fun ReportScreen(
     val filteredMissions = missions.filter { mission ->
         val matchesQuery = normalizedQuery.isBlank() ||
             mission.name.lowercase().contains(normalizedQuery) ||
-            mission.date.lowercase().contains(normalizedQuery)
+            mission.date.lowercase().contains(normalizedQuery) ||
+            mission.modelName.lowercase().contains(normalizedQuery)
         val matchesStatus = selectedStatus == null || mission.status == selectedStatus
         matchesQuery && matchesStatus
-    }
-
-    LaunchedEffect(Unit) {
-        visible.value = true
     }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(colorScheme.background)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         item {
-            Text(
-                text = "Relatórios de Missão",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorScheme.onSurface
-            )
-            Text(
-                text = "Últimas execuções",
-                fontSize = 13.sp,
-                color = colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(colorScheme.surfaceVariant, CircleShape)
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Relatórios de Missão",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+            }
+
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -126,47 +140,46 @@ fun ReportScreen(
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = "Pesquisar")
                 },
-                label = { Text("Pesquisar por nome ou data") }
+                label = { Text("Buscar missão") }
             )
+
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = selectedStatus == null,
-                    onClick = { selectedStatus = null },
-                    label = { Text("Todos") }
-                )
-                FilterChip(
-                    selected = selectedStatus == MissionOutcomeStatus.COMPLETED,
-                    onClick = { selectedStatus = MissionOutcomeStatus.COMPLETED },
-                    label = { Text("Concluída") }
-                )
-                FilterChip(
-                    selected = selectedStatus == MissionOutcomeStatus.ABORTED,
-                    onClick = { selectedStatus = MissionOutcomeStatus.ABORTED },
-                    label = { Text("Abortada") }
-                )
-                FilterChip(
-                    selected = selectedStatus == MissionOutcomeStatus.FAILED,
-                    onClick = { selectedStatus = MissionOutcomeStatus.FAILED },
-                    label = { Text("Falha") }
-                )
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(
+                        selected = selectedStatus == null,
+                        onClick = { selectedStatus = null },
+                        label = { Text("Todos") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedStatus == MissionOutcomeStatus.COMPLETED,
+                        onClick = { selectedStatus = MissionOutcomeStatus.COMPLETED },
+                        label = { Text("Concluídas") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedStatus == MissionOutcomeStatus.FAILED,
+                        onClick = { selectedStatus = MissionOutcomeStatus.FAILED },
+                        label = { Text("Falhas") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = selectedStatus == MissionOutcomeStatus.ABORTED,
+                        onClick = { selectedStatus = MissionOutcomeStatus.ABORTED },
+                        label = { Text("Abortadas") }
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        items(filteredMissions) { mission ->
-            AnimatedVisibility(
-                visible = visible.value,
-                enter = fadeIn() + slideInVertically(
-                    initialOffsetY = { it / 3 },
-                    animationSpec = tween(250)
-                )
-            ) {
-                MissionReportCard(
-                    mission = mission,
-                    onClick = { onMissionClick(mission.id) }
-                )
-            }
+        items(filteredMissions, key = { it.id }) { mission ->
+            MissionReportCard(mission = mission, onClick = { onMissionClick(mission.id) })
         }
     }
 }
@@ -177,114 +190,161 @@ fun ReportDetailScreen(
     onBackClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val mediaManager = remember { MissionMediaManager.getInstance(context) }
+    val droneConnected by DJIConnectionHelper.product.collectAsStateWithLifecycle()
+    var missionMedia by remember(missionId) { mutableStateOf<List<MissionMedia>>(emptyList()) }
 
+    fun refreshGallery() {
+        scope.launch {
+            missionMedia = mediaManager.getMediaByMission(missionId)
+        }
+    }
+
+    LaunchedEffect(missionId) {
+        refreshGallery()
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = CircleShape,
-                color = colorScheme.surfaceVariant
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(onClick = onBackClick)
-                ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
             }
-            Column {
+            Text("Relatório da Missão", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
+        Text("ID: $missionId", color = colorScheme.onSurfaceVariant)
+        Text(
+            text = "Detalhamento completo da missão será exibido aqui.",
+            color = colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Start
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Galeria da Missão",
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            color = colorScheme.onSurface
+        )
+
+        when {
+            missionMedia.isEmpty() && droneConnected == null -> {
                 Text(
-                    text = "Relatório da Missão",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = "ID: $missionId",
-                    fontSize = 12.sp,
+                    text = "Conecte o drone para ver as mídias.",
                     color = colorScheme.onSurfaceVariant
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(210.dp),
-            shape = RoundedCornerShape(18.dp),
-            color = colorScheme.surface,
-            border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.2f))
-        ) {
-            DroneModelViewer(
-                assetPath = "Drone Mavic Pro.glb",
-                hintText = "Arraste para girar"
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        DetailSection(
-            title = "Resumo",
-            content = {
-                InfoRow(label = "Modelo usado", value = "DJI Mavic 3")
-                InfoRow(label = "Nome da missão", value = "Perímetro Norte")
-                InfoRow(label = "Duração", value = "18m 42s")
-                InfoRow(label = "Execução", value = "12 Jan 2026 • 14:32")
-                InfoRow(label = "Observação", value = "Vento moderado, sem anomalias.")
+            missionMedia.isEmpty() -> {
+                val text = if (droneConnected == null) {
+                    "Conecte o drone para ver as mídias."
+                } else {
+                    "Nenhuma mídia registrada nesta missão."
+                }
+                Text(text = text, color = colorScheme.onSurfaceVariant)
             }
-        )
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        DetailSection(
-            title = "Machine Learning",
-            content = {
-                InfoRow(label = "Acurácia", value = "92.4%")
-                InfoRow(label = "Objetos detectados", value = "127")
-                InfoRow(label = "Classes", value = "Pessoa, Veículo, Estrutura")
-            }
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        DetailSection(
-            title = "Galeria",
-            content = {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(4) { idx ->
+            else -> {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(missionMedia, key = { it.id }) { media ->
                         Surface(
-                            modifier = Modifier
-                                .size(70.dp),
                             shape = RoundedCornerShape(12.dp),
-                            color = colorScheme.surfaceVariant
+                            color = colorScheme.surface,
+                            border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.2f))
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Image, contentDescription = null)
-                                Text(
-                                    text = "${idx + 1}",
-                                    fontSize = 10.sp,
-                                    color = colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
-                                )
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (media.mediaType.name == "PHOTO") "Foto" else "Vídeo",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = media.dronePath ?: media.localPath ?: "Mídia sem caminho",
+                                            fontSize = 12.sp,
+                                            color = colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    AssistChip(
+                                        onClick = {},
+                                        label = {
+                                            Text(
+                                                if (media.isDownloaded) "No telefone" else "No drone",
+                                                fontSize = 11.sp
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.PhoneAndroid,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (media.isDownloaded && !media.localPath.isNullOrBlank()) {
+                                        Button(
+                                            onClick = {
+                                                runCatching {
+                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(media.localPath.toUri(), "*/*")
+                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    }
+                                                    context.startActivity(intent)
+                                                }.onFailure {
+                                                    Toast.makeText(context, "Não foi possível abrir a mídia.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        ) {
+                                            Text("Abrir")
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                if (droneConnected == null) {
+                                                    Toast.makeText(context, "Conecte o drone para baixar a mídia.", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    scope.launch {
+                                                        mediaManager.markDownloaded(
+                                                            mediaId = media.id,
+                                                            localPath = "content://vantly/local/${media.id}"
+                                                        )
+                                                        refreshGallery()
+                                                        Toast.makeText(context, "Mídia marcada como baixada no telefone.", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            Text("Baixar")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        )
+        }
     }
 }
 
@@ -299,11 +359,13 @@ private fun MissionReportCard(
         MissionOutcomeStatus.ABORTED -> colorScheme.tertiary
         MissionOutcomeStatus.FAILED -> colorScheme.error
     }
+
     val statusLabel = when (mission.status) {
         MissionOutcomeStatus.COMPLETED -> "Concluída"
         MissionOutcomeStatus.ABORTED -> "Abortada"
         MissionOutcomeStatus.FAILED -> "Falha"
     }
+
     val statusIcon = when (mission.status) {
         MissionOutcomeStatus.COMPLETED -> Icons.Default.CheckCircle
         MissionOutcomeStatus.ABORTED -> Icons.Default.Warning
@@ -312,203 +374,65 @@ private fun MissionReportCard(
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = colorScheme.surface,
         border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.2f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(54.dp),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.size(78.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = colorScheme.surfaceVariant
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Timelapse, contentDescription = null)
+                    Text("🚁", fontSize = 30.sp)
                 }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = mission.name,
-                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
                     color = colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = mission.modelName,
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
                 Text(
                     text = "${mission.date} • ${mission.duration}",
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
                 )
-                Text(
-                    text = "Modelo: ${mission.modelName}",
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant
+                AssistChip(
+                    onClick = {},
+                    label = { Text(statusLabel, fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            statusIcon,
+                            contentDescription = null,
+                            tint = statusColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
                 )
-                Text(
-                    text = "Modo: ${mission.executionMode.toUiLabel()}",
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                StatusChip(label = statusLabel, color = statusColor, icon = statusIcon)
             }
 
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = colorScheme.onSurfaceVariant
-            )
+            IconButton(onClick = { }) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Ações")
+            }
         }
-    }
-}
-
-private fun MissionExecutionMode.toUiLabel(): String {
-    return when (this) {
-        MissionExecutionMode.REAL -> "Real"
-        MissionExecutionMode.SIMULATED -> "Simulada"
-        MissionExecutionMode.UNKNOWN -> "Indefinida"
-    }
-}
-
-@Composable
-private fun StatusChip(
-    label: String,
-    color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = color.copy(alpha = 0.15f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.45f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
-            Text(text = label, fontSize = 11.sp, color = color, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun DetailSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight(),
-        shape = RoundedCornerShape(16.dp),
-        color = colorScheme.surface,
-        border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.2f))
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorScheme.onSurface
-            )
-            content()
-        }
-    }
-}
-
-@Composable
-private fun DroneModelViewer(
-    assetPath: String,
-    hintText: String
-) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        colorScheme.primary.copy(alpha = 0.18f),
-                        colorScheme.tertiary.copy(alpha = 0.08f)
-                    )
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.Image,
-                contentDescription = null,
-                tint = colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "Prévia 3D indisponível",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "Placeholder",
-                fontSize = 11.sp,
-                color = colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp)
-                .background(colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = "Modelo 3D do Drone",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorScheme.onSurface
-            )
-            Text(
-                text = hintText,
-                fontSize = 11.sp,
-                color = colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    val colorScheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = label, fontSize = 12.sp, color = colorScheme.onSurfaceVariant)
-        Text(text = value, fontSize = 12.sp, color = colorScheme.onSurface)
     }
 }

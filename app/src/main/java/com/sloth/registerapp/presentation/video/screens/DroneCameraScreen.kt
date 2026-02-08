@@ -38,11 +38,13 @@ import android.Manifest
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
+import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
 import com.sloth.registerapp.presentation.video.components.VideoFeedView
 import com.sloth.registerapp.presentation.mission.components.MapboxMiniMapView
 import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
@@ -66,6 +68,7 @@ fun DroneCameraScreen(
 ) {
     val tag = "DroneCameraScreen"
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val colorScheme = MaterialTheme.colorScheme
 
@@ -81,6 +84,8 @@ fun DroneCameraScreen(
     val isFeedAvailable = product != null
 
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
+    val mediaManager = remember { MissionMediaManager.getInstance(context) }
+    val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
     val rtmpStreamer = remember { DjiRtmpStreamer(rtmpUrl) }
     val streamState by rtmpStreamer.state.collectAsStateWithLifecycle()
@@ -353,6 +358,14 @@ fun DroneCameraScreen(
                     droneController.takePhoto { success, message ->
                         val text = if (success) "Foto capturada" else "Erro ao fotografar: ${message ?: "desconhecido"}"
                         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                        if (success && !activeMissionId.isNullOrBlank()) {
+                            scope.launch {
+                                mediaManager.registerPhotoCapture(
+                                    missionId = activeMissionId!!,
+                                    dronePath = "drone://photo/${System.currentTimeMillis()}.jpg"
+                                )
+                            }
+                        }
                     }
                 },
                 onRecordClick = {
@@ -363,6 +376,14 @@ fun DroneCameraScreen(
                             }
                             val text = if (success) "Gravação parada" else "Erro ao parar gravação: ${message ?: "desconhecido"}"
                             Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                            if (success && !activeMissionId.isNullOrBlank()) {
+                                scope.launch {
+                                    mediaManager.registerVideoCapture(
+                                        missionId = activeMissionId!!,
+                                        dronePath = "drone://video/${System.currentTimeMillis()}.mp4"
+                                    )
+                                }
+                            }
                         }
                     } else {
                         droneController.startRecording { success, message ->

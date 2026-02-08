@@ -46,3 +46,18 @@ data class FlightReportEntity(
     val finalObservation: String?,
     val extraDataJson: String = "{}"
 )
+
+@Entity(tableName = "mission_media")
+data class MissionMediaEntity(
+    @PrimaryKey
+    val id: String,
+    val ownerUserId: String = "__guest__",
+    val missionId: String,
+    val mediaType: String, // PHOTO, VIDEO
+    val source: String, // DRONE_SD, PHONE_LOCAL
+    val dronePath: String? = null,
+    val localPath: String? = null,
+    val createdAtMs: Long = System.currentTimeMillis(),
+    val sizeBytes: Long? = null,
+    val isDownloaded: Boolean = false
+)

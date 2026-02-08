@@ -36,6 +36,7 @@ import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionsTableScreen
 import com.sloth.registerapp.presentation.app.dashboard.screens.DashboardScreen
+import com.sloth.registerapp.presentation.app.dashboard.screens.DronesListScreen
 import com.sloth.registerapp.presentation.app.welcome.screens.WelcomeScreen
 import com.sloth.registerapp.presentation.mission.screens.DroneControlScreen
 import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
@@ -106,8 +107,7 @@ class MainActivity : ComponentActivity() {
                 NavHost(navController = navController, startDestination = startDestination) {
                     composable("welcome") {
                         WelcomeScreen(
-                            onLoginClick = { navController.navigate("login") },
-                            onRegisterClick = { navController.navigate("register") }
+                            onLoginClick = { navController.navigate("login") }
                         )
                     }
                     composable("login") {
@@ -145,21 +145,19 @@ class MainActivity : ComponentActivity() {
                             DashboardScreen(
                                 droneStatus = droneStatus,
                                 userName = userName ?: "Usuário",
-                                onMissionsClick = { navController.navigate("mission") },
-                                onMissionControlClick = {
-                                    val intent = Intent(context, MissionControlActivity::class.java)
-                                    context.startActivity(intent)
-                                },
-                                onLiveFeedClick = {
-                                    val intent = Intent(context, DroneCameraActivity::class.java)
-                                    context.startActivity(intent)
-                                },
+                                isLoggedIn = isLoggedIn,
+                                onShowAllDronesClick = { navController.navigate("drones_list") },
                                 onRefreshStatusClick = {
                                     DJIConnectionHelper.tryReconnect(context)
                                 },
                                 onSettingsClick = { navController.navigate("settings") }
                             )
                         }
+                    }
+                    composable("drones_list") {
+                        DronesListScreen(
+                            onBackClick = { navController.popBackStack() }
+                        )
                     }
                     composable("settings") {
                         SettingsScreen(
@@ -248,6 +246,7 @@ class MainActivity : ComponentActivity() {
                     composable("report") {
                         ScreenWithBottomBar(navController = navController) {
                             ReportScreen(
+                                onBackClick = { navController.popBackStack() },
                                 onMissionClick = { missionId ->
                                     navController.navigate("report_detail/$missionId")
                                 }

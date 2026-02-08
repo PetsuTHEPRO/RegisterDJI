@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.sloth.registerapp.core.auth.TokenRepository
+import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
@@ -38,6 +39,7 @@ class MissionControlActivity : ComponentActivity() {
             finish()
             return
         }
+        ActiveMissionSessionManager.startMissionSession(missionId.toString())
 
         val missionRepository = MissionRepositoryImpl(
             context = this,
@@ -105,6 +107,11 @@ class MissionControlActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        ActiveMissionSessionManager.clearMissionSession()
+        super.onDestroy()
     }
 }
 

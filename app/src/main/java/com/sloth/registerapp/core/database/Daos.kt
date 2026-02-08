@@ -53,3 +53,21 @@ interface FlightReportDao {
     @Query("SELECT * FROM flight_reports WHERE ownerUserId = :ownerUserId ORDER BY startedAtMs DESC")
     suspend fun getAll(ownerUserId: String): List<FlightReportEntity>
 }
+
+@Dao
+interface MissionMediaDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(item: MissionMediaEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<MissionMediaEntity>)
+
+    @Query("SELECT * FROM mission_media WHERE ownerUserId = :ownerUserId AND missionId = :missionId ORDER BY createdAtMs DESC")
+    suspend fun getByMission(ownerUserId: String, missionId: String): List<MissionMediaEntity>
+
+    @Query("SELECT * FROM mission_media WHERE ownerUserId = :ownerUserId ORDER BY createdAtMs DESC")
+    suspend fun getAll(ownerUserId: String): List<MissionMediaEntity>
+
+    @Query("UPDATE mission_media SET localPath = :localPath, isDownloaded = 1, source = 'PHONE_LOCAL' WHERE id = :id")
+    suspend fun markDownloaded(id: String, localPath: String)
+}

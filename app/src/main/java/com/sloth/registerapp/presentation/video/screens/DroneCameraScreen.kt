@@ -49,6 +49,9 @@ import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandMan
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
 import com.sloth.registerapp.features.report.domain.model.MissionMediaSource
+import com.sloth.registerapp.features.weather.data.repository.WeatherModule
+import com.sloth.registerapp.features.weather.domain.model.WeatherSafetyLevel
+import com.sloth.registerapp.features.weather.domain.model.WeatherSummary
 import com.sloth.registerapp.presentation.video.components.VideoFeedView
 import com.sloth.registerapp.presentation.mission.components.MapboxMiniMapView
 import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
@@ -91,6 +94,7 @@ fun DroneCameraScreen(
     val mediaStorageRepo = remember { MediaStorageSettingsRepository.getInstance(context) }
     val measurementRepo = remember { MeasurementSettingsRepository.getInstance(context) }
     val mediaManager = remember { MissionMediaManager.getInstance(context) }
+    val weatherModule = remember { WeatherModule.getInstance(context) }
     val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
     val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsStateWithLifecycle(
@@ -105,6 +109,8 @@ fun DroneCameraScreen(
 
     val locationViewModel: OperatorLocationViewModel = viewModel()
     val locationUiState by locationViewModel.uiState.collectAsStateWithLifecycle()
+    var weatherSummary by remember { mutableStateOf<WeatherSummary?>(null) }
+    var lastWeatherRequestMs by remember { mutableLongStateOf(0L) }
     val locationPermissions = rememberMultiplePermissionsState(
         listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -183,6 +189,29 @@ fun DroneCameraScreen(
 
     LaunchedEffect(locationPermissions.allPermissionsGranted) {
         locationViewModel.setPermissionGranted(locationPermissions.allPermissionsGranted)
+    }
+
+    LaunchedEffect(telemetry.latitude, telemetry.longitude, locationUiState.location) {
+        val lat = when {
+            telemetry.latitude != 0.0 -> telemetry.latitude
+            locationUiState.location != null -> locationUiState.location!!.latitude()
+            else -> return@LaunchedEffect
+        }
+        val lon = when {
+            telemetry.longitude != 0.0 -> telemetry.longitude
+            locationUiState.location != null -> locationUiState.location!!.longitude()
+            else -> return@LaunchedEffect
+        }
+
+        val now = System.currentTimeMillis()
+        if (now - lastWeatherRequestMs < WEATHER_MIN_REFRESH_MS) {
+            return@LaunchedEffect
+        }
+
+        weatherSummary = runCatching {
+            weatherModule.getWeatherSummaryUseCase(lat = lat, lon = lon, ttlMs = 60_000L)
+        }.getOrNull()
+        lastWeatherRequestMs = now
     }
 
     Box(
@@ -297,6 +326,16 @@ fun DroneCameraScreen(
             TelemetryHudStrip(
                 telemetry = telemetry,
                 measurementSystem = measurementSystem
+            )
+        }
+
+        if (weatherSummary != null) {
+            WeatherCompactBadge(
+                summary = weatherSummary!!,
+                measurementSystem = measurementSystem,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 92.dp)
             )
         }
 
@@ -497,6 +536,8 @@ fun DroneCameraScreen(
     }
 }
 
+private const val WEATHER_MIN_REFRESH_MS = 60_000L
+
 // ===============================================
 //               SUB-COMPONENTES
 // ===============================================
@@ -645,6 +686,68 @@ fun TelemetryHudStrip(
             value = MeasurementConverter.formatDistance(telemetry.distanceFromHome, measurementSystem)
         )
         HudMetric(icon = Icons.Default.GpsFixed, value = "${telemetry.gpsSatellites}")
+    }
+}
+
+@Composable
+fun WeatherCompactBadge(
+    summary: WeatherSummary,
+    measurementSystem: String,
+    modifier: Modifier = Modifier
+) {
+    val tint = when (summary.decision.level) {
+        WeatherSafetyLevel.SAFE -> Color(0xFF22C55E)
+        WeatherSafetyLevel.CAUTION -> Color(0xFFF59E0B)
+        WeatherSafetyLevel.NO_FLY -> Color(0xFFEF4444)
+    }
+
+    val icon = when (summary.decision.level) {
+        WeatherSafetyLevel.SAFE -> Icons.Default.WbSunny
+        WeatherSafetyLevel.CAUTION -> Icons.Default.Cloud
+        WeatherSafetyLevel.NO_FLY -> Icons.Default.Thunderstorm
+    }
+
+    Row(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        Text(
+            "${summary.snapshot.temperatureC ?: "--"}°C",
+            color = Color.White,
+            fontSize = 11.sp
+        )
+        Text(
+            MeasurementConverter.formatSpeed((summary.snapshot.windSpeedMs ?: 0.0).toFloat(), measurementSystem),
+            color = Color.White,
+            fontSize = 11.sp
+        )
+        Text(
+            "${"%.1f".format(summary.snapshot.rainMm ?: 0.0)} mm",
+            color = Color.White,
+            fontSize = 11.sp
+        )
+        summary.snapshot.precipitationProbabilityPercent?.let { probability ->
+            Text(
+                "${"%.0f".format(probability)}%",
+                color = Color.White,
+                fontSize = 11.sp
+            )
+        }
+        Text(
+            "⚡${"%.0f".format((summary.snapshot.lightningRisk ?: 0.0) * 100)}%",
+            color = Color.White,
+            fontSize = 11.sp
+        )
+        Text(
+            summary.decision.shortMessage,
+            color = tint,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

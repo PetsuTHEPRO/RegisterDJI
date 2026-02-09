@@ -9,6 +9,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,9 +27,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalContext
+import com.sloth.registerapp.BuildConfig
 import com.sloth.registerapp.core.settings.MediaStorageSettingsRepository
 import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
+import com.sloth.registerapp.core.settings.WeatherProviderSettingsRepository
 import com.sloth.registerapp.features.mission.data.manager.MissionStorageManager
 import kotlinx.coroutines.launch
 
@@ -62,11 +67,15 @@ fun SettingsScreen(
     val rtmpRepo = remember(context) { RtmpSettingsRepository.getInstance(context) }
     val mediaStorageRepo = remember(context) { MediaStorageSettingsRepository.getInstance(context) }
     val measurementRepo = remember(context) { MeasurementSettingsRepository.getInstance(context) }
+    val weatherProviderRepo = remember(context) { WeatherProviderSettingsRepository.getInstance(context) }
     val missionStorageManager = remember(context) { MissionStorageManager.getInstance(context) }
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsState(initial = RtmpSettingsRepository.DEFAULT_URL)
     val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsState(initial = MediaStorageSettingsRepository.TARGET_PHONE)
     val measurementSystem by measurementRepo.measurementSystem.collectAsState(initial = MeasurementSettingsRepository.SYSTEM_METRIC)
+    val weatherPrimary by weatherProviderRepo.primaryProvider.collectAsState(initial = WeatherProviderSettingsRepository.PROVIDER_WEATHER_API)
+    val weatherFallback by weatherProviderRepo.fallbackProvider.collectAsState(initial = WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO)
     var rtmpUrlInput by remember { mutableStateOf(rtmpUrl) }
+    val hasWeatherApiKey = remember { BuildConfig.WEATHER_API_KEY.isNotBlank() }
 
     LaunchedEffect(rtmpUrl) {
         if (rtmpUrlInput != rtmpUrl) {
@@ -76,6 +85,17 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         cacheSizeBytes = missionStorageManager.getMissionCacheSizeBytes()
+    }
+
+    LaunchedEffect(hasWeatherApiKey, weatherPrimary, weatherFallback) {
+        if (!hasWeatherApiKey) {
+            if (weatherPrimary == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API) {
+                weatherProviderRepo.setPrimaryProvider(WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO)
+            }
+            if (weatherFallback == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API) {
+                weatherProviderRepo.setFallbackProvider(WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO)
+            }
+        }
     }
 
     Box(
@@ -111,7 +131,7 @@ fun SettingsScreen(
                             .background(colorScheme.surface.copy(alpha = 0.8f), CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Voltar",
                             tint = colorScheme.onSurface
                         )
@@ -287,6 +307,60 @@ fun SettingsScreen(
                     }
                 }
 
+                // Seção: Configurações Climáticas
+                item {
+                    ExpandableSection(
+                        title = "Configurações Climáticas",
+                        icon = Icons.Default.Cloud,
+                        isExpanded = expandedSection == "weather",
+                        onToggle = { expandedSection = if (expandedSection == "weather") null else "weather" }
+                    ) {
+                        SettingsDropdownItem(
+                            icon = Icons.Default.FilterDrama,
+                            title = "Provider Principal",
+                            options = weatherProviderOptions(hasWeatherApiKey),
+                            selectedOption = weatherPrimary.toWeatherProviderLabel(),
+                            onOptionSelected = { label ->
+                                scope.launch {
+                                    val selected = label.toWeatherProviderId()
+                                    weatherProviderRepo.setPrimaryProvider(selected)
+                                    if (selected == weatherFallback) {
+                                        weatherProviderRepo.setFallbackProvider(selected.alternativeWeatherProvider())
+                                    }
+                                }
+                            }
+                        )
+                        SettingsDropdownItem(
+                            icon = Icons.Default.SwapHoriz,
+                            title = "Provider Fallback",
+                            options = weatherProviderOptions(hasWeatherApiKey),
+                            selectedOption = weatherFallback.toWeatherProviderLabel(),
+                            onOptionSelected = { label ->
+                                scope.launch {
+                                    val selected = label.toWeatherProviderId()
+                                    weatherProviderRepo.setFallbackProvider(selected)
+                                    if (selected == weatherPrimary) {
+                                        weatherProviderRepo.setPrimaryProvider(selected.alternativeWeatherProvider())
+                                    }
+                                }
+                            }
+                        )
+                        if (!hasWeatherApiKey) {
+                            Text(
+                                text = "WeatherAPI desativada: chave não configurada. Usando Open-Meteo.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            Text(
+                                text = "Chave WeatherAPI detectada. Se a fonte continuar Open-Meteo, o fallback foi ativado por erro da WeatherAPI (chave inválida, limite/plano ou rede).",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+
                 // Seção: Configurações da Câmera
                 item {
                     ExpandableSection(
@@ -406,7 +480,11 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (isLoggedIn) Icons.Default.Logout else Icons.Default.Login,
+                                    imageVector = if (isLoggedIn) {
+                                        Icons.AutoMirrored.Filled.Logout
+                                    } else {
+                                        Icons.AutoMirrored.Filled.Login
+                                    },
                                     contentDescription = null,
                                     tint = if (isLoggedIn) colorScheme.onError else colorScheme.onPrimary
                                 )
@@ -763,5 +841,38 @@ private fun Long.toReadableBytes(): String {
         String.format("%.2f MB", mb)
     } else {
         String.format("%.1f KB", kb)
+    }
+}
+
+private fun weatherProviderOptions(hasWeatherApiKey: Boolean): List<String> {
+    return if (hasWeatherApiKey) {
+        listOf(
+            WeatherProviderSettingsRepository.PROVIDER_WEATHER_API.toWeatherProviderLabel(),
+            WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO.toWeatherProviderLabel()
+        )
+    } else {
+        listOf(WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO.toWeatherProviderLabel())
+    }
+}
+
+private fun String.toWeatherProviderLabel(): String {
+    return when (this) {
+        WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO -> "Open-Meteo (grátis)"
+        else -> "WeatherAPI (principal)"
+    }
+}
+
+private fun String.toWeatherProviderId(): String {
+    return when {
+        startsWith("Open-Meteo") -> WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO
+        else -> WeatherProviderSettingsRepository.PROVIDER_WEATHER_API
+    }
+}
+
+private fun String.alternativeWeatherProvider(): String {
+    return if (this == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API) {
+        WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO
+    } else {
+        WeatherProviderSettingsRepository.PROVIDER_WEATHER_API
     }
 }

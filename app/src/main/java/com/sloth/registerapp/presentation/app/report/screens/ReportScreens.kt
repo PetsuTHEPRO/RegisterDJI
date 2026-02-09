@@ -218,7 +218,9 @@ fun ReportDetailScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val mediaManager = remember { MissionMediaManager.getInstance(context) }
+    val reportManager = remember { FlightReportManager(context) }
     val droneConnected by DJIConnectionHelper.product.collectAsStateWithLifecycle()
+    val reports by reportManager.reports.collectAsStateWithLifecycle(initialValue = emptyList())
     var missionMedia by remember(missionId) { mutableStateOf<List<MissionMedia>>(emptyList()) }
 
     fun refreshGallery() {
@@ -249,6 +251,48 @@ fun ReportDetailScreen(
             color = colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Start
         )
+
+        val report = reports.firstOrNull { it.extraData["missionId"] == missionId || it.id == missionId }
+        if (report != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = colorScheme.surface,
+                border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("Condições Climáticas da Missão", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Início: ${report.extraData["weather_start_temperature_c"] ?: "-"}°C • " +
+                            "${report.extraData["weather_start_wind_ms"].toKmhLabel()} (10m) • " +
+                            "chuva ${report.extraData["weather_start_rain_mm"] ?: "-"} mm",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        "Fim: ${report.extraData["weather_end_temperature_c"] ?: "-"}°C • " +
+                            "${report.extraData["weather_end_wind_ms"].toKmhLabel()} (10m) • " +
+                            "chuva ${report.extraData["weather_end_rain_mm"] ?: "-"} mm",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        "Status: ${report.extraData["weather_summary_message"] ?: "Não disponível"}",
+                        color = colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        "Provider: ${report.extraData["weather_provider"] ?: "N/A"}",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -371,6 +415,11 @@ fun ReportDetailScreen(
             }
         }
     }
+}
+
+private fun String?.toKmhLabel(): String {
+    val ms = this?.toDoubleOrNull() ?: return "- km/h"
+    return "${String.format(Locale.US, "%.1f", ms * 3.6)} km/h"
 }
 
 @Composable

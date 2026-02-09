@@ -1,9 +1,24 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.devtools.ksp")
 }
+
+val localProperties = Properties().apply {
+    val localFile = rootProject.file("local.properties")
+    if (localFile.exists()) {
+        localFile.inputStream().use { this.load(it) }
+    }
+}
+
+val weatherApiKey = (
+    localProperties.getProperty("WEATHER_API_KEY")
+        ?: System.getenv("WEATHER_API_KEY")
+        ?: ""
+).trim().replace("\"", "\\\"")
 
 android {
     namespace = "com.sloth.registerapp"
@@ -16,6 +31,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("boolean", "ALLOW_PUBLIC_FLIGHT_OPS", "true")
+        buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

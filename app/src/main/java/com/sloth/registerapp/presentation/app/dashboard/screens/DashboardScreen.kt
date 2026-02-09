@@ -74,6 +74,7 @@ fun DashboardScreen(
     userName: String = "Usuário",
     isLoggedIn: Boolean = true,
     onShowAllDronesClick: () -> Unit = {},
+    onWeatherClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onRefreshStatusClick: () -> Unit = {}
 ) {
@@ -209,6 +210,13 @@ fun DashboardScreen(
                         Icon(Icons.Default.Refresh, contentDescription = "Atualizar status", tint = colorScheme.primary)
                     }
                 }
+            }
+
+            TextButton(
+                onClick = onWeatherClick,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Ver clima")
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

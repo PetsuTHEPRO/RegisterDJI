@@ -52,6 +52,7 @@ import com.sloth.registerapp.presentation.app.settings.screens.PermissionsScreen
 import com.sloth.registerapp.presentation.app.settings.screens.PrivacyPolicyScreen
 import com.sloth.registerapp.presentation.app.settings.screens.RecentLoginsScreen
 import com.sloth.registerapp.presentation.app.settings.screens.SettingsScreen
+import com.sloth.registerapp.presentation.app.weather.screens.WeatherOverviewScreen
 import com.sloth.registerapp.presentation.video.activities.DroneCameraActivity
 import kotlinx.coroutines.launch
 
@@ -150,6 +151,7 @@ class MainActivity : ComponentActivity() {
                                 userName = userName ?: "Usuário",
                                 isLoggedIn = isLoggedIn,
                                 onShowAllDronesClick = { navController.navigate("drones_list") },
+                                onWeatherClick = { navController.navigate("weather_overview") },
                                 onRefreshStatusClick = {
                                     DJIConnectionHelper.tryReconnect(context)
                                 },
@@ -159,6 +161,11 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("drones_list") {
                         DronesListScreen(
+                            onBackClick = { navController.popBackStack() }
+                        )
+                    }
+                    composable("weather_overview") {
+                        WeatherOverviewScreen(
                             onBackClick = { navController.popBackStack() }
                         )
                     }

@@ -59,6 +59,7 @@ import com.sloth.registerapp.presentation.video.components.VideoFeedView
 import com.sloth.registerapp.presentation.mission.components.MapboxMiniMapView
 import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mapbox.geojson.Point
 import com.mapbox.maps.Style
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
@@ -114,6 +115,13 @@ fun DroneCameraScreen(
 
     val locationViewModel: OperatorLocationViewModel = viewModel()
     val locationUiState by locationViewModel.uiState.collectAsStateWithLifecycle()
+    val operatorLocation = locationUiState.location
+    val weatherQueryLocation = remember(telemetry.latitude, telemetry.longitude, operatorLocation) {
+        resolveWeatherQueryLocation(
+            telemetry = telemetry,
+            operatorLocation = operatorLocation
+        )
+    }
     var weatherSummary by remember { mutableStateOf<WeatherSummary?>(null) }
     var lastWeatherRequestMs by remember { mutableLongStateOf(0L) }
     val locationPermissions = rememberMultiplePermissionsState(
@@ -202,17 +210,8 @@ fun DroneCameraScreen(
         }
     }
 
-    LaunchedEffect(telemetry.latitude, telemetry.longitude, locationUiState.location) {
-        val lat = when {
-            telemetry.latitude != 0.0 -> telemetry.latitude
-            locationUiState.location != null -> locationUiState.location!!.latitude()
-            else -> return@LaunchedEffect
-        }
-        val lon = when {
-            telemetry.longitude != 0.0 -> telemetry.longitude
-            locationUiState.location != null -> locationUiState.location!!.longitude()
-            else -> return@LaunchedEffect
-        }
+    LaunchedEffect(weatherQueryLocation) {
+        val queryLocation = weatherQueryLocation ?: return@LaunchedEffect
 
         val now = System.currentTimeMillis()
         if (now - lastWeatherRequestMs < WEATHER_MIN_REFRESH_MS) {
@@ -220,7 +219,11 @@ fun DroneCameraScreen(
         }
 
         weatherSummary = runCatching {
-            weatherModule.getWeatherSummaryUseCase(lat = lat, lon = lon, ttlMs = 60_000L)
+            weatherModule.getWeatherSummaryUseCase(
+                lat = queryLocation.latitude,
+                lon = queryLocation.longitude,
+                ttlMs = 60_000L
+            )
         }.getOrNull()
         lastWeatherRequestMs = now
     }
@@ -340,9 +343,9 @@ fun DroneCameraScreen(
             )
         }
 
-        if (weatherSummary != null) {
+        weatherSummary?.let { summary ->
             WeatherCompactBadge(
-                summary = weatherSummary!!,
+                summary = summary,
                 measurementSystem = measurementSystem,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -438,10 +441,10 @@ fun DroneCameraScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (locationUiState.location != null) {
+                        if (operatorLocation != null) {
                             MapboxMiniMapView(
                                 modifier = Modifier.fillMaxSize(),
-                                operatorLocation = locationUiState.location!!,
+                                operatorLocation = operatorLocation,
                                 operatorAccuracyMeters = locationUiState.accuracyMeters,
                                 operatorIsStationary = locationUiState.isStationary,
                                 styleUri = Style.STANDARD
@@ -596,6 +599,51 @@ fun DroneCameraScreen(
 }
 
 private const val WEATHER_MIN_REFRESH_MS = 60_000L
+
+private data class WeatherQueryLocation(
+    val latitude: Double,
+    val longitude: Double,
+    val source: WeatherLocationSource
+)
+
+private enum class WeatherLocationSource {
+    DRONE_TELEMETRY,
+    OPERATOR_GPS
+}
+
+private fun resolveWeatherQueryLocation(
+    telemetry: DroneTelemetry,
+    operatorLocation: Point?
+): WeatherQueryLocation? {
+    val telemetryLatitude = telemetry.latitude
+    val telemetryLongitude = telemetry.longitude
+    if (isValidCoordinate(telemetryLatitude, telemetryLongitude)) {
+        return WeatherQueryLocation(
+            latitude = telemetryLatitude,
+            longitude = telemetryLongitude,
+            source = WeatherLocationSource.DRONE_TELEMETRY
+        )
+    }
+
+    val fallbackLocation = operatorLocation ?: return null
+    val fallbackLatitude = fallbackLocation.latitude()
+    val fallbackLongitude = fallbackLocation.longitude()
+    if (!isValidCoordinate(fallbackLatitude, fallbackLongitude)) {
+        return null
+    }
+
+    return WeatherQueryLocation(
+        latitude = fallbackLatitude,
+        longitude = fallbackLongitude,
+        source = WeatherLocationSource.OPERATOR_GPS
+    )
+}
+
+private fun isValidCoordinate(latitude: Double, longitude: Double): Boolean {
+    return latitude in -90.0..90.0 &&
+        longitude in -180.0..180.0 &&
+        !(latitude == 0.0 && longitude == 0.0)
+}
 
 // ===============================================
 //               SUB-COMPONENTES

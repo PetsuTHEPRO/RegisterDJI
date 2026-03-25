@@ -119,8 +119,8 @@ class DroneTelemetryManager(
         val speed = extractSpeed(state)
         val gps = extractGpsSatellites(state)
         val battery = extractBattery(state)
-        val aircraftLocation = extractLocation(state, "getAircraftLocation")
-        val homeLocation = extractLocation(state, "getHomeLocation")
+        val aircraftLocation = extractAircraftLocation(state)
+        val homeLocation = extractHomeLocation(state)
         val distance = if (aircraftLocation != null && homeLocation != null) {
             haversineMeters(aircraftLocation.first, aircraftLocation.second, homeLocation.first, homeLocation.second)
         } else {
@@ -164,16 +164,18 @@ class DroneTelemetryManager(
     }
 
     private fun extractAltitude(state: FlightControllerState): Float? {
-        val direct = getFloat(state, "getAltitude") ?: getFloat(state, "getAltitudeInMeters")
+        val direct = runCatching { state.aircraftLocation?.altitude }.getOrNull()
+            ?: getFloat(state, "getAltitude")
+            ?: getFloat(state, "getAltitudeInMeters")
         if (direct != null) return direct
-        val aircraftLocation = getObject(state, "getAircraftLocation") ?: return null
+        val aircraftLocation = state.aircraftLocation ?: getObject(state, "getAircraftLocation") ?: return null
         return getFloat(aircraftLocation, "getAltitude") ?: getFloat(aircraftLocation, "getHeight")
     }
 
     private fun extractSpeed(state: FlightControllerState): Float? {
-        val vx = getFloat(state, "getVelocityX")
-        val vy = getFloat(state, "getVelocityY")
-        val vz = getFloat(state, "getVelocityZ")
+        val vx = runCatching { state.velocityX }.getOrNull() ?: getFloat(state, "getVelocityX")
+        val vy = runCatching { state.velocityY }.getOrNull() ?: getFloat(state, "getVelocityY")
+        val vz = runCatching { state.velocityZ }.getOrNull() ?: getFloat(state, "getVelocityZ")
         return if (vx != null && vy != null && vz != null) {
             sqrt(vx * vx + vy * vy + vz * vz)
         } else {
@@ -182,7 +184,8 @@ class DroneTelemetryManager(
     }
 
     private fun extractGpsSatellites(state: FlightControllerState): Int? {
-        return getInt(state, "getSatelliteCount")
+        return runCatching { state.satelliteCount }.getOrNull()
+            ?: getInt(state, "getSatelliteCount")
             ?: getInt(state, "getGPSSatelliteCount")
             ?: getInt(state, "getGpsSatelliteCount")
     }
@@ -193,11 +196,21 @@ class DroneTelemetryManager(
     }
 
     private fun extractIsFlying(state: FlightControllerState): Boolean? {
-        return getBoolean(state, "isFlying") ?: getBoolean(state, "getIsFlying")
+        return runCatching { state.isFlying }.getOrNull()
+            ?: getBoolean(state, "isFlying")
+            ?: getBoolean(state, "getIsFlying")
     }
 
-    private fun extractLocation(state: FlightControllerState, methodName: String): Pair<Double, Double>? {
-        val location = getObject(state, methodName) ?: return null
+    private fun extractAircraftLocation(state: FlightControllerState): Pair<Double, Double>? {
+        return extractLocation(state.aircraftLocation ?: getObject(state, "getAircraftLocation"))
+    }
+
+    private fun extractHomeLocation(state: FlightControllerState): Pair<Double, Double>? {
+        return extractLocation(state.homeLocation ?: getObject(state, "getHomeLocation"))
+    }
+
+    private fun extractLocation(location: Any?): Pair<Double, Double>? {
+        location ?: return null
         val lat = getDouble(location, "getLatitude") ?: return null
         val lon = getDouble(location, "getLongitude") ?: return null
         if (lat == 0.0 && lon == 0.0) return null

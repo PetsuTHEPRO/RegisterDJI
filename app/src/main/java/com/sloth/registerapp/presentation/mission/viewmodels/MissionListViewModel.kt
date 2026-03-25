@@ -43,4 +43,23 @@ class MissionListViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
+
+    fun deleteMission(missionId: Int) {
+        viewModelScope.launch {
+            val result = missionRepository.deleteMission(missionId)
+            result.onSuccess {
+                val currentState = _uiState.value
+                if (currentState is MissionListUiState.Success) {
+                    _uiState.value = currentState.copy(
+                        missions = currentState.missions.filterNot { it.id == missionId }
+                    )
+                } else {
+                    fetchMissions()
+                }
+            }.onFailure { error ->
+                _uiState.value = MissionListUiState.Error(error.message ?: "Unknown error")
+                Log.e(TAG, "Error deleting mission", error)
+            }
+        }
+    }
 }

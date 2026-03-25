@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -268,6 +269,9 @@ class MainActivity : ComponentActivity() {
                                         putExtra("MISSION_ID", missionId)
                                     }
                                     context.startActivity(intent)
+                                },
+                                onDeleteMissionClick = { missionId ->
+                                    viewModel.deleteMission(missionId)
                                 }
                             )
                         }
@@ -307,6 +311,7 @@ private fun ScreenWithBottomBar(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             BottomNavBar(
                 navController = navController,

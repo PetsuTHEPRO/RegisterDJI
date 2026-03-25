@@ -1,6 +1,7 @@
 package com.sloth.registerapp.presentation.mission.activities
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -17,8 +18,10 @@ import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
 import com.sloth.registerapp.core.network.RetrofitClient
 import com.sloth.registerapp.core.ui.theme.RegisterAppTheme
 import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
+import com.sloth.registerapp.features.mission.data.mapper.inDisplayOrder
 import com.sloth.registerapp.features.report.data.manager.FlightReportManager
 import com.sloth.registerapp.features.weather.data.repository.WeatherModule
 import com.sloth.registerapp.presentation.mission.screens.MissionControlScreen
@@ -26,13 +29,19 @@ import com.sloth.registerapp.presentation.mission.screens.MissionStatus
 import com.sloth.registerapp.presentation.mission.model.Waypoint
 import com.sloth.registerapp.presentation.mission.viewmodels.DroneExecutionViewModel
 import com.sloth.registerapp.presentation.mission.viewmodels.DroneExecutionViewModelFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 
 class MissionControlActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "MissionControlActivity"
+    }
 
     private val viewModel: DroneExecutionViewModel by viewModels { DroneExecutionViewModelFactory() }
+    private val droneController by lazy { DroneCommandManager() }
     private lateinit var flightReportManager: FlightReportManager
     private lateinit var weatherModule: WeatherModule
     private var weatherLat: Double? = null
@@ -48,7 +57,6 @@ class MissionControlActivity : ComponentActivity() {
             finish()
             return
         }
-        ActiveMissionSessionManager.startMissionSession(missionId.toString())
         flightReportManager = FlightReportManager(this)
         weatherModule = WeatherModule.getInstance(this)
 
@@ -62,6 +70,10 @@ class MissionControlActivity : ComponentActivity() {
             val result = missionRepository.getMission(missionId)
             result.onSuccess { mission ->
                 if (mission != null) {
+                    ActiveMissionSessionManager.startMissionSession(
+                        missionId = missionId.toString(),
+                        missionName = mission.name
+                    )
                     weatherLat = mission.poi_latitude
                     weatherLon = mission.poi_longitude
                     viewModel.loadMission(mission)
@@ -81,17 +93,19 @@ class MissionControlActivity : ComponentActivity() {
                 val missionState = viewModel.missionState.collectAsStateWithLifecycle().value
                 val missionData: ServerMissionDto? = viewModel.mission.collectAsStateWithLifecycle().value
                 val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+                val droneState by droneController.droneState.collectAsStateWithLifecycle()
 
                 when {
                     missionData != null -> {
                         MissionControlScreen(
                             missionName = missionData.name,
                             missionStatus = missionState.toUiStatus(),
+                            droneState = droneState,
                             currentLocation = com.mapbox.geojson.Point.fromLngLat(
                                 missionData.poi_longitude,
                                 missionData.poi_latitude
                             ),
-                            waypoints = missionData.waypoints.mapIndexed { index, waypoint ->
+                            waypoints = missionData.waypoints.inDisplayOrder().mapIndexed { index, waypoint ->
                                 Waypoint(
                                     id = index + 1,
                                     latitude = waypoint.latitude,
@@ -102,10 +116,17 @@ class MissionControlActivity : ComponentActivity() {
                             },
                             errorMessage = errorMessage,
                             onBackClick = { finish() },
+                            onUploadMission = { viewModel.loadMission(missionData) },
                             onStartMission = { viewModel.startMission() },
                             onPauseMission = { viewModel.pauseMission() },
                             onResumeMission = { viewModel.resumeMission() },
                             onStopMission = { viewModel.stopMission() },
+                            onTakeoffClick = { droneController.takeOff() },
+                            onLandClick = { droneController.land() },
+                            onMoveUpStart = { droneController.moveUp() },
+                            onMoveDownStart = { droneController.moveDown() },
+                            onMoveStop = { droneController.stopMovement() },
+                            onEmergencyStop = { droneController.emergencyStop() },
                             onErrorDismiss = { viewModel.clearError() }
                         )
                     }
@@ -125,14 +146,14 @@ class MissionControlActivity : ComponentActivity() {
 
     override fun onDestroy() {
         finishMissionReport()
-        ActiveMissionSessionManager.clearMissionSession()
+        droneController.stop()
         super.onDestroy()
     }
 
     private fun startMissionReport(missionId: Int, mission: ServerMissionDto) {
         if (reportStarted) return
         lifecycleScope.launch {
-            val startWeather = weatherSnapshot()
+            val startWeather = safeWeatherSnapshot(stage = "start")
             flightReportManager.startReport(
                 missionName = mission.name,
                 aircraftName = "Drone",
@@ -154,7 +175,7 @@ class MissionControlActivity : ComponentActivity() {
     private fun finishMissionReport() {
         if (!reportStarted) return
         runBlocking {
-            val endWeather = weatherSnapshot()
+            val endWeather = safeWeatherSnapshot(stage = "finish")
             if (endWeather != null) {
                 flightReportManager.updateExtraData(
                     mapOf(
@@ -170,11 +191,21 @@ class MissionControlActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun weatherSnapshot() = withTimeoutOrNull(1_500L) {
-        val lat = weatherLat ?: return@withTimeoutOrNull null
-        val lon = weatherLon ?: return@withTimeoutOrNull null
-        weatherModule.getWeatherSummaryUseCase(lat, lon, ttlMs = 60_000L)
-    }
+    private suspend fun safeWeatherSnapshot(stage: String) = runCatching {
+        withTimeoutOrNull(1_500L) {
+            val lat = weatherLat ?: return@withTimeoutOrNull null
+            val lon = weatherLon ?: return@withTimeoutOrNull null
+            withContext(Dispatchers.IO) {
+                weatherModule.getWeatherSummaryUseCase(lat, lon, ttlMs = 60_000L)
+            }
+        }
+    }.onFailure { error ->
+        Log.w(TAG, "Falha ao obter clima no $stage da missão: ${error.message}", error)
+    }.getOrNull()
+        ?: run {
+            Log.d(TAG, "Clima indisponível no $stage da missão; relatório seguirá sem esse dado")
+            null
+        }
 }
 
 fun MissionState.toUiStatus(): MissionStatus {

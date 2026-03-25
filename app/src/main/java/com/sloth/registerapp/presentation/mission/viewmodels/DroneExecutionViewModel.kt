@@ -4,6 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
+import com.sloth.registerapp.core.mission.ActiveMissionStatus
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
 import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
@@ -57,6 +59,7 @@ class DroneExecutionViewModel(
         viewModelScope.launch {
             missionManager.missionState.collect { state ->
                 _missionState.value = state
+                val missionLoaded = _mission.value != null
                 val newUiState = when (state) {
                     MissionState.IDLE -> MissionUiState.Idle
                     MissionState.PREPARING -> MissionUiState.Preparing
@@ -71,6 +74,9 @@ class DroneExecutionViewModel(
                     MissionState.ERROR -> MissionUiState.Error("")
                 }
                 _uiState.value = newUiState
+                if (missionLoaded) {
+                    ActiveMissionSessionManager.updateMissionStatus(state.toActiveSessionStatus())
+                }
             }
         }
     }
@@ -80,10 +86,15 @@ class DroneExecutionViewModel(
         _mission.value = mission
         viewModelScope.launch {
             try {
+                ActiveMissionSessionManager.startMissionSession(
+                    missionId = mission.id.toString(),
+                    missionName = mission.name
+                )
                 missionManager.prepareAndUploadMission(mission)
                 Log.i(TAG, "✅ Missão carregada!")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Erro ao carregar: ${e.message}")
+                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
                 _errorMessage.value = "Erro: ${e.message}"
                 _uiEvent.emit(UiEvent.ShowError("Erro: ${e.message}"))
             }
@@ -153,6 +164,22 @@ class DroneExecutionViewModel(
                 Log.e(TAG, "Erro ao destruir manager", e)
             }
         }
+    }
+}
+
+private fun MissionState.toActiveSessionStatus(): ActiveMissionStatus {
+    return when (this) {
+        MissionState.IDLE -> ActiveMissionStatus.IDLE
+        MissionState.PREPARING,
+        MissionState.DOWNLOADING,
+        MissionState.UPLOADING -> ActiveMissionStatus.LOADING
+        MissionState.DOWNLOAD_FINISHED,
+        MissionState.READY_TO_EXECUTE -> ActiveMissionStatus.READY
+        MissionState.EXECUTING -> ActiveMissionStatus.EXECUTING
+        MissionState.EXECUTION_PAUSED -> ActiveMissionStatus.PAUSED
+        MissionState.EXECUTION_STOPPED -> ActiveMissionStatus.STOPPED
+        MissionState.FINISHED -> ActiveMissionStatus.COMPLETED
+        MissionState.ERROR -> ActiveMissionStatus.ERROR
     }
 }
 

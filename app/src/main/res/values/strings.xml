@@ -1,11 +1,17 @@
 <resources>
     <string name="app_name">Vantly Neural</string>
-    <string name="mapbox_access_token">pk.eyJ1IjoicGV0ZXIwMTAwMSIsImEiOiJjbWI5bWNnOTUwZ2xzMm5vdXl2bjRxbTdtIn0.z6hk3whYMTa_gACUXraK4Q</string>
+    <string name="mapbox_access_token">YOUR_MAPBOX_ACCESS_TOKEN</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
+    <string name="bottom_nav_home">Início</string>
+    <string name="bottom_nav_live">Ao vivo</string>
+    <string name="bottom_nav_missions">Missões</string>
+    <string name="bottom_nav_reports">Relatório</string>
+    <string name="dashboard_open_link_error">Não foi possível abrir o link do drone.</string>
+    <string name="mission_preview_route_label">Preview da rota</string>
 
     <string name="lorem_ipsum">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris

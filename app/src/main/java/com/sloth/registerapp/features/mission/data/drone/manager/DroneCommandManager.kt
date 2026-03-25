@@ -2,25 +2,35 @@ package com.sloth.registerapp.features.mission.data.drone.manager
 
 import android.util.Log
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.features.mission.domain.model.FlightCommandError
+import com.sloth.registerapp.features.mission.domain.model.FlightCommandRejectionReason
+import com.sloth.registerapp.features.mission.domain.model.FlightCommandResult
+import com.sloth.registerapp.features.mission.domain.model.FlightCommandType
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
 import dji.common.camera.SettingsDefinitions
+import dji.common.error.DJIError
 import dji.common.flightcontroller.virtualstick.FlightControlData
 import dji.common.flightcontroller.virtualstick.FlightCoordinateSystem
 import dji.common.flightcontroller.virtualstick.RollPitchControlMode
 import dji.common.flightcontroller.virtualstick.VerticalControlMode
 import dji.common.flightcontroller.virtualstick.YawControlMode
+import dji.common.util.CommonCallbacks
 import dji.sdk.camera.Camera
 import dji.sdk.flightcontroller.FlightController
 import dji.sdk.products.Aircraft
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.resume
 
 class DroneCommandManager {
 
@@ -143,90 +153,43 @@ class DroneCommandManager {
 
     // ========== DECOLAGEM E POUSO ==========
 
-    fun takeOff() {
-        if (_droneState.value != DroneState.ON_GROUND) {
-            Log.w(TAG, "⚠️ Decolagem ignorada. Estado: ${_droneState.value}")
-            return
-        }
-
-        val flightController = getFlightController()
-        if (flightController == null) {
-            Log.e(TAG, "❌ FlightController não disponível")
-            return
-        }
-
+    fun takeOff(onResult: (FlightCommandResult) -> Unit = {}) {
         scope.launch {
-            Log.d(TAG, "🚁 Iniciando decolagem...")
-            _droneState.value = DroneState.TAKING_OFF
-
-            flightController.startTakeoff { error ->
-                if (error == null) {
-                    Log.d(TAG, "✅ Comando de decolagem enviado")
-                    _droneState.value = DroneState.IN_AIR
-                } else {
-                    Log.e(TAG, "❌ Erro na decolagem: ${error.description}")
-                    _droneState.value = DroneState.ON_GROUND
-                }
-            }
+            onResult(executeFlightCommand(
+                command = FlightCommandType.TAKE_OFF,
+                requiredState = DroneState.ON_GROUND,
+                pendingState = DroneState.TAKING_OFF,
+                rollbackState = DroneState.ON_GROUND
+            ) { callback ->
+                startTakeoff(callback)
+            })
         }
     }
 
-    fun land() {
-        if (_droneState.value != DroneState.IN_AIR) {
-            Log.w(TAG, "⚠️ Pouso ignorado. Estado: ${_droneState.value}")
-            return
-        }
-
-        // Para qualquer movimento em andamento
-        stopMovement()
-
-        val flightController = getFlightController()
-        if (flightController == null) {
-            Log.e(TAG, "❌ FlightController não disponível")
-            return
-        }
-
+    fun land(onResult: (FlightCommandResult) -> Unit = {}) {
         scope.launch {
-            Log.d(TAG, "🛬 Iniciando pouso...")
-            _droneState.value = DroneState.LANDING
-
-            flightController.startLanding { error ->
-                if (error == null) {
-                    Log.d(TAG, "✅ Comando de pouso enviado")
-                } else {
-                    Log.e(TAG, "❌ Erro no pouso: ${error.description}")
-                    _droneState.value = DroneState.IN_AIR
-                }
-            }
-
-            delay(4000)
-            _droneState.value = DroneState.ON_GROUND
-            telemetryManager.updateTelemetry(altitude = 0f, speed = 0f)
+            stopMovement()
+            onResult(executeFlightCommand(
+                command = FlightCommandType.LAND,
+                requiredState = DroneState.IN_AIR,
+                pendingState = DroneState.LANDING,
+                rollbackState = DroneState.IN_AIR
+            ) { callback ->
+                startLanding(callback)
+            })
         }
     }
 
-    fun returnToHome() {
-        if (_droneState.value != DroneState.IN_AIR) {
-            Log.w(TAG, "⚠️ Retorno ignorado. Estado: ${_droneState.value}")
-            return
-        }
-
-        val flightController = getFlightController()
-        if (flightController == null) {
-            Log.e(TAG, "❌ FlightController não disponível")
-            return
-        }
-
+    fun returnToHome(onResult: (FlightCommandResult) -> Unit = {}) {
         scope.launch {
-            Log.d(TAG, "🏠 Iniciando retorno para casa...")
-            flightController.startGoHome { error ->
-                if (error == null) {
-                    Log.d(TAG, "✅ Comando de retorno enviado")
-                    _droneState.value = DroneState.GOING_HOME
-                } else {
-                    Log.e(TAG, "❌ Erro no retorno: ${error.description}")
-                }
-            }
+            onResult(executeFlightCommand(
+                command = FlightCommandType.RETURN_TO_HOME,
+                requiredState = DroneState.IN_AIR,
+                pendingState = DroneState.GOING_HOME,
+                rollbackState = DroneState.IN_AIR
+            ) { callback ->
+                startGoHome(callback)
+            })
         }
     }
 
@@ -439,6 +402,77 @@ class DroneCommandManager {
 
     fun isConnected(): Boolean = getFlightController() != null
 
+    private suspend fun executeFlightCommand(
+        command: FlightCommandType,
+        requiredState: DroneState,
+        pendingState: DroneState,
+        rollbackState: DroneState,
+        action: FlightController.(CommonCallbacks.CompletionCallback<DJIError>) -> Unit
+    ): FlightCommandResult {
+        val currentState = _droneState.value
+        if (currentState != requiredState) {
+            Log.w(TAG, "⚠️ Comando $command ignorado. Estado atual: $currentState")
+            return FlightCommandResult.Rejected(
+                command = command,
+                reason = FlightCommandRejectionReason.INVALID_STATE
+            )
+        }
+
+        val flightController = getFlightController()
+        if (flightController == null) {
+            Log.e(TAG, "❌ FlightController não disponível para $command")
+            return FlightCommandResult.Rejected(
+                command = command,
+                reason = FlightCommandRejectionReason.NOT_CONNECTED
+            )
+        }
+
+        Log.d(TAG, "🚁 Executando comando $command")
+        _droneState.value = pendingState
+
+        val result = flightController.awaitCompletion(command, action)
+        if (result is FlightCommandResult.Failed) {
+            _droneState.value = rollbackState
+        }
+
+        return result
+    }
+
+    private suspend fun FlightController.awaitCompletion(
+        command: FlightCommandType,
+        action: FlightController.(CommonCallbacks.CompletionCallback<DJIError>) -> Unit
+    ): FlightCommandResult {
+        return try {
+            withTimeout(COMMAND_TIMEOUT_MS) {
+                suspendCancellableCoroutine { continuation ->
+                    action(object : CommonCallbacks.CompletionCallback<DJIError> {
+                        override fun onResult(error: DJIError?) {
+                            if (!continuation.isActive) return
+
+                            val result = if (error == null) {
+                                Log.d(TAG, "✅ Comando $command aceito pelo SDK")
+                                FlightCommandResult.Accepted(command)
+                            } else {
+                                Log.e(TAG, "❌ Erro em $command: ${error.description}")
+                                FlightCommandResult.Failed(
+                                    command = command,
+                                    error = FlightCommandError.Sdk(error.description)
+                                )
+                            }
+                            continuation.resume(result)
+                        }
+                    })
+                }
+            }
+        } catch (_: TimeoutCancellationException) {
+            Log.e(TAG, "❌ Timeout aguardando callback para $command")
+            FlightCommandResult.Failed(
+                command = command,
+                error = FlightCommandError.Timeout
+            )
+        }
+    }
+
     fun takePhoto(onResult: (Boolean, String?) -> Unit) {
         val camera = getCamera()
         if (camera == null) {
@@ -493,5 +527,6 @@ class DroneCommandManager {
     companion object {
         private const val TAG = "DroneCommand"
         private const val MOVE_SAFETY_TIMEOUT_MS = 1200L
+        private const val COMMAND_TIMEOUT_MS = 8_000L
     }
 }

@@ -48,7 +48,8 @@ fun DronesListScreen(
         } else {
             drones.filter {
                 it.name.lowercase().contains(normalized) ||
-                    it.description.lowercase().contains(normalized)
+                    it.model.lowercase().contains(normalized) ||
+                    it.status.lowercase().contains(normalized)
             }
         }
     }
@@ -97,9 +98,10 @@ fun DronesListScreen(
             }
 
             items(filteredDrones, key = { it.name }) { drone ->
-                DroneCard(
+                DroneStatusCard(
                     drone = drone,
-                    onOpenSite = {
+                    index = 0,
+                    onClick = {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(drone.officialUrl)))
                     }
                 )

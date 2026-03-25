@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -39,6 +40,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
+import com.sloth.registerapp.core.mission.ActiveMissionStatus
 import com.sloth.registerapp.core.settings.MediaStorageSettingsRepository
 import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
@@ -46,6 +48,7 @@ import com.sloth.registerapp.core.utils.MeasurementConverter
 import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
 import com.sloth.registerapp.features.report.domain.model.MissionMediaSource
@@ -78,16 +81,17 @@ fun DroneCameraScreen(
     val scope = rememberCoroutineScope()
 
     val colorScheme = MaterialTheme.colorScheme
+    val missionManager = remember { DroneMissionManager(DJIConnectionHelper) }
 
     // Estados
     var visible by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
+    var showMissionOverlay by rememberSaveable { mutableStateOf(true) }
 
     val droneState by droneController.droneState.collectAsStateWithLifecycle()
     val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
     val product by DJIConnectionHelper.product.collectAsStateWithLifecycle()
-    val canMove = droneState == DroneState.IN_AIR
     val isFeedAvailable = product != null
 
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
@@ -96,6 +100,7 @@ fun DroneCameraScreen(
     val mediaManager = remember { MissionMediaManager.getInstance(context) }
     val weatherModule = remember { WeatherModule.getInstance(context) }
     val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
+    val activeMissionSession by ActiveMissionSessionManager.session.collectAsStateWithLifecycle()
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
     val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsStateWithLifecycle(
         initialValue = MediaStorageSettingsRepository.TARGET_PHONE
@@ -189,6 +194,12 @@ fun DroneCameraScreen(
 
     LaunchedEffect(locationPermissions.allPermissionsGranted) {
         locationViewModel.setPermissionGranted(locationPermissions.allPermissionsGranted)
+    }
+
+    LaunchedEffect(activeMissionSession.hasMission) {
+        if (activeMissionSession.hasMission) {
+            showMissionOverlay = true
+        }
     }
 
     LaunchedEffect(telemetry.latitude, telemetry.longitude, locationUiState.location) {
@@ -339,28 +350,86 @@ fun DroneCameraScreen(
             )
         }
 
-        // Mini mapa no canto inferior esquerdo + ações de voo sobrepostas
+        AnimatedVisibility(
+            visible = activeMissionSession.hasMission,
+            enter = fadeIn() + slideInHorizontally { it / 3 },
+            exit = fadeOut() + slideOutHorizontally { it / 3 },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 14.dp, bottom = 72.dp)
+        ) {
+            AnimatedVisibility(
+                visible = showMissionOverlay,
+                enter = fadeIn() + slideInVertically { it / 4 },
+                exit = fadeOut() + slideOutVertically { it / 4 }
+            ) {
+                MissionExecutionOverlay(
+                    missionName = activeMissionSession.missionName ?: "Missao pronta",
+                    missionStatus = activeMissionSession.status,
+                    onStartClick = {
+                        scope.launch {
+                            runCatching { missionManager.startMission() }
+                                .onSuccess {
+                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
+                                    Toast.makeText(context, "Missão iniciada", Toast.LENGTH_SHORT).show()
+                                }
+                                .onFailure {
+                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                                    Toast.makeText(
+                                        context,
+                                        "Erro ao iniciar missão: ${it.message ?: "desconhecido"}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                    },
+                    onPauseClick = {
+                        scope.launch {
+                            runCatching { missionManager.pauseMission() }
+                                .onSuccess {
+                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
+                                    Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
+                                }
+                                .onFailure {
+                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                                    Toast.makeText(
+                                        context,
+                                        "Erro ao pausar missão: ${it.message ?: "desconhecido"}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                    },
+                    onStopClick = {
+                        scope.launch {
+                            runCatching { missionManager.stopMission() }
+                                .onSuccess {
+                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
+                                    Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
+                                }
+                                .onFailure {
+                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                                    Toast.makeText(
+                                        context,
+                                        "Erro ao parar missão: ${it.message ?: "desconhecido"}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                    }
+                )
+            }
+        }
+
+        // Mini mapa no canto inferior esquerdo
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 12.dp, bottom = 24.dp)
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.Start
             ) {
-                AnimatedVisibility(
-                    visible = showControls && visible,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    FlightActionControls(
-                        droneState = droneState,
-                        onTakeoffClick = { droneController.takeOff() },
-                        onLandClick = { droneController.land() }
-                    )
-                }
-
                 Surface(
                     modifier = Modifier
                         .size(width = 164.dp, height = 118.dp)
@@ -373,6 +442,8 @@ fun DroneCameraScreen(
                             MapboxMiniMapView(
                                 modifier = Modifier.fillMaxSize(),
                                 operatorLocation = locationUiState.location!!,
+                                operatorAccuracyMeters = locationUiState.accuracyMeters,
+                                operatorIsStationary = locationUiState.isStationary,
                                 styleUri = Style.STANDARD
                             )
                         } else {
@@ -483,6 +554,20 @@ fun DroneCameraScreen(
             )
         }
 
+        AnimatedVisibility(
+            visible = activeMissionSession.hasMission && showControls && visible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 94.dp, end = 10.dp)
+        ) {
+            MissionPanelToggleButton(
+                expanded = showMissionOverlay,
+                onClick = { showMissionOverlay = !showMissionOverlay }
+            )
+        }
+
         if (!previewEnabled) {
             Box(
                 modifier = Modifier
@@ -499,39 +584,13 @@ fun DroneCameraScreen(
             }
         }
 
-        // Botão de Emergência
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn() + slideInHorizontally { it },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 14.dp)
-        ) {
-            EmergencyStopButton(onClick = { droneController.emergencyStop() })
-        }
-
-        // Controles verticais (subir/descer)
-        AnimatedVisibility(
-            visible = showControls && visible,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 24.dp)
-        ) {
-            VerticalMovementControls(
-                enabled = canMove,
-                onMoveUpStart = { droneController.moveUp() },
-                onMoveDownStart = { droneController.moveDown() },
-                onStop = { droneController.stopMovement() }
-            )
-        }
     }
 
     DisposableEffect(Unit) {
         onDispose {
             rtmpStreamer.release()
             droneController.stop()
+            missionManager.destroy()
         }
     }
 }
@@ -541,6 +600,129 @@ private const val WEATHER_MIN_REFRESH_MS = 60_000L
 // ===============================================
 //               SUB-COMPONENTES
 // ===============================================
+
+@Composable
+private fun MissionPanelToggleButton(
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    CompactControlButton(
+        icon = if (expanded) Icons.Default.VisibilityOff else Icons.Default.Route,
+        onClick = onClick,
+        enabled = true,
+        color = Color(0xFF00E5A0),
+        size = 38.dp
+    )
+}
+
+@Composable
+private fun MissionExecutionOverlay(
+    missionName: String,
+    missionStatus: ActiveMissionStatus,
+    onStartClick: () -> Unit,
+    onPauseClick: () -> Unit,
+    onStopClick: () -> Unit
+) {
+    val (statusLabel, statusColor) = when (missionStatus) {
+        ActiveMissionStatus.LOADING -> "Carregando no drone" to Color(0xFFFFC857)
+        ActiveMissionStatus.READY -> "Pronta para executar" to Color(0xFF00E5A0)
+        ActiveMissionStatus.EXECUTING -> "Em execucao" to Color(0xFF00C2FF)
+        ActiveMissionStatus.PAUSED -> "Pausada" to Color(0xFFFFC857)
+        ActiveMissionStatus.STOPPED -> "Interrompida" to Color(0xFFFF6B6B)
+        ActiveMissionStatus.COMPLETED -> "Concluida" to Color(0xFF00E5A0)
+        ActiveMissionStatus.ERROR -> "Falha na missao" to Color(0xFFFF6B6B)
+        ActiveMissionStatus.IDLE -> "Sem missao" to Color.White.copy(alpha = 0.7f)
+    }
+
+    Surface(
+        color = Color.Black.copy(alpha = 0.48f),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = missionName,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(statusColor, CircleShape)
+                )
+                Text(
+                    text = statusLabel,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 12.sp
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                when (missionStatus) {
+                    ActiveMissionStatus.READY,
+                    ActiveMissionStatus.PAUSED,
+                    ActiveMissionStatus.STOPPED -> {
+                        MissionOverlayButton(
+                            label = if (missionStatus == ActiveMissionStatus.PAUSED) "Retomar" else "Executar",
+                            icon = Icons.Default.PlayArrow,
+                            accent = Color(0xFF00E5A0),
+                            onClick = onStartClick
+                        )
+                    }
+
+                    ActiveMissionStatus.EXECUTING -> {
+                        MissionOverlayButton(
+                            label = "Pausar",
+                            icon = Icons.Default.Pause,
+                            accent = Color(0xFFFFC857),
+                            onClick = onPauseClick
+                        )
+                    }
+
+                    else -> Unit
+                }
+
+                if (missionStatus == ActiveMissionStatus.EXECUTING || missionStatus == ActiveMissionStatus.PAUSED) {
+                    MissionOverlayButton(
+                        label = "Parar",
+                        icon = Icons.Default.Stop,
+                        accent = Color(0xFFFF6B6B),
+                        onClick = onStopClick
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionOverlayButton(
+    label: String,
+    icon: ImageVector,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+        modifier = Modifier
+            .background(accent.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .border(1.dp, accent.copy(alpha = 0.32f), RoundedCornerShape(12.dp))
+    ) {
+        Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(label, color = Color.White)
+    }
+}
 
 @Composable
 fun CompactHeader(

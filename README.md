@@ -72,6 +72,16 @@ Refatoração do `DroneMissionManager` com foco em produção:
 - Cleanup e prevenção de memory leaks
 - Exemplos e documentação de integração
 
+## Documentação
+- [Índice da documentação](docs/README.md)
+- [Análise do projeto em campo](docs/ANALISE_DRONE_3_DIAS.md)
+- [Estratégia de modelos ML offline](docs/ESTRATEGIA_MODELOS_ML_OFFLINE.md)
+- [Plano auth offline first](docs/PLANO_TODO_AUTH_OFFLINE_FIRST.md)
+- [Contrato API auth + missões](docs/SPEC_CONTRATO_AUTH_MISSOES.md)
+- [Galeria por missão](docs/TODO_GALERIA_MISSAO_EXECUCAO.md)
+- [Camada climática](docs/TODO_IMPLEMENTACAO_CLIMA.md)
+- [Rework de settings e mídia](docs/TODO_SETTINGS_E_MIDIA_REWORK.md)
+
 ## To-dos
 ### Concluído
 - Refatoração completa do `DroneMissionManager`

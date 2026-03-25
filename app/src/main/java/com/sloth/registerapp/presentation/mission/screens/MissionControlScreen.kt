@@ -5,16 +5,69 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.FlightLand
+import androidx.compose.material.icons.filled.FlightTakeoff
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,9 +76,26 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.mapbox.geojson.Point
+import com.mapbox.maps.CameraOptions
+import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
 import com.sloth.registerapp.presentation.mission.model.Waypoint
-import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sqrt
+
+private val MissionSurface = Color(0xCC0A1628)
+private val MissionSurfaceAlt = Color(0xF2060D1C)
+private val MissionPrimary = Color(0xFF00C2FF)
+private val MissionSuccess = Color(0xFF00E5A0)
+private val MissionWarning = Color(0xFFFFB800)
+private val MissionDanger = Color(0xFFFF3B6E)
+private val MissionMuted = Color(0xFF4A7FA5)
+private val MissionBorder = Color(0xFF0D2040)
 
 enum class MissionStatus {
     IDLE,
@@ -43,6 +113,7 @@ enum class MissionStatus {
 fun MissionControlScreen(
     missionName: String = "Missão Alpha",
     missionStatus: MissionStatus = MissionStatus.READY,
+    droneState: DroneState = DroneState.ON_GROUND,
     currentLocation: Point = Point.fromLngLat(-44.3025, -2.5307),
     droneLocation: Point? = null,
     waypoints: List<Waypoint> = emptyList(),
@@ -52,289 +123,206 @@ fun MissionControlScreen(
     gpsSignal: Int = 12,
     errorMessage: String? = null,
     onBackClick: () -> Unit = {},
+    onUploadMission: () -> Unit = {},
     onStartMission: () -> Unit = {},
     onPauseMission: () -> Unit = {},
     onResumeMission: () -> Unit = {},
     onStopMission: () -> Unit = {},
+    onTakeoffClick: () -> Unit = {},
+    onLandClick: () -> Unit = {},
+    onMoveUpStart: () -> Unit = {},
+    onMoveDownStart: () -> Unit = {},
+    onMoveStop: () -> Unit = {},
+    onEmergencyStop: () -> Unit = {},
     onErrorDismiss: () -> Unit = {}
 ) {
-    // Ocultar barras do sistema (status bar e navigation bar)
     val view = LocalView.current
     DisposableEffect(Unit) {
         val window = (view.context as? android.app.Activity)?.window
         window?.let {
             val insetsController = WindowCompat.getInsetsController(it, view)
-            insetsController.apply {
-                hide(WindowInsetsCompat.Type.systemBars())
-                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        
         onDispose {
             window?.let {
-                val insetsController = WindowCompat.getInsetsController(it, view)
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
+                WindowCompat.getInsetsController(it, view).show(WindowInsetsCompat.Type.systemBars())
             }
         }
     }
-    
-    val colorScheme = MaterialTheme.colorScheme
 
-    var showTelemetry by remember { mutableStateOf(true) }
-    var showStopDialog by remember { mutableStateOf(false) }
+    var selectedWaypoint by rememberSaveable { mutableIntStateOf(0) }
+    var configPanelOpen by rememberSaveable { mutableStateOf(false) }
+    var waypointPanelOpen by rememberSaveable { mutableStateOf(false) }
+    var showStopDialog by rememberSaveable { mutableStateOf(false) }
 
-    val statusColor = when (missionStatus) {
-        MissionStatus.IDLE -> colorScheme.onSurface.copy(alpha = 0.6f)
-        MissionStatus.LOADING -> colorScheme.tertiary
-        MissionStatus.READY -> colorScheme.primary
-        MissionStatus.RUNNING -> colorScheme.primary
-        MissionStatus.PAUSED -> colorScheme.tertiary
-        MissionStatus.STOPPED -> colorScheme.error
-        MissionStatus.COMPLETED -> colorScheme.primary
-        MissionStatus.ERROR -> colorScheme.error
-    }
+    val totalDistanceKm = remember(waypoints) { calculateRouteDistanceKm(waypoints) }
+    val estimatedMinutes = remember(waypoints, speed) { estimateMissionMinutes(totalDistanceKm, speed, waypoints.size) }
+    val mapCenter = remember(waypoints, currentLocation) { calculateMapCenter(waypoints, currentLocation) }
+    val selectedWaypointData = waypoints.getOrNull(selectedWaypoint)
+    val primaryAction = missionPrimaryAction(missionStatus, onStartMission, onResumeMission)
 
-    // Lógica do FAB dinâmico
-    data class FABConfig(
-        val icon: androidx.compose.ui.graphics.vector.ImageVector,
-        val text: String,
-        val action: () -> Unit,
-        val containerColor: Color,
-        val contentColor: Color
-    )
-    
-    val fabConfig = when (missionStatus) {
-        MissionStatus.IDLE, MissionStatus.READY -> 
-            FABConfig(
-                Icons.Default.PlayArrow,
-                "Iniciar",
-                onStartMission,
-                colorScheme.primary,
-                colorScheme.onPrimary
-            )
-        MissionStatus.LOADING ->
-            FABConfig(
-                Icons.Default.HourglassEmpty,
-                "Carregando",
-                {},
-                colorScheme.tertiary,
-                colorScheme.onTertiary
-            )
-        MissionStatus.RUNNING -> 
-            FABConfig(
-                Icons.Default.Pause,
-                "Pausar",
-                onPauseMission,
-                colorScheme.tertiary,
-                colorScheme.onTertiary
-            )
-        MissionStatus.PAUSED -> 
-            FABConfig(
-                Icons.Default.PlayArrow,
-                "Retomar",
-                onResumeMission,
-                colorScheme.primary,
-                colorScheme.onPrimary
-            )
-        MissionStatus.STOPPED, MissionStatus.ERROR ->
-            FABConfig(
-                Icons.Default.Refresh,
-                "Tentar Novamente",
-                onStartMission,
-                colorScheme.primary,
-                colorScheme.onPrimary
-            )
-        MissionStatus.COMPLETED ->
-            FABConfig(
-                Icons.Default.CheckCircle,
-                "Concluída",
-                {},
-                colorScheme.primary,
-                colorScheme.onPrimary
-            )
-    }
-
-    // Calcular configuração da câmera com base nos waypoints
-    val cameraOptions = remember(waypoints, currentLocation) {
-        if (waypoints.isNotEmpty()) {
-            // Calcular bounding box para mostrar todos os waypoints
-            val lats = waypoints.map { it.latitude }
-            val lngs = waypoints.map { it.longitude }
-            
-            val minLat = lats.minOrNull() ?: currentLocation.latitude()
-            val maxLat = lats.maxOrNull() ?: currentLocation.latitude()
-            val minLng = lngs.minOrNull() ?: currentLocation.longitude()
-            val maxLng = lngs.maxOrNull() ?: currentLocation.longitude()
-            
-            // Calcular centro e zoom apropriados
-            val centerLat = (minLat + maxLat) / 2
-            val centerLng = (minLng + maxLng) / 2
-            
-            // Calcular zoom baseado na distância entre pontos
-            val latDiff = maxLat - minLat
-            val lngDiff = maxLng - minLng
-            val maxDiff = maxOf(latDiff, lngDiff)
-            
-            val zoom = when {
-                maxDiff > 0.1 -> 10.0  // Pontos muito distantes
-                maxDiff > 0.05 -> 12.0 // Pontos distantes
-                maxDiff > 0.01 -> 14.0 // Pontos médios
-                maxDiff > 0.005 -> 15.0 // Pontos próximos
-                else -> 16.0            // Pontos muito próximos
-            }
-            
-            Pair(Point.fromLngLat(centerLng, centerLat), zoom)
-        } else {
-            // Sem waypoints, focar na localização atual
-            Pair(currentLocation, 15.0)
-        }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // 1. Mapa em tela cheia
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
         MapboxMapView(
             modifier = Modifier.fillMaxSize(),
             waypoints = waypoints,
-            primaryColor = colorScheme.primary,
-            onMapReady = { mapView ->
-                val mapboxMap = mapView
-
-                // Centralizar na área dos waypoints ou localização atual
-                mapboxMap.setCamera(
-                    com.mapbox.maps.CameraOptions.Builder()
-                        .center(cameraOptions.first)
-                        .zoom(cameraOptions.second)
+            pointOfInterest = droneLocation ?: currentLocation,
+            selectedWaypointIndex = selectedWaypoint.takeIf { it in waypoints.indices },
+            primaryColor = MissionPrimary,
+            onMapReady = { map ->
+                map.setCamera(
+                    CameraOptions.Builder()
+                        .center(mapCenter)
+                        .zoom(if (waypoints.size > 1) 14.2 else 15.5)
                         .build()
                 )
             }
         )
 
-        // Gradientes para legibilidade dos overlays
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(colorScheme.background.copy(alpha = 0.85f), Color.Transparent)
-                    )
-                )
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, colorScheme.background.copy(alpha = 0.85f))
-                    )
-                )
-        )
-
-        // 2. Barra superior minimalista
-        MinimalMissionHeader(
+        CompactMissionHeader(
             missionName = missionName,
-            statusColor = statusColor,
+            missionStatus = missionStatus,
+            waypointCount = waypoints.size,
+            gpsSignal = gpsSignal,
             battery = battery,
             onBackClick = onBackClick,
-            modifier = Modifier.align(Alignment.TopStart)
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 8.dp)
         )
 
-        // 3. Botão de toggle para telemetria
-        TelemetryToggleButton(
-            isVisible = showTelemetry,
-            onToggle = { showTelemetry = !showTelemetry },
+        LeftActionRail(
+            configPanelOpen = configPanelOpen,
+            waypointPanelOpen = waypointPanelOpen,
+            onToggleConfig = {
+                configPanelOpen = !configPanelOpen
+                if (configPanelOpen) waypointPanelOpen = false
+            },
+            onToggleWaypoint = {
+                waypointPanelOpen = !waypointPanelOpen
+                if (waypointPanelOpen) configPanelOpen = false
+            },
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 16.dp)
+        )
+
+        ManualFlightIconButton(
+            icon = Icons.Default.Warning,
+            tint = MissionDanger,
+            enabled = true,
+            onClick = onEmergencyStop,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 60.dp, end = 10.dp)
+                .padding(top = 12.dp, end = 18.dp)
         )
 
-        // 4. Card de telemetria (condicional e transparente)
-        AnimatedVisibility(
-            visible = showTelemetry,
-            enter = fadeIn(),
-            exit = fadeOut(),
+        BottomMissionDock(
+            droneState = droneState,
+            missionStatus = missionStatus,
+            primaryAction = primaryAction,
+            onTakeoffClick = onTakeoffClick,
+            onLandClick = onLandClick,
+            onMoveUpStart = onMoveUpStart,
+            onMoveDownStart = onMoveDownStart,
+            onMoveStop = onMoveStop,
+            onUploadMission = onUploadMission,
+            onPauseMission = onPauseMission,
+            onAbortMission = { showStopDialog = true },
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(top = 60.dp, start = 12.dp)
-        ) {
-            TransparentTelemetryCard(
-                altitude = altitude,
-                speed = speed,
-                gpsSignal = gpsSignal
-            )
-        }
-
-        // 5. FAB dinâmico para controle da missão
-        DynamicMissionFAB(
-            icon = fabConfig.icon,
-            text = fabConfig.text,
-            onClick = fabConfig.action,
-            containerColor = fabConfig.containerColor,
-            contentColor = fabConfig.contentColor,
-            enabled = missionStatus != MissionStatus.LOADING && missionStatus != MissionStatus.COMPLETED,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         )
 
-        // 6. FAB para parar missão (apenas quando em execução/pausada)
-        if (missionStatus == MissionStatus.RUNNING || missionStatus == MissionStatus.PAUSED) {
-            StopMissionFAB(
-                onClick = { showStopDialog = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 96.dp, end = 16.dp)
-            )
-        }
-
-        // 7. Diálogo de confirmação
         if (showStopDialog) {
             ConfirmDialog(
-                title = "Parar Missão?",
-                message = "Tem certeza que deseja parar a missão? O drone retornará ao ponto de partida.",
-                confirmText = "Parar",
+                title = "Abortar missão?",
+                message = "Tem certeza que deseja abortar a missão atual?",
+                confirmText = "Abortar",
                 onConfirm = {
-                    onStopMission()
                     showStopDialog = false
+                    onStopMission()
                 },
                 onDismiss = { showStopDialog = false },
                 isDanger = true
             )
         }
-        
-        // 8. Alerta de erro sobreposto
+
         if (!errorMessage.isNullOrBlank()) {
-            Box(
+            Card(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(16.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                colors = CardDefaults.cardColors(containerColor = MissionDanger)
             ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = colorScheme.error),
-                    shape = RoundedCornerShape(8.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = errorMessage!!,
-                            color = colorScheme.onError,
-                            fontSize = 14.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = onErrorDismiss) {
-                            Text("OK", color = colorScheme.onError, fontWeight = FontWeight.Bold)
-                        }
+                    Text(
+                        text = errorMessage,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onErrorDismiss) {
+                        Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
                     }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = configPanelOpen,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            CenterModalOverlay(onDismiss = { configPanelOpen = false }) {
+                CenterPanel(
+                    title = "Configurações DJI",
+                    badge = missionStatusLabel(missionStatus),
+                    badgeColor = missionStatusColor(missionStatus),
+                    onClose = { configPanelOpen = false }
+                ) {
+                    ConfigPanelContent(
+                        totalDistanceKm = totalDistanceKm,
+                        estimatedMinutes = estimatedMinutes,
+                        selectedWaypoint = selectedWaypointData
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = waypointPanelOpen,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            CenterModalOverlay(onDismiss = { waypointPanelOpen = false }) {
+                CenterPanel(
+                    title = "Waypoints",
+                    badge = "${waypoints.size} pontos",
+                    badgeColor = MissionPrimary,
+                    onClose = { waypointPanelOpen = false }
+                ) {
+                    WaypointPanelContent(
+                        waypoints = waypoints,
+                        selectedWaypoint = selectedWaypoint,
+                        onSelectWaypoint = {
+                            selectedWaypoint = it
+                            waypointPanelOpen = false
+                        }
+                    )
                 }
             }
         }
@@ -342,165 +330,524 @@ fun MissionControlScreen(
 }
 
 @Composable
-private fun MinimalMissionHeader(
+private fun CompactMissionHeader(
     missionName: String,
-    statusColor: Color,
+    missionStatus: MissionStatus,
+    waypointCount: Int,
+    gpsSignal: Int,
     battery: Int,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
     Row(
         modifier = modifier
-            .fillMaxWidth()
-            .background(colorScheme.surfaceVariant.copy(alpha = 0.78f))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .widthIn(max = 620.dp)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Botão de voltar
-        IconButton(onClick = onBackClick, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = colorScheme.onSurface)
+        GlassIconButton(icon = Icons.Default.ArrowBack, tint = Color.White, onClick = onBackClick)
+        Spacer(modifier = Modifier.size(10.dp))
+        Surface(
+            modifier = Modifier.weight(1f),
+            color = MissionSurface,
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MissionPrimary.copy(alpha = 0.22f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(missionStatusColor(missionStatus), CircleShape)
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(missionName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(
+                        text = "$waypointCount WPs · GPS $gpsSignal",
+                        color = MissionMuted,
+                        fontSize = 9.sp
+                    )
+                }
+                Text(
+                    text = "$battery%",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                )
+            }
         }
-        
-        // Título da missão (truncado)
-        Text(
-            text = missionName,
-            color = colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-            maxLines = 1,
-            modifier = Modifier.weight(1f)
+    }
+}
+
+@Composable
+private fun LeftActionRail(
+    configPanelOpen: Boolean,
+    waypointPanelOpen: Boolean,
+    onToggleConfig: () -> Unit,
+    onToggleWaypoint: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        GlassIconButton(
+            icon = Icons.Default.Tune,
+            tint = MissionPrimary,
+            active = configPanelOpen,
+            onClick = onToggleConfig
         )
-        
-        // Status indicator
-        Box(
+        GlassIconButton(
+            icon = Icons.Default.LocationOn,
+            tint = MissionPrimary,
+            active = waypointPanelOpen,
+            onClick = onToggleWaypoint
+        )
+    }
+}
+
+@Composable
+private fun CenterModalOverlay(
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x8F1E232B))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(modifier = Modifier.clickable(onClick = {})) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun CenterPanel(
+    title: String,
+    badge: String,
+    badgeColor: Color,
+    onClose: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .widthIn(max = 500.dp)
+            .heightIn(max = 340.dp)
+            .padding(horizontal = 18.dp),
+        color = MissionSurfaceAlt,
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, MissionBorder)
+    ) {
+        Column(
             modifier = Modifier
-                .size(10.dp)
-                .background(statusColor, CircleShape)
-        )
-        
-        // Ícone de bateria
-        Icon(
-            imageVector = Icons.Default.Battery6Bar,
-            contentDescription = null,
-            tint = if (battery > 20) colorScheme.primary else colorScheme.error,
-            modifier = Modifier.size(18.dp)
-        )
-        
-        // Porcentagem de bateria
-        Text(
-            text = "$battery%",
-            color = colorScheme.onSurface,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
-        )
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Spacer(modifier = Modifier.weight(1f))
+                Surface(
+                    color = MissionPrimary.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, MissionPrimary.copy(alpha = 0.18f))
+                ) {
+                    Text(
+                        text = badge,
+                        color = badgeColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.size(8.dp))
+                IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = MissionMuted, modifier = Modifier.size(16.dp))
+                }
+            }
+            content()
+        }
     }
 }
 
 @Composable
-private fun TelemetryToggleButton(
-    isVisible: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier
+private fun ConfigPanelContent(
+    totalDistanceKm: Double,
+    estimatedMinutes: Int,
+    selectedWaypoint: Waypoint?
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    FloatingActionButton(
-        onClick = onToggle,
-        modifier = modifier.size(48.dp),
-        containerColor = colorScheme.scrim.copy(alpha = 0.7f),
-        contentColor = colorScheme.onSurface
-    ) {
-        Icon(
-            imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-            contentDescription = if (isVisible) "Ocultar telemetria" else "Mostrar telemetria",
-            modifier = Modifier.size(20.dp)
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryPill("Distância", "${String.format("%.1f", totalDistanceKm)} km", Modifier.weight(1f))
+            SummaryPill("Duração", "~$estimatedMinutes min", Modifier.weight(1f))
+        }
+        if (selectedWaypoint != null) {
+            Surface(
+                color = MissionPrimary.copy(alpha = 0.06f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, MissionPrimary.copy(alpha = 0.14f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Waypoint selecionado", color = MissionMuted, fontSize = 11.sp)
+                    MissionInfoRow("Ponto", "WP ${selectedWaypoint.id}")
+                    MissionInfoRow("Altitude", "${selectedWaypoint.altitude.toInt()} m")
+                    MissionInfoRow("Velocidade", "${selectedWaypoint.speed} m/s")
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun TransparentTelemetryCard(
-    altitude: String,
-    speed: String,
-    gpsSignal: Int,
-    modifier: Modifier = Modifier
+private fun WaypointPanelContent(
+    waypoints: List<Waypoint>,
+    selectedWaypoint: Int,
+    onSelectWaypoint: (Int) -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    Column(
-        modifier = modifier
-            .background(colorScheme.scrim.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        TelemetryRow("⬆️", "Alt", altitude)
-        TelemetryRow("⚡", "Vel", speed)
-        TelemetryRow("🛰️", "GPS", "$gpsSignal")
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        itemsIndexed(waypoints) { index, waypoint ->
+            val isSelected = index == selectedWaypoint
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelectWaypoint(index) },
+                color = if (isSelected) MissionPrimary.copy(alpha = 0.10f) else Color(0xFF0A1628),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(
+                    1.dp,
+                    if (isSelected) MissionPrimary.copy(alpha = 0.35f) else MissionBorder
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.size(22.dp),
+                            color = if (isSelected) MissionPrimary else Color(0xFF0D2040),
+                            shape = CircleShape
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "${index + 1}",
+                                    color = if (isSelected) Color.White else MissionMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text(
+                            text = "WP ${index + 1}",
+                            color = if (isSelected) Color.White else Color(0xFF6A8AA8),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        )
+                    }
+                    MissionWaypointDetail(Icons.Default.Height, "Alt", "${waypoint.altitude.toInt()} m", MissionSuccess)
+                    MissionWaypointDetail(Icons.Default.Speed, "Vel", "${waypoint.speed} m/s", MissionPrimary)
+                    MissionWaypointDetail(Icons.Default.Explore, "Coord", waypoint.latitude.formatShortCoord(), MissionWarning)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun DynamicMissionFAB(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String,
-    onClick: () -> Unit,
-    containerColor: Color,
-    contentColor: Color,
-    enabled: Boolean = true,
+private fun BottomMissionDock(
+    droneState: DroneState,
+    missionStatus: MissionStatus,
+    primaryAction: MissionPrimaryAction,
+    onTakeoffClick: () -> Unit,
+    onLandClick: () -> Unit,
+    onMoveUpStart: () -> Unit,
+    onMoveDownStart: () -> Unit,
+    onMoveStop: () -> Unit,
+    onUploadMission: () -> Unit,
+    onPauseMission: () -> Unit,
+    onAbortMission: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ExtendedFloatingActionButton(
-        onClick = onClick,
-        modifier = modifier,
-        containerColor = containerColor,
-        contentColor = contentColor,
-        icon = { Icon(icon, contentDescription = null) },
-        text = { Text(text, fontWeight = FontWeight.Bold) },
-        expanded = true
-    )
-}
-
-@Composable
-private fun StopMissionFAB(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    
-    FloatingActionButton(
-        onClick = onClick,
-        modifier = modifier.size(56.dp),
-        containerColor = colorScheme.error,
-        contentColor = colorScheme.onError
-    ) {
-        Icon(Icons.Default.Stop, contentDescription = "Parar missão")
-    }
-}
-
-@Composable
-private fun TelemetryRow(icon: String, label: String, value: String) {
-    val colorScheme = MaterialTheme.colorScheme
-
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = icon, fontSize = 14.sp)
-        Text(
-            text = "$label:",
-            fontSize = 11.sp,
-            color = colorScheme.onSurface.copy(alpha = 0.7f),
-            fontWeight = FontWeight.Medium
+        LeftFlightStack(
+            droneState = droneState,
+            onTakeoffClick = onTakeoffClick,
+            onLandClick = onLandClick
         )
-        Text(
-            text = value,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = colorScheme.onSurface
+
+        Surface(
+            modifier = Modifier
+                .widthIn(max = 430.dp),
+            color = Color.Black.copy(alpha = 0.82f),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, MissionBorder)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MissionActionIcon(
+                    icon = Icons.Default.Upload,
+                    tint = MissionSuccess,
+                    enabled = missionStatus == MissionStatus.READY || missionStatus == MissionStatus.ERROR,
+                    onClick = onUploadMission
+                )
+                Button(
+                    onClick = primaryAction.onClick,
+                    enabled = primaryAction.enabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = primaryAction.color,
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(primaryAction.icon, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(primaryAction.label, fontWeight = FontWeight.Bold)
+                }
+                MissionActionIcon(
+                    icon = Icons.Default.Pause,
+                    tint = MissionWarning,
+                    enabled = missionStatus == MissionStatus.RUNNING,
+                    onClick = onPauseMission
+                )
+                MissionActionIcon(
+                    icon = Icons.Default.Stop,
+                    tint = MissionDanger,
+                    enabled = missionStatus == MissionStatus.RUNNING || missionStatus == MissionStatus.PAUSED,
+                    onClick = onAbortMission
+                )
+            }
+        }
+
+        RightMovementStack(
+            droneState = droneState,
+            onMoveUpStart = onMoveUpStart,
+            onMoveDownStart = onMoveDownStart,
+            onMoveStop = onMoveStop
         )
+    }
+}
+
+@Composable
+private fun MissionActionIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.size(42.dp),
+        color = if (enabled) tint.copy(alpha = 0.14f) else Color(0xFF0A1628),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, if (enabled) tint.copy(alpha = 0.35f) else MissionBorder),
+        onClick = { if (enabled) onClick() }
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (enabled) tint else MissionMuted, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun LeftFlightStack(
+    droneState: DroneState,
+    onTakeoffClick: () -> Unit,
+    onLandClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        ManualFlightIconButton(
+            icon = Icons.Default.FlightTakeoff,
+            tint = MissionSuccess,
+            enabled = droneState == DroneState.ON_GROUND,
+            onClick = onTakeoffClick
+        )
+        ManualFlightIconButton(
+            icon = Icons.Default.FlightLand,
+            tint = MissionWarning,
+            enabled = droneState == DroneState.IN_AIR,
+            onClick = onLandClick
+        )
+    }
+}
+
+@Composable
+private fun RightMovementStack(
+    droneState: DroneState,
+    onMoveUpStart: () -> Unit,
+    onMoveDownStart: () -> Unit,
+    onMoveStop: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        HoldFlightIconButton(
+            icon = Icons.Default.KeyboardArrowUp,
+            enabled = droneState == DroneState.IN_AIR,
+            tint = MissionPrimary,
+            onPressStart = onMoveUpStart,
+            onPressEnd = onMoveStop
+        )
+        HoldFlightIconButton(
+            icon = Icons.Default.KeyboardArrowDown,
+            enabled = droneState == DroneState.IN_AIR,
+            tint = MissionPrimary,
+            onPressStart = onMoveDownStart,
+            onPressEnd = onMoveStop
+        )
+    }
+}
+
+@Composable
+private fun ManualFlightIconButton(
+    icon: ImageVector,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.size(44.dp),
+        color = if (enabled) tint.copy(alpha = 0.20f) else Color(0x330A1628),
+        shape = CircleShape,
+        border = BorderStroke(1.dp, if (enabled) tint.copy(alpha = 0.50f) else MissionBorder),
+        onClick = { if (enabled) onClick() }
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (enabled) tint else MissionMuted, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun HoldFlightIconButton(
+    icon: ImageVector,
+    enabled: Boolean,
+    tint: Color,
+    onPressStart: () -> Unit,
+    onPressEnd: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .size(44.dp)
+            .pointerInput(enabled) {
+                detectTapGestures(
+                    onPress = {
+                        if (!enabled) return@detectTapGestures
+                        coroutineScope {
+                            val repeatJob = launch {
+                                while (isActive) {
+                                    onPressStart()
+                                    delay(300)
+                                }
+                            }
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                repeatJob.cancel()
+                                onPressEnd()
+                            }
+                        }
+                    }
+                )
+            },
+        color = if (enabled) tint.copy(alpha = 0.20f) else Color(0x330A1628),
+        shape = CircleShape,
+        border = BorderStroke(1.dp, if (enabled) tint.copy(alpha = 0.50f) else MissionBorder)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (enabled) tint else MissionMuted, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun SummaryPill(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = Color(0xFF0A1628),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MissionBorder)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(label, color = MissionMuted, fontSize = 10.sp)
+            Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun MissionInfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = MissionMuted, fontSize = 11.sp)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun MissionWaypointDetail(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    color: Color
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = color.copy(alpha = 0.8f), modifier = Modifier.size(12.dp))
+        Spacer(modifier = Modifier.size(6.dp))
+        Text(label, color = MissionMuted, fontSize = 10.sp)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(value, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun GlassIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    active: Boolean = false,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.size(42.dp),
+        color = if (active) tint.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.55f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            1.dp,
+            if (active) tint.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.12f)
+        ),
+        onClick = onClick
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
@@ -513,42 +860,107 @@ fun ConfirmDialog(
     onDismiss: () -> Unit,
     isDanger: Boolean = false
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = null,
-                tint = if (isDanger) colorScheme.error else colorScheme.primary,
-                modifier = Modifier.size(48.dp)
-            )
-        },
-        title = {
-            Text(
-                title,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Text(message, fontSize = 14.sp)
-        },
+        containerColor = MissionSurfaceAlt,
+        title = { Text(title, color = Color.White, fontWeight = FontWeight.Bold) },
+        text = { Text(message, color = MissionMuted) },
         confirmButton = {
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isDanger) colorScheme.error else colorScheme.primary
+                    containerColor = if (isDanger) MissionDanger else MissionPrimary,
+                    contentColor = Color.White
                 )
             ) {
-                Text(confirmText, fontWeight = FontWeight.Bold)
+                Text(confirmText)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text("Cancelar", color = MissionMuted)
             }
         }
     )
 }
+
+private data class MissionPrimaryAction(
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: Color,
+    val enabled: Boolean,
+    val onClick: () -> Unit
+)
+
+private fun missionPrimaryAction(
+    missionStatus: MissionStatus,
+    onStartMission: () -> Unit,
+    onResumeMission: () -> Unit
+): MissionPrimaryAction {
+    return when (missionStatus) {
+        MissionStatus.IDLE,
+        MissionStatus.READY -> MissionPrimaryAction("Iniciar missão", Icons.Default.PlayArrow, MissionPrimary, true, onStartMission)
+        MissionStatus.LOADING -> MissionPrimaryAction("Carregando", Icons.Default.HourglassEmpty, MissionWarning, false, {})
+        MissionStatus.PAUSED -> MissionPrimaryAction("Retomar missão", Icons.Default.PlayArrow, MissionPrimary, true, onResumeMission)
+        MissionStatus.RUNNING -> MissionPrimaryAction("Em execução", Icons.Default.PlayArrow, MissionSuccess, false, {})
+        MissionStatus.STOPPED,
+        MissionStatus.ERROR -> MissionPrimaryAction("Tentar de novo", Icons.Default.Refresh, MissionPrimary, true, onStartMission)
+        MissionStatus.COMPLETED -> MissionPrimaryAction("Concluída", Icons.Default.CheckCircle, MissionSuccess, false, {})
+    }
+}
+
+private fun missionStatusColor(status: MissionStatus): Color {
+    return when (status) {
+        MissionStatus.IDLE -> Color.White.copy(alpha = 0.6f)
+        MissionStatus.LOADING -> MissionWarning
+        MissionStatus.READY -> MissionPrimary
+        MissionStatus.RUNNING -> MissionSuccess
+        MissionStatus.PAUSED -> MissionWarning
+        MissionStatus.STOPPED -> MissionDanger
+        MissionStatus.COMPLETED -> MissionSuccess
+        MissionStatus.ERROR -> MissionDanger
+    }
+}
+
+private fun missionStatusLabel(status: MissionStatus): String {
+    return when (status) {
+        MissionStatus.IDLE -> "IDLE"
+        MissionStatus.LOADING -> "UPLOADING"
+        MissionStatus.READY -> "READY"
+        MissionStatus.RUNNING -> "EXECUTING"
+        MissionStatus.PAUSED -> "PAUSED"
+        MissionStatus.STOPPED -> "STOPPED"
+        MissionStatus.COMPLETED -> "FINISHED"
+        MissionStatus.ERROR -> "ERROR"
+    }
+}
+
+private fun calculateMapCenter(waypoints: List<Waypoint>, currentLocation: Point): Point {
+    if (waypoints.isEmpty()) return currentLocation
+    return Point.fromLngLat(
+        waypoints.map { it.longitude }.average(),
+        waypoints.map { it.latitude }.average()
+    )
+}
+
+private fun calculateRouteDistanceKm(waypoints: List<Waypoint>): Double {
+    if (waypoints.size < 2) return 0.0
+    var distanceMeters = 0.0
+    for (index in 1 until waypoints.size) {
+        val current = waypoints[index]
+        val previous = waypoints[index - 1]
+        val dx = (current.longitude - previous.longitude) * 111000 * cos(current.latitude * PI / 180)
+        val dy = (current.latitude - previous.latitude) * 111000
+        distanceMeters += sqrt(dx * dx + dy * dy)
+    }
+    return distanceMeters / 1000
+}
+
+private fun estimateMissionMinutes(distanceKm: Double, speed: String, waypointCount: Int): Int {
+    val normalized = speed.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
+    val speedMs = normalized.toDoubleOrNull()?.takeIf { it > 0 } ?: 8.0
+    val travelMinutes = ((distanceKm * 1000) / speedMs) / 60
+    return (travelMinutes + waypointCount * 0.35).toInt().coerceAtLeast(1)
+}
+
+private fun Double.formatShortCoord(): String = String.format("%.4f", this)

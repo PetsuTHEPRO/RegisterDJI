@@ -36,4 +36,10 @@ interface MissionRepository {
      * @return Result com a resposta do servidor
      */
     suspend fun uploadMission(mission: ServerMissionDto): Result<ServerMissionDto>
+
+    /**
+     * Remove uma missão do cache local e dos artefatos associados.
+     * Quando disponível no futuro, a sincronização remota pode ser adicionada aqui.
+     */
+    suspend fun deleteMission(id: Int): Result<Unit>
 }

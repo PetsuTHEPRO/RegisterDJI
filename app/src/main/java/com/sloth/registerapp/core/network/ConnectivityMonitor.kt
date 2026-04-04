@@ -26,8 +26,29 @@ class ConnectivityMonitor private constructor(context: Context) {
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            Log.d(TAG, "🔗 Internet DISPONÍVEL - Sincronização pode começar")
-            _isConnected.value = true
+            _isConnected.value = isConnectedNow()
+            Log.d(
+                TAG,
+                if (_isConnected.value) {
+                    "🔗 Internet validada DISPONÍVEL - Sincronização pode começar"
+                } else {
+                    "📶 Rede disponível sem internet validada"
+                }
+            )
+        }
+
+        override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+            val hasValidatedInternet =
+                networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            _isConnected.value = hasValidatedInternet
+            Log.d(
+                TAG,
+                if (hasValidatedInternet) {
+                    "🔗 Internet validada DISPONÍVEL - Sincronização pode começar"
+                } else {
+                    "📶 Rede sem internet validada - Modo offline ativado"
+                }
+            )
         }
 
         override fun onLost(network: Network) {
@@ -43,7 +64,7 @@ class ConnectivityMonitor private constructor(context: Context) {
     fun isConnectedNow(): Boolean {
         val activeNetwork = connectivityManager.activeNetwork
         val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
-        return networkCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        return networkCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
     }
 
     companion object {

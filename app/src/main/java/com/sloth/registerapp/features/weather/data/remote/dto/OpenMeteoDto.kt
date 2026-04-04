@@ -16,6 +16,9 @@ data class OpenMeteoHourlyDto(
     @SerializedName("precipitation") val precipitation: List<Double>?,
     @SerializedName("precipitation_probability") val precipitationProbability: List<Int>?,
     @SerializedName("wind_speed_10m") val windSpeed10m: List<Double>?,
+    @SerializedName("wind_speed_80m") val windSpeed80m: List<Double>?,
+    @SerializedName("wind_speed_120m") val windSpeed120m: List<Double>?,
+    @SerializedName("wind_speed_180m") val windSpeed180m: List<Double>?,
     @SerializedName("wind_gusts_10m") val windGusts10m: List<Double>?,
     @SerializedName("weather_code") val weatherCode: List<Int>?
 )
@@ -26,6 +29,9 @@ data class OpenMeteoCurrentDto(
     @SerializedName("precipitation") val precipitation: Double?,
     @SerializedName("precipitation_probability") val precipitationProbability: Int?,
     @SerializedName("wind_speed_10m") val windSpeed10m: Double?,
+    @SerializedName("wind_speed_80m") val windSpeed80m: Double?,
+    @SerializedName("wind_speed_120m") val windSpeed120m: Double?,
+    @SerializedName("wind_speed_180m") val windSpeed180m: Double?,
     @SerializedName("wind_gusts_10m") val windGusts10m: Double?,
     @SerializedName("weather_code") val weatherCode: Int?
 )

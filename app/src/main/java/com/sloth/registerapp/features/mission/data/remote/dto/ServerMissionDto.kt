@@ -28,7 +28,7 @@ data class WaypointDto(
     val latitude: Double,
     val longitude: Double,
     val turn_mode: String,
-    @SerializedName(value = "sequence", alternate = ["order", "index", "position"])
+    @SerializedName("sequence")
     val sequence: Int? = null
 )
 

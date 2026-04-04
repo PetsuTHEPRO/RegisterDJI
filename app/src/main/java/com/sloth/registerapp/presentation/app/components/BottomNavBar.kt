@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
 
 sealed class BottomItem(
     val route: String,
@@ -54,11 +55,11 @@ fun BottomNavBar(
     onLiveFeedClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val neuralBg = Color(0xFF070F20)
-    val neuralSurface = Color(0xFF0A1628)
-    val neuralBorder = Color(0xFF0D2040)
-    val neuralPrimary = Color(0xFF00C2FF)
-    val neuralSecondary = Color(0xFF0066FF)
+    val neuralBg = NeuralColors.Bg
+    val neuralSurface = NeuralColors.Surface
+    val neuralBorder = NeuralColors.Border
+    val neuralPrimary = NeuralColors.Primary
+    val neuralSecondary = NeuralColors.Secondary
     val inactive = Color(0xFF2A4A6A)
 
     val items = listOf(

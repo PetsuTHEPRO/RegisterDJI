@@ -58,16 +58,16 @@ class MissionRepositoryImpl(
         if (!canSyncWithServer) {
             return runCatching {
                 missionCacheDao.getAll(ownerUserId).mapNotNull { entity ->
-                    entity.missionData.toServerMissionOrNull()?.let(ServerMissionMapper::toDomain)
+                    entity.missionData.toServerMissionOrNull()?.also { mission ->
+                        MissionPreviewStorage.savePreview(appContext, mission)
+                    }?.let(ServerMissionMapper::toDomain)
                 }
             }
         }
 
         return runCatching {
-            val missions = apiService.getMissions().map { mission ->
-                logWaypointOrder("getMissions:raw", mission)
-                preserveWaypointOrder(mission, ownerUserId)
-                    .also { logWaypointOrder("getMissions:ordered", it) }
+            val missions = apiService.getMissions().also { list ->
+                list.forEach { logWaypointOrder("getMissions:raw", it) }
             }
             cacheMissions(missions, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId)
             sessionManager.updateLastSyncTime()
@@ -78,7 +78,9 @@ class MissionRepositoryImpl(
                 throw onlineError
             }
             cached.mapNotNull { entity ->
-                entity.missionData.toServerMissionOrNull()?.let(ServerMissionMapper::toDomain)
+                entity.missionData.toServerMissionOrNull()?.also { mission ->
+                    MissionPreviewStorage.savePreview(appContext, mission)
+                }?.let(ServerMissionMapper::toDomain)
             }
         }
     }
@@ -90,20 +92,19 @@ class MissionRepositoryImpl(
                 missionCacheDao.getById(id.toString(), ownerUserId)
                     ?.missionData
                     ?.toServerMissionOrNull()
+                    ?.also { mission -> MissionPreviewStorage.savePreview(appContext, mission) }
             }
         }
         return runCatching {
-            val mission = apiService.getMissionById(id).let {
-                logWaypointOrder("getMission:raw", it)
-                preserveWaypointOrder(it, ownerUserId)
-                    .also { ordered -> logWaypointOrder("getMission:ordered", ordered) }
-            }
+            val mission = apiService.getMissionById(id)
+                .also { it?.let { m -> logWaypointOrder("getMission:raw", m) } }
             mission?.let { cacheMission(it, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId) }
             mission
         }.recoverCatching {
             missionCacheDao.getById(id.toString(), ownerUserId)
                 ?.missionData
                 ?.toServerMissionOrNull()
+                ?.also { mission -> MissionPreviewStorage.savePreview(appContext, mission) }
         }
     }
 
@@ -271,6 +272,9 @@ class MissionRepositoryImpl(
 
     private suspend fun cacheMissions(missions: List<ServerMissionDto>, syncStatus: String, ownerUserId: String) {
         val now = System.currentTimeMillis()
+        missions.forEach { mission ->
+            MissionPreviewStorage.savePreview(appContext, mission)
+        }
         missionCacheDao.insertAll(
             missions.map { mission ->
                 MissionCacheEntity(
@@ -293,6 +297,7 @@ class MissionRepositoryImpl(
         ownerUserId: String
     ) {
         val now = System.currentTimeMillis()
+        MissionPreviewStorage.savePreview(appContext, mission)
         missionCacheDao.insert(
             MissionCacheEntity(
                 missionId = missionIdOverride ?: mission.id.toString(),
@@ -304,46 +309,6 @@ class MissionRepositoryImpl(
                 syncedAt = if (syncStatus == STATUS_SYNCED) now else null
             )
         )
-    }
-
-    private suspend fun preserveWaypointOrder(
-        mission: ServerMissionDto,
-        ownerUserId: String
-    ): ServerMissionDto {
-        if (mission.waypoints.any { it.sequence != null }) return mission
-
-        val cachedMission = missionCacheDao.getById(mission.id.toString(), ownerUserId)
-            ?.missionData
-            ?.toServerMissionOrNull()
-            ?: return mission
-
-        val sequenceQueues = cachedMission.waypoints
-            .mapIndexed { index, waypoint ->
-                waypointKey(waypoint) to (waypoint.sequence ?: index)
-            }
-            .groupBy({ it.first }, { it.second })
-            .mapValues { (_, values) -> ArrayDeque(values) }
-
-        val mergedWaypoints = mission.waypoints.map { waypoint ->
-            val key = waypointKey(waypoint)
-            waypoint.copy(sequence = sequenceQueues[key]?.removeFirstOrNull())
-        }
-
-        return mission.copy(waypoints = mergedWaypoints)
-    }
-
-    private fun waypointKey(waypoint: com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto): String {
-        return buildString {
-            append(waypoint.latitude)
-            append('|')
-            append(waypoint.longitude)
-            append('|')
-            append(waypoint.altitude)
-            append('|')
-            append(waypoint.turn_mode)
-            append('|')
-            append(gson.toJson(waypoint.actions))
-        }
     }
 
     private fun logWaypointOrder(stage: String, mission: ServerMissionDto) {

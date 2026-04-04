@@ -2,8 +2,7 @@ package com.sloth.registerapp.presentation.app.settings.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -25,7 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalContext
 import com.sloth.registerapp.BuildConfig
 import com.sloth.registerapp.core.settings.MediaStorageSettingsRepository
@@ -33,13 +33,14 @@ import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.core.settings.WeatherProviderSettingsRepository
 import com.sloth.registerapp.features.mission.data.manager.MissionStorageManager
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     userName: String = "Usuário",
-    userEmail: String = "usuario@labubu.com",
+    userEmail: String = "usuario@email.com",
     isLoggedIn: Boolean = false,
     selectedTheme: String = "Padrão do Sistema",
     onBackClick: () -> Unit = {},
@@ -54,9 +55,6 @@ fun SettingsScreen(
     onLoginClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    // Estados
     var notifications by remember { mutableStateOf(true) }
     var streamQuality by remember { mutableStateOf("Automática") }
     var expandedSection by remember { mutableStateOf<String?>(null) }
@@ -78,142 +76,128 @@ fun SettingsScreen(
     val hasWeatherApiKey = remember { BuildConfig.WEATHER_API_KEY.isNotBlank() }
 
     LaunchedEffect(rtmpUrl) {
-        if (rtmpUrlInput != rtmpUrl) {
-            rtmpUrlInput = rtmpUrl
-        }
+        if (rtmpUrlInput != rtmpUrl) rtmpUrlInput = rtmpUrl
     }
-
     LaunchedEffect(Unit) {
         cacheSizeBytes = missionStorageManager.getMissionCacheSizeBytes()
     }
-
     LaunchedEffect(hasWeatherApiKey, weatherPrimary, weatherFallback) {
         if (!hasWeatherApiKey) {
-            if (weatherPrimary == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API) {
+            if (weatherPrimary == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API)
                 weatherProviderRepo.setPrimaryProvider(WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO)
-            }
-            if (weatherFallback == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API) {
+            if (weatherFallback == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API)
                 weatherProviderRepo.setFallbackProvider(WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO)
-            }
         }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        colorScheme.background,
-                        colorScheme.surfaceVariant,
-                        colorScheme.background
+            .background(NeuralColors.Bg)
+    ) {
+        // Subtle grid background
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            NeuralColors.Bg,
+                            Color(0xFF091836),
+                            NeuralColors.Bg
+                        )
                     )
                 )
-            )
-    ) {
+        )
+
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.Transparent
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    onClick = onBackClick,
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = NeuralColors.Surface,
+                    border = BorderStroke(1.dp, NeuralColors.Border)
                 ) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(colorScheme.surface.copy(alpha = 0.8f), CircleShape)
-                    ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Voltar",
-                            tint = colorScheme.onSurface
+                            tint = NeuralColors.Primary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
+                }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Configurações",
-                        fontSize = 24.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Personalize o sistema",
+                        fontSize = 11.sp,
+                        color = NeuralColors.Muted
                     )
                 }
+
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = NeuralColors.Primary.copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.28f))
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = NeuralColors.Primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
+
+            // Thin separator line
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color.Transparent, NeuralColors.BorderStrong, Color.Transparent)
+                        )
+                    )
+            )
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
             ) {
                 if (isLoggedIn) {
-                    // Perfil do Usuário
                     item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            color = colorScheme.surface.copy(alpha = 0.95f),
-                            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.2f)),
-                            shadowElevation = 8.dp
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Avatar
-                                Surface(
-                                    onClick = onChangeProfilePhoto,
-                                    modifier = Modifier.size(80.dp),
-                                    shape = CircleShape,
-                                    color = colorScheme.primary.copy(alpha = 0.2f),
-                                    border = BorderStroke(3.dp, colorScheme.primary.copy(alpha = 0.5f))
-                                ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize()
-                                    ) {
-                                        Text(
-                                            text = userName.take(1).uppercase(),
-                                            fontSize = 36.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = colorScheme.primary
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(16.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = userName,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = userEmail,
-                                        fontSize = 14.sp,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                            }
-                        }
+                        NeuralProfileCard(
+                            userName = userName,
+                            userEmail = userEmail,
+                            onChangeProfilePhoto = onChangeProfilePhoto
+                        )
                     }
 
-                    // Seção: Conta e Segurança
                     item {
                         ExpandableSection(
                             title = "Conta e Segurança",
@@ -221,29 +205,13 @@ fun SettingsScreen(
                             isExpanded = expandedSection == "account",
                             onToggle = { expandedSection = if (expandedSection == "account") null else "account" }
                         ) {
-                            SettingsItem(
-                                icon = Icons.Default.Person,
-                                title = "Alterar Nome de Usuário",
-                                subtitle = userName,
-                                onClick = onChangeUsername
-                            )
-                            SettingsItem(
-                                icon = Icons.Default.Lock,
-                                title = "Alterar Senha",
-                                subtitle = "••••••••",
-                                onClick = onChangePassword
-                            )
-                            SettingsItem(
-                                icon = Icons.Default.History,
-                                title = "Últimos Logins",
-                                subtitle = "Últimos logins",
-                                onClick = onRecentLogins
-                            )
+                            SettingsItem(Icons.Default.Person, "Alterar Nome de Usuário", userName, onChangeUsername)
+                            SettingsItem(Icons.Default.Lock, "Alterar Senha", "••••••••", onChangePassword)
+                            SettingsItem(Icons.Default.History, "Últimos Logins", "Histórico de acessos", onRecentLogins)
                         }
                     }
                 }
 
-                // Seção: Armazenamento e Mídia
                 item {
                     ExpandableSection(
                         title = "Armazenamento e Mídia",
@@ -257,21 +225,18 @@ fun SettingsScreen(
                             options = listOf("Celular", "SD do Drone"),
                             selectedOption = mediaStorageTarget.toStorageLabel(),
                             onOptionSelected = { label ->
-                                scope.launch {
-                                    mediaStorageRepo.setMediaStorageTarget(label.toStorageTarget())
-                                }
+                                scope.launch { mediaStorageRepo.setMediaStorageTarget(label.toStorageTarget()) }
                             }
                         )
                         SettingsItem(
                             icon = Icons.Default.CleaningServices,
-                            title = "Limpar missões salvas no dispositivo",
+                            title = "Limpar missões no dispositivo",
                             subtitle = "Uso atual: ${cacheSizeBytes.toReadableBytes()}",
                             onClick = { showClearCacheDialog = true }
                         )
                     }
                 }
 
-                // Seção: Configurações Gerais
                 item {
                     ExpandableSection(
                         title = "Configurações Gerais",
@@ -292,9 +257,7 @@ fun SettingsScreen(
                             options = listOf("Métrico (m, km/h)", "Imperial (ft, mph)"),
                             selectedOption = measurementSystem.toMeasurementLabel(),
                             onOptionSelected = { label ->
-                                scope.launch {
-                                    measurementRepo.setMeasurementSystem(label.toMeasurementSystem())
-                                }
+                                scope.launch { measurementRepo.setMeasurementSystem(label.toMeasurementSystem()) }
                             }
                         )
                         SettingsSwitchItem(
@@ -307,7 +270,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // Seção: Configurações Climáticas
                 item {
                     ExpandableSection(
                         title = "Configurações Climáticas",
@@ -324,9 +286,8 @@ fun SettingsScreen(
                                 scope.launch {
                                     val selected = label.toWeatherProviderId()
                                     weatherProviderRepo.setPrimaryProvider(selected)
-                                    if (selected == weatherFallback) {
+                                    if (selected == weatherFallback)
                                         weatherProviderRepo.setFallbackProvider(selected.alternativeWeatherProvider())
-                                    }
                                 }
                             }
                         )
@@ -339,29 +300,20 @@ fun SettingsScreen(
                                 scope.launch {
                                     val selected = label.toWeatherProviderId()
                                     weatherProviderRepo.setFallbackProvider(selected)
-                                    if (selected == weatherPrimary) {
+                                    if (selected == weatherPrimary)
                                         weatherProviderRepo.setPrimaryProvider(selected.alternativeWeatherProvider())
-                                    }
                                 }
                             }
                         )
-                        if (!hasWeatherApiKey) {
-                            Text(
-                                text = "WeatherAPI desativada: chave não configurada. Usando Open-Meteo.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        } else {
-                            Text(
-                                text = "Chave WeatherAPI detectada. Se a fonte continuar Open-Meteo, o fallback foi ativado por erro da WeatherAPI (chave inválida, limite/plano ou rede).",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                        NeuralInfoText(
+                            if (!hasWeatherApiKey)
+                                "WeatherAPI desativada: chave não configurada. Usando Open-Meteo."
+                            else
+                                "Chave WeatherAPI detectada. Fallback ativado em caso de erro da WeatherAPI."
+                        )
                     }
                 }
 
-                // Seção: Configurações da Câmera
                 item {
                     ExpandableSection(
                         title = "Configurações da Câmera",
@@ -379,7 +331,6 @@ fun SettingsScreen(
                     }
                 }
 
-                // Seção: Streaming RTMP
                 item {
                     ExpandableSection(
                         title = "Streaming RTMP",
@@ -389,35 +340,38 @@ fun SettingsScreen(
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             OutlinedTextField(
                                 value = rtmpUrlInput,
                                 onValueChange = { rtmpUrlInput = it },
-                                label = { Text("URL RTMP") },
+                                label = { Text("URL RTMP", color = NeuralColors.Muted) },
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = NeuralColors.Primary,
+                                    unfocusedBorderColor = NeuralColors.Border,
+                                    focusedContainerColor = Color.Black.copy(alpha = 0.18f),
+                                    unfocusedContainerColor = Color.Black.copy(alpha = 0.18f),
+                                    cursorColor = NeuralColors.Primary
+                                )
                             )
                             Button(
-                                onClick = {
-                                    scope.launch {
-                                        rtmpRepo.setRtmpUrl(rtmpUrlInput.trim())
-                                    }
-                                },
-                                modifier = Modifier.align(Alignment.End)
+                                onClick = { scope.launch { rtmpRepo.setRtmpUrl(rtmpUrlInput.trim()) } },
+                                modifier = Modifier.align(Alignment.End),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Primary)
                             ) {
-                                Text("Salvar")
+                                Text("Salvar", color = Color.White, fontWeight = FontWeight.Bold)
                             }
-                            Text(
-                                text = "Atual: $rtmpUrl",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            NeuralInfoText("Atual: $rtmpUrl")
                         }
                     }
                 }
 
-                // Seção: Permissões e Sobre
                 item {
                     ExpandableSection(
                         title = "Permissões e Sobre",
@@ -425,81 +379,54 @@ fun SettingsScreen(
                         isExpanded = expandedSection == "about",
                         onToggle = { expandedSection = if (expandedSection == "about") null else "about" }
                     ) {
-                        SettingsItem(
-                            icon = Icons.Default.Security,
-                            title = "Gerenciar Permissões",
-                            subtitle = "Configurações do sistema",
-                            onClick = onManagePermissions
-                        )
-                        SettingsItem(
-                            icon = Icons.Default.Info,
-                            title = "Sobre o Aplicativo",
-                            subtitle = "Versão 1.0.0",
-                            onClick = onAbout
-                        )
-                        SettingsItem(
-                            icon = Icons.Default.Policy,
-                            title = "Política de Privacidade",
-                            subtitle = "Termos e condições",
-                            onClick = onPrivacyPolicy
-                        )
+                        SettingsItem(Icons.Default.Security, "Gerenciar Permissões", "Configurações do sistema", onManagePermissions)
+                        SettingsItem(Icons.Default.Info, "Sobre o Aplicativo", "Versão ${BuildConfig.VERSION_NAME}", onAbout)
+                        SettingsItem(Icons.Default.Policy, "Política de Privacidade", "Termos e condições", onPrivacyPolicy)
                     }
                 }
 
-                // Botão de Login/Logout
                 item {
                     Button(
-                        onClick = {
-                            if (isLoggedIn) onLogout() else onLoginClick()
-                        },
+                        onClick = { if (isLoggedIn) onLogout() else onLoginClick() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Box(
+                        Row(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(
-                                    brush = Brush.horizontalGradient(
-                                        colors = if (isLoggedIn) {
-                                            listOf(colorScheme.error, colorScheme.errorContainer)
-                                        } else {
-                                            listOf(colorScheme.primary, colorScheme.primaryContainer)
-                                        }
+                                    Brush.horizontalGradient(
+                                        if (isLoggedIn)
+                                            listOf(NeuralColors.Danger, Color(0xFF8B0000))
+                                        else
+                                            listOf(NeuralColors.Primary, NeuralColors.Secondary)
                                     )
                                 ),
-                            contentAlignment = Alignment.Center
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isLoggedIn) {
-                                        Icons.AutoMirrored.Filled.Logout
-                                    } else {
-                                        Icons.AutoMirrored.Filled.Login
-                                    },
-                                    contentDescription = null,
-                                    tint = if (isLoggedIn) colorScheme.onError else colorScheme.onPrimary
-                                )
-                                Text(
-                                    text = if (isLoggedIn) "Sair da Conta" else "Realizar Login",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isLoggedIn) colorScheme.onError else colorScheme.onPrimary
-                                )
-                            }
+                            Icon(
+                                imageVector = if (isLoggedIn) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (isLoggedIn) "Sair da Conta" else "Realizar Login",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(20.dp)) }
+                item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
     }
@@ -507,10 +434,18 @@ fun SettingsScreen(
     if (showClearCacheDialog) {
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
-            title = { Text("Limpar missões locais") },
+            containerColor = NeuralColors.Surface,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = NeuralColors.Warning)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Limpar missões locais", color = Color.White)
+                }
+            },
             text = {
                 Text(
-                    "Isso remove as missões salvas neste dispositivo (${cacheSizeBytes.toReadableBytes()}). Esta ação não pode ser desfeita."
+                    "Remove as missões salvas neste dispositivo (${cacheSizeBytes.toReadableBytes()}). Esta ação não pode ser desfeita.",
+                    color = NeuralColors.Muted
                 )
             },
             confirmButton = {
@@ -521,17 +456,96 @@ fun SettingsScreen(
                             cacheSizeBytes = missionStorageManager.getMissionCacheSizeBytes()
                             showClearCacheDialog = false
                         }
-                    }
-                ) {
-                    Text("Limpar")
-                }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Danger)
+                ) { Text("Limpar", color = Color.White) }
             },
             dismissButton = {
                 TextButton(onClick = { showClearCacheDialog = false }) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = NeuralColors.Muted)
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun NeuralProfileCard(
+    userName: String,
+    userEmail: String,
+    onChangeProfilePhoto: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = NeuralColors.Surface,
+        border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.25f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(NeuralColors.Primary.copy(alpha = 0.08f), NeuralColors.Surface)
+                    )
+                )
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                onClick = onChangeProfilePhoto,
+                modifier = Modifier.size(72.dp),
+                shape = CircleShape,
+                color = NeuralColors.Primary.copy(alpha = 0.15f),
+                border = BorderStroke(2.dp, NeuralColors.Primary.copy(alpha = 0.50f))
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = userName.take(1).uppercase(),
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NeuralColors.Primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = userName,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(text = userEmail, fontSize = 13.sp, color = NeuralColors.Muted)
+                Spacer(Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = NeuralColors.Success.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.30f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(NeuralColors.Success, CircleShape)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Autenticado",
+                            color = NeuralColors.Success,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -543,20 +557,20 @@ fun ExpandableSection(
     onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = colorScheme.surface.copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = if (isExpanded) 0.5f else 0.2f)),
-        shadowElevation = if (isExpanded) 8.dp else 4.dp
+        color = NeuralColors.Surface,
+        border = BorderStroke(
+            1.dp,
+            if (isExpanded) NeuralColors.Primary.copy(alpha = 0.35f) else NeuralColors.Border
+        )
     ) {
         Column {
-            // Header
             Surface(
                 onClick = onToggle,
-                color = Color.Transparent
+                color = Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -565,16 +579,17 @@ fun ExpandableSection(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(40.dp),
                         shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.primary.copy(alpha = 0.1f)
+                        color = NeuralColors.Primary.copy(alpha = 0.10f),
+                        border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.20f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                tint = NeuralColors.Primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -583,31 +598,43 @@ fun ExpandableSection(
 
                     Text(
                         text = title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
                         modifier = Modifier.weight(1f)
                     )
 
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
-                        tint = colorScheme.primary
+                        tint = NeuralColors.Primary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            // Content
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    content()
+                Column {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color.Transparent, NeuralColors.BorderStrong, Color.Transparent)
+                                )
+                            )
+                    )
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        content()
+                    }
                 }
             }
         }
@@ -621,12 +648,10 @@ fun SettingsItem(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = colorScheme.surface.copy(alpha = 0.4f)
+        color = NeuralColors.SurfaceAlt
     ) {
         Row(
             modifier = Modifier
@@ -634,34 +659,33 @@ fun SettingsItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+            Surface(
+                modifier = Modifier.size(36.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.Primary.copy(alpha = 0.10f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = NeuralColors.Primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant
-                )
+                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text(text = subtitle, fontSize = 12.sp, color = NeuralColors.Muted)
             }
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(20.dp)
+                tint = NeuralColors.Muted.copy(alpha = 0.6f),
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -675,11 +699,9 @@ fun SettingsSwitchItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = colorScheme.surface.copy(alpha = 0.4f)
+        color = NeuralColors.SurfaceAlt
     ) {
         Row(
             modifier = Modifier
@@ -687,37 +709,36 @@ fun SettingsSwitchItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+            Surface(
+                modifier = Modifier.size(36.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.Primary.copy(alpha = 0.10f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = NeuralColors.Primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant
-                )
+                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text(text = subtitle, fontSize = 12.sp, color = NeuralColors.Muted)
             }
 
             Switch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = colorScheme.onPrimary,
-                    checkedTrackColor = colorScheme.primary,
-                    uncheckedThumbColor = colorScheme.onSurface,
-                    uncheckedTrackColor = colorScheme.outline
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = NeuralColors.Primary,
+                    uncheckedThumbColor = NeuralColors.Muted,
+                    uncheckedTrackColor = NeuralColors.Border
                 )
             )
         }
@@ -733,12 +754,11 @@ fun SettingsDropdownItem(
     onOptionSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val colorScheme = MaterialTheme.colorScheme
 
     Surface(
         onClick = { expanded = true },
         shape = RoundedCornerShape(12.dp),
-        color = colorScheme.surface.copy(alpha = 0.4f)
+        color = NeuralColors.SurfaceAlt
     ) {
         Box {
             Row(
@@ -747,50 +767,49 @@ fun SettingsDropdownItem(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+                Surface(
+                    modifier = Modifier.size(36.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = NeuralColors.Primary.copy(alpha = 0.10f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = NeuralColors.Primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = selectedOption,
-                    fontSize = 12.sp,
-                    color = colorScheme.primary
+                    Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text(text = selectedOption, fontSize = 12.sp, color = NeuralColors.Primary)
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = NeuralColors.Muted,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = null,
-                tint = colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.background(colorScheme.surface)
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = option,
-                            color = if (option == selectedOption) colorScheme.primary else colorScheme.onSurface
-                        )
-                    },
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(NeuralColors.Surface)
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = option,
+                                color = if (option == selectedOption) NeuralColors.Primary else Color.White
+                            )
+                        },
                         onClick = {
                             onOptionSelected(option)
                             expanded = false
@@ -802,46 +821,24 @@ fun SettingsDropdownItem(
     }
 }
 
-private fun String.toStorageLabel(): String {
-    return when (this) {
-        MediaStorageSettingsRepository.TARGET_DRONE_SD -> "SD do Drone"
-        else -> "Celular"
-    }
-}
-
-private fun String.toStorageTarget(): String {
-    return if (this == "SD do Drone") {
-        MediaStorageSettingsRepository.TARGET_DRONE_SD
-    } else {
-        MediaStorageSettingsRepository.TARGET_PHONE
-    }
-}
-
-private fun String.toMeasurementLabel(): String {
-    return if (this == MeasurementSettingsRepository.SYSTEM_IMPERIAL) {
-        "Imperial (ft, mph)"
-    } else {
-        "Métrico (m, km/h)"
-    }
-}
-
-private fun String.toMeasurementSystem(): String {
-    return if (startsWith("Imperial")) {
-        MeasurementSettingsRepository.SYSTEM_IMPERIAL
-    } else {
-        MeasurementSettingsRepository.SYSTEM_METRIC
-    }
+@Composable
+private fun NeuralInfoText(text: String) {
+    Text(
+        text = text,
+        fontSize = 11.sp,
+        color = NeuralColors.Muted,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NeuralColors.Bg.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    )
 }
 
 private fun Long.toReadableBytes(): String {
     if (this <= 0L) return "0 B"
     val kb = this / 1024.0
     val mb = kb / 1024.0
-    return if (mb >= 1.0) {
-        String.format("%.2f MB", mb)
-    } else {
-        String.format("%.1f KB", kb)
-    }
+    return if (mb >= 1.0) String.format("%.2f MB", mb) else String.format("%.1f KB", kb)
 }
 
 private fun weatherProviderOptions(hasWeatherApiKey: Boolean): List<String> {
@@ -855,24 +852,33 @@ private fun weatherProviderOptions(hasWeatherApiKey: Boolean): List<String> {
     }
 }
 
-private fun String.toWeatherProviderLabel(): String {
-    return when (this) {
-        WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO -> "Open-Meteo (grátis)"
-        else -> "WeatherAPI (principal)"
-    }
+private fun String.toWeatherProviderLabel(): String = when (this) {
+    WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO -> "Open-Meteo (grátis)"
+    else -> "WeatherAPI (principal)"
 }
 
-private fun String.toWeatherProviderId(): String {
-    return when {
-        startsWith("Open-Meteo") -> WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO
-        else -> WeatherProviderSettingsRepository.PROVIDER_WEATHER_API
-    }
+private fun String.toWeatherProviderId(): String = when {
+    startsWith("Open-Meteo") -> WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO
+    else -> WeatherProviderSettingsRepository.PROVIDER_WEATHER_API
 }
 
-private fun String.alternativeWeatherProvider(): String {
-    return if (this == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API) {
+private fun String.alternativeWeatherProvider(): String =
+    if (this == WeatherProviderSettingsRepository.PROVIDER_WEATHER_API)
         WeatherProviderSettingsRepository.PROVIDER_OPEN_METEO
-    } else {
-        WeatherProviderSettingsRepository.PROVIDER_WEATHER_API
-    }
+    else WeatherProviderSettingsRepository.PROVIDER_WEATHER_API
+
+private fun String.toStorageLabel(): String = when (this) {
+    MediaStorageSettingsRepository.TARGET_DRONE_SD -> "SD do Drone"
+    else -> "Celular"
 }
+
+private fun String.toStorageTarget(): String =
+    if (this == "SD do Drone") MediaStorageSettingsRepository.TARGET_DRONE_SD
+    else MediaStorageSettingsRepository.TARGET_PHONE
+
+private fun String.toMeasurementLabel(): String =
+    if (this == MeasurementSettingsRepository.SYSTEM_IMPERIAL) "Imperial (ft, mph)" else "Métrico (m, km/h)"
+
+private fun String.toMeasurementSystem(): String =
+    if (startsWith("Imperial")) MeasurementSettingsRepository.SYSTEM_IMPERIAL
+    else MeasurementSettingsRepository.SYSTEM_METRIC

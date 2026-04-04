@@ -108,8 +108,16 @@ Refatoração do `DroneMissionManager` com foco em produção:
 ## Como rodar
 1. Abra o projeto no Android Studio
 2. Configure a chave do DJI SDK no `AndroidManifest.xml`
-3. Sincronize o Gradle
-4. Rode em um dispositivo físico
+3. Configure os tokens do Mapbox em `local.properties`, `gradle.properties` ou variáveis de ambiente:
+
+```properties
+MAPBOX_ACCESS_TOKEN=SEU_TOKEN_PUBLICO_DO_MAPBOX
+MAPBOX_DOWNLOADS_TOKEN=SEU_TOKEN_DE_DOWNLOADS_DO_MAPBOX
+WEATHER_API_KEY=SUA_CHAVE_CLIMA
+```
+
+4. Sincronize o Gradle
+5. Rode em um dispositivo físico
 
 ## Licença
 MIT

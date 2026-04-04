@@ -1,6 +1,12 @@
 package com.sloth.registerapp.presentation.mission.components
 
 import android.location.Location
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,7 +29,19 @@ import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.*
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import com.mapbox.maps.plugin.gestures.gestures
+import com.sloth.registerapp.BuildConfig
 import com.sloth.registerapp.presentation.mission.model.Waypoint
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+private val MapboxFallbackBg = Color(0xFF0A1628)
+private val MapboxFallbackBorder = Color(0xFF0D2040)
+private val MapboxFallbackAccent = Color(0xFF00C2FF)
+private val MapboxFallbackMuted = Color(0xFF4A7FA5)
 
 @Composable
 fun MapboxMapView(
@@ -36,6 +54,15 @@ fun MapboxMapView(
     onMapClick: ((Point) -> Boolean)? = null,
     onMapReady: (MapboxMap) -> Unit
 ) {
+    if (!isMapboxTokenConfigured()) {
+        MapboxUnavailablePlaceholder(
+            modifier = modifier,
+            title = "Mapa indisponivel",
+            subtitle = "Configure MAPBOX_ACCESS_TOKEN no local.properties para restaurar os tiles."
+        )
+        return
+    }
+
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember {
@@ -185,6 +212,15 @@ fun MapboxMiniMapView(
     zoom: Double = 16.5,
     styleUri: String = Style.LIGHT
 ) {
+    if (!isMapboxTokenConfigured()) {
+        MapboxUnavailablePlaceholder(
+            modifier = modifier,
+            title = "Mini mapa indisponivel",
+            subtitle = "Defina MAPBOX_ACCESS_TOKEN para exibir o mapa do operador."
+        )
+        return
+    }
+
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember {
@@ -314,6 +350,15 @@ fun MissionPreviewMapView(
     primaryColor: Color,
     styleUri: String = Style.SATELLITE_STREETS
 ) {
+    if (!isMapboxTokenConfigured()) {
+        MapboxUnavailablePlaceholder(
+            modifier = modifier,
+            title = "Preview indisponivel",
+            subtitle = "Sem token valido do Mapbox, o preview da rota nao pode ser carregado."
+        )
+        return
+    }
+
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mapView = remember {
@@ -430,4 +475,52 @@ fun MissionPreviewMapView(
         },
         modifier = modifier
     )
+}
+
+@Composable
+private fun MapboxUnavailablePlaceholder(
+    modifier: Modifier = Modifier,
+    title: String,
+    subtitle: String
+) {
+    Surface(
+        modifier = modifier,
+        color = MapboxFallbackBg,
+        border = BorderStroke(1.dp, MapboxFallbackBorder)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MapboxFallbackBg),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    color = MapboxFallbackMuted,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "MAPBOX_ACCESS_TOKEN",
+                    color = MapboxFallbackAccent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+private fun isMapboxTokenConfigured(): Boolean {
+    val token = BuildConfig.MAPBOX_ACCESS_TOKEN.trim()
+    return token.isNotBlank() && token != "YOUR_MAPBOX_ACCESS_TOKEN"
 }

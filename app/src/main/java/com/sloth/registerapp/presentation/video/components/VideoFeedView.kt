@@ -9,12 +9,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 @Composable
 fun VideoFeedView(
     modifier: Modifier = Modifier,
+    onTextureViewReady: (TextureView) -> Unit = {},
     onSurfaceTextureAvailable: (SurfaceTexture, Int, Int) -> Unit,
     onSurfaceTextureDestroyed: () -> Boolean
 ) {
     AndroidView(
         factory = { context ->
             TextureView(context).apply {
+                onTextureViewReady(this)
                 surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
                         onSurfaceTextureAvailable(surface, width, height)
@@ -29,6 +31,9 @@ fun VideoFeedView(
                     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
                 }
             }
+        },
+        update = { textureView ->
+            onTextureViewReady(textureView)
         },
         modifier = modifier
     )

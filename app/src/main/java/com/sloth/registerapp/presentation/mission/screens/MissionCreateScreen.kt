@@ -1,5 +1,6 @@
 package com.sloth.registerapp.presentation.mission.screens
 
+import android.Manifest
 import android.view.MotionEvent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
@@ -90,6 +91,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.mapbox.geojson.Point
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.network.RetrofitClient
@@ -99,6 +104,7 @@ import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryI
 import com.sloth.registerapp.features.mission.domain.usecase.CreateMissionUseCase
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
 import com.sloth.registerapp.presentation.mission.model.Waypoint
+import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -191,12 +197,20 @@ private val waypointActionOptions = listOf(
     LabeledOption("CAMERA_FOCUS", "Foco da camera")
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalPermissionsApi::class)
 @Composable
 fun MissionCreateScreen(onBackClick: () -> Unit) {
     val colorScheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val locationViewModel: OperatorLocationViewModel = viewModel()
+    val locationUiState by locationViewModel.uiState.collectAsStateWithLifecycle()
+    val locationPermissions = rememberMultiplePermissionsState(
+        listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+    )
 
     var currentStep by rememberSaveable { mutableIntStateOf(0) }
     var missionData by remember { mutableStateOf(MissionData()) }
@@ -220,6 +234,16 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
         0 -> isConfigStepValid(missionData)
         1 -> missionData.pointOfInterest != null && missionData.waypoints.size >= 2
         else -> true
+    }
+
+    LaunchedEffect(Unit) {
+        if (!locationPermissions.allPermissionsGranted) {
+            locationPermissions.launchMultiplePermissionRequest()
+        }
+    }
+
+    LaunchedEffect(locationPermissions.allPermissionsGranted) {
+        locationViewModel.setPermissionGranted(locationPermissions.allPermissionsGranted)
     }
 
     Scaffold(
@@ -307,25 +331,30 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                                 else -> {
                                     isLoading = true
                                     scope.launch {
-                                        val missionDto = missionDataToServerDto(missionData)
-                                        val result = withContext(Dispatchers.IO) {
-                                            createMissionUseCase(missionDto)
-                                        }
-                                        result.onSuccess { createdMission ->
-                                            successMessage = if (createdMission.id < 0) {
-                                                "Missao salva localmente. Ela sera enviada ao servidor quando houver conexao."
-                                            } else {
-                                                "A missao \"${missionData.name}\" foi criada com sucesso."
+                                        try {
+                                            val missionDto = missionDataToServerDto(missionData)
+                                            val result = withContext(Dispatchers.IO) {
+                                                createMissionUseCase(missionDto)
                                             }
-                                            showSuccessDialog = true
-                                        }.onFailure { error ->
-                                            errorMessage = when (error) {
-                                                is IllegalArgumentException -> error.message ?: "Dados invalidos"
-                                                is HttpException -> "Erro ${error.code()} ao salvar missao"
-                                                else -> error.message ?: "Erro ao salvar missao"
+                                            result.onSuccess { createdMission ->
+                                                successMessage = if (createdMission.id < 0) {
+                                                    "Missao salva localmente. Ela sera enviada ao servidor quando houver conexao."
+                                                } else {
+                                                    "A missao \"${missionData.name}\" foi criada com sucesso."
+                                                }
+                                                showSuccessDialog = true
+                                            }.onFailure { error ->
+                                                errorMessage = when (error) {
+                                                    is IllegalArgumentException -> error.message ?: "Dados invalidos"
+                                                    is HttpException -> "Erro ${error.code()} ao salvar missao"
+                                                    else -> error.message ?: "Erro ao salvar missao"
+                                                }
                                             }
+                                        } catch (error: Throwable) {
+                                            errorMessage = error.message ?: "Erro ao salvar missao"
+                                        } finally {
+                                            isLoading = false
                                         }
-                                        isLoading = false
                                     }
                                 }
                             }
@@ -384,6 +413,7 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                     1 -> MapStep(
                         data = missionData,
                         onDataChange = { missionData = it },
+                        initialMapCenter = locationUiState.location,
                         onMapTouch = { isMapTouched = it },
                         modifier = Modifier.verticalScroll(
                             rememberScrollState(),
@@ -573,6 +603,7 @@ private fun ConfigStep(
 private fun MapStep(
     data: MissionData,
     onDataChange: (MissionData) -> Unit,
+    initialMapCenter: Point?,
     onMapTouch: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -623,8 +654,40 @@ private fun MapStep(
         )
 
         SectionCard(
-            title = "Mapa da Missao",
-            subtitle = "Selecione primeiro o ponto de interesse e depois os waypoints",
+            title = "Como Adicionar Waypoint",
+            subtitle = "O mapa está logo abaixo deste card",
+            icon = Icons.Default.EditLocationAlt
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = colorScheme.primary.copy(alpha = 0.08f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "1. No mapa abaixo, selecione o modo Waypoint.",
+                        color = colorScheme.onSurface,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "2. Toque no mapa no ponto desejado.",
+                        color = colorScheme.onSurface,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "3. O modal de configuração do waypoint abrirá automaticamente.",
+                        color = colorScheme.onSurface,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        SectionCard(
+            title = "Mapa da Missão",
+            subtitle = "Selecione primeiro o ponto de interesse e depois os waypoints. Role para baixo para ver os waypoints adicionados.",
             icon = Icons.Default.Map
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -702,10 +765,13 @@ private fun MapStep(
                         true
                     },
                     onMapReady = { map ->
+                        val initialCenter = data.pointOfInterest
+                            ?: initialMapCenter
+                            ?: Point.fromLngLat(-44.279191, -2.53698)
                         map.setCamera(
                             com.mapbox.maps.CameraOptions.Builder()
-                                .center(data.pointOfInterest ?: Point.fromLngLat(-44.279191, -2.53698))
-                                .zoom(16.0)
+                                .center(initialCenter)
+                                .zoom(if (data.pointOfInterest == null) 12.4 else 15.6)
                                 .build()
                         )
                     }
@@ -715,7 +781,7 @@ private fun MapStep(
 
         SectionCard(
             title = "Ponto de Interesse e Rota",
-            subtitle = "Resumo operacional para validar a missao",
+            subtitle = "Resumo operacional para validar a missão",
             icon = Icons.Default.Place
         ) {
             CoordinateSummary(
@@ -729,40 +795,8 @@ private fun MapStep(
         }
 
         SectionCard(
-            title = "Como Adicionar Waypoint",
-            subtitle = "Fluxo de criacao mais visivel",
-            icon = Icons.Default.EditLocationAlt
-        ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = colorScheme.primary.copy(alpha = 0.08f)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "1. Selecione o modo Waypoint acima.",
-                        color = colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "2. Clique no mapa no ponto desejado.",
-                        color = colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "3. O modal de configuracao do waypoint abre automaticamente.",
-                        color = colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        SectionCard(
             title = "Waypoints Adicionados",
-            subtitle = "A missao precisa de pelo menos 2 waypoints",
+            subtitle = "A missão precisa de pelo menos 2 waypoints",
             icon = Icons.Default.Route
         ) {
             if (data.waypoints.isEmpty()) {
@@ -776,12 +810,9 @@ private fun MapStep(
                     InteractiveWaypointRow(
                         waypoint = waypoint,
                         index = index,
-                        isSelected = waypoint.id == selectedWaypoint?.id,
-                        onSelect = { selectedWaypointId = waypoint.id },
-                        onEdit = {
-                            selectedWaypointId = waypoint.id
-                            editingWaypointId = waypoint.id
-                        },
+                        isSelected = false,
+                        onSelect = {},
+                        onEdit = { editingWaypointId = waypoint.id },
                         onRemove = {
                             onDataChange(
                                 data.copy(
@@ -790,51 +821,11 @@ private fun MapStep(
                                         .mapIndexed { idx, item -> item.copy(id = idx + 1) }
                                 )
                             )
-                            if (selectedWaypointId == waypoint.id) {
-                                selectedWaypointId = -1
-                            }
                         }
                     )
                     if (index < data.waypoints.lastIndex) {
                         Divider(modifier = Modifier.padding(vertical = 8.dp))
                     }
-                }
-            }
-        }
-
-        if (selectedWaypoint != null) {
-            SectionCard(
-                title = "Waypoint Selecionado",
-                subtitle = "Edite rapidamente as informacoes do ponto destacado",
-                icon = Icons.Default.EditLocationAlt
-            ) {
-                CoordinateSummary(
-                    label = "Coordenadas",
-                    value = "${selectedWaypoint.latitude.formatCoord()}, ${selectedWaypoint.longitude.formatCoord()}"
-                )
-                CoordinateSummary(
-                    label = "Altitude",
-                    value = "${selectedWaypoint.altitude} m"
-                )
-                CoordinateSummary(
-                    label = "Curva",
-                    value = labelFor(selectedWaypoint.turnMode, turnModeOptions)
-                )
-                CoordinateSummary(
-                    label = "Acoes",
-                    value = if (selectedWaypoint.actions.isEmpty()) {
-                        "Nenhuma"
-                    } else {
-                        selectedWaypoint.actions.joinToString { labelFor(it.type, waypointActionOptions) }
-                    }
-                )
-                OutlinedButton(
-                    onClick = { editingWaypointId = selectedWaypoint.id },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Tune, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Editar waypoint")
                 }
             }
         }
@@ -1380,10 +1371,10 @@ private fun WaypointEditorDialog(
                     options = turnModeOptions,
                     onSelected = { turnMode = it }
                 )
-                SectionHeader(title = "Acoes do Waypoint", icon = Icons.Default.Tune)
+                SectionHeader(title = "Ações do Waypoint", icon = Icons.Default.Tune)
                 if (actions.isEmpty()) {
                     Text(
-                        text = "Nenhuma acao configurada",
+                        text = "Nenhuma ação configurada",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     )
@@ -1402,34 +1393,38 @@ private fun WaypointEditorDialog(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Adicionar Acao")
+                    Text("Adicionar Ação")
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    onConfirm(
-                        MissionWaypointDraft(
-                            id = initialWaypoint?.id ?: -1,
-                            latitude = point.latitude(),
-                            longitude = point.longitude(),
-                            altitude = altitude,
-                            turnMode = turnMode,
-                            actions = actions.toList()
-                        )
-                    )
-                },
-                enabled = altitudeValid
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(confirmLabel)
+                TextButton(onClick = onDismiss) {
+                    Text("Cancelar")
+                }
+                Button(
+                    onClick = {
+                        onConfirm(
+                            MissionWaypointDraft(
+                                id = initialWaypoint?.id ?: -1,
+                                latitude = point.latitude(),
+                                longitude = point.longitude(),
+                                altitude = altitude,
+                                turnMode = turnMode,
+                                actions = actions.toList()
+                            )
+                        )
+                    },
+                    enabled = altitudeValid
+                ) {
+                    Text(confirmLabel)
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
+        dismissButton = null
     )
 
     if (showActionDialog) {
@@ -1455,13 +1450,13 @@ private fun WaypointActionDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Tune, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Adicionar Acao")
+                Text("Adicionar Ação")
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SelectionField(
-                    label = "Tipo de Acao",
+                    label = "Tipo de Ação",
                     value = selectedType,
                     options = waypointActionOptions,
                     onSelected = { selectedType = it }
@@ -1482,20 +1477,24 @@ private fun WaypointActionDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    onConfirm(WaypointActionDraft(type = selectedType, param = param))
-                    onDismiss()
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Adicionar")
+                TextButton(onClick = onDismiss) {
+                    Text("Cancelar")
+                }
+                Button(
+                    onClick = {
+                        onConfirm(WaypointActionDraft(type = selectedType, param = param))
+                        onDismiss()
+                    }
+                ) {
+                    Text("Adicionar")
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
+        dismissButton = null
     )
 }
 

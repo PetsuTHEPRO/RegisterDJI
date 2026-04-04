@@ -7,6 +7,8 @@ import com.sloth.registerapp.core.network.dto.RefreshTokenRequestDto
 import com.sloth.registerapp.features.auth.data.remote.dto.RegisterRequestDto
 import com.sloth.registerapp.features.auth.data.remote.dto.RegisterResponseDto
 import com.sloth.registerapp.features.auth.domain.model.User
+import com.sloth.registerapp.features.mldetection.data.remote.dto.ModelCatalogEntryDto
+import com.sloth.registerapp.features.mldetection.data.remote.dto.ModelDownloadUrlDto
 import com.sloth.registerapp.features.mission.data.remote.dto.MissionCreateRequestDto
 import com.sloth.registerapp.features.mission.data.remote.dto.MissionCreateResponseDto
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
@@ -55,4 +57,10 @@ interface SdiaApiService {
 
     @DELETE("missions/{id}")
     suspend fun deleteMissionPlural(@Path("id") id: Int): Response<Unit>
+
+    @GET("ml/models")
+    suspend fun getMlModelCatalog(): List<ModelCatalogEntryDto>
+
+    @GET("ml/models/{id}/download")
+    suspend fun getMlModelDownloadUrl(@Path("id") id: String): ModelDownloadUrlDto
 }

@@ -1,8 +1,9 @@
 package com.sloth.registerapp.presentation.mission.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -33,7 +33,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -48,23 +47,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mapbox.geojson.Point
 import com.sloth.registerapp.features.mission.domain.model.Mission
-import com.sloth.registerapp.presentation.mission.components.MissionPreviewMapView
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
 
-private val MissionBg = Color(0xFF050E1F)
-private val MissionSurface = Color(0xFF0A1628)
-private val MissionSurfaceAlt = Color(0xFF071120)
-private val MissionBorder = Color(0xFF0D2040)
-private val MissionPrimary = Color(0xFF00C2FF)
-private val MissionSecondary = Color(0xFF0066FF)
-private val MissionMuted = Color(0xFF4A7FA5)
-private val MissionDanger = Color(0xFFFF3B6E)
+private val MissionBg       = NeuralColors.Bg
+private val MissionSurface  = NeuralColors.Surface
+private val MissionSurfaceAlt = NeuralColors.SurfaceAlt
+private val MissionBorder   = NeuralColors.Border
+private val MissionPrimary  = NeuralColors.Primary
+private val MissionSecondary = NeuralColors.Secondary
+private val MissionMuted    = NeuralColors.Muted
+private val MissionDanger   = NeuralColors.Danger
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,18 +86,19 @@ fun MissionsTableScreen(
 
     Scaffold(
         containerColor = MissionBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Missoes",
+                            text = "Missões",
                             color = Color.White,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Gerenciador de missoes",
+                            text = "Gerenciador de missões",
                             color = MissionMuted,
                             fontSize = 10.sp
                         )
@@ -107,15 +111,6 @@ fun MissionsTableScreen(
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MissionBg)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onCreateMissionClick,
-                containerColor = if (canCreateMission) MissionPrimary else MissionSurface,
-                contentColor = Color.White
-            ) {
-                Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            }
         }
     ) { paddingValues ->
         Box(
@@ -137,24 +132,20 @@ fun MissionsTableScreen(
                 )
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        top = 16.dp,
+                        end = 20.dp,
+                        bottom = 28.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (!createBlockedMessage.isNullOrBlank()) {
-                        item {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MissionPrimary.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, MissionPrimary.copy(alpha = 0.2f))
-                            ) {
-                                Text(
-                                    text = createBlockedMessage,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    color = MissionPrimary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
+                    item {
+                        MissionCreateBanner(
+                            canCreateMission = canCreateMission,
+                            createBlockedMessage = createBlockedMessage,
+                            onCreateMissionClick = onCreateMissionClick
+                        )
                     }
 
                     items(missions, key = { it.id }) { mission ->
@@ -178,12 +169,12 @@ fun MissionsTableScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Warning, contentDescription = null, tint = MissionDanger)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Excluir missao", color = Color.White)
+                    Text("Excluir missão", color = Color.White)
                 }
             },
             text = {
                 Text(
-                    "Deseja realmente excluir esta missao?",
+                    "Deseja realmente excluir esta missão?",
                     color = MissionMuted
                 )
             },
@@ -214,6 +205,69 @@ private fun LoadingMissionsState() {
             CircularProgressIndicator(color = MissionPrimary)
             Spacer(modifier = Modifier.height(12.dp))
             Text("Carregando missoes...", color = MissionMuted)
+        }
+    }
+}
+
+@Composable
+private fun MissionCreateBanner(
+    canCreateMission: Boolean,
+    createBlockedMessage: String?,
+    onCreateMissionClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MissionSurface,
+        border = BorderStroke(
+            1.dp,
+            if (canCreateMission) MissionPrimary.copy(alpha = 0.22f) else MissionBorder
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            MissionPrimary.copy(alpha = if (canCreateMission) 0.10f else 0.04f),
+                            MissionSurface
+                        )
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Nova missao",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = createBlockedMessage ?: "Crie uma nova missao sem cobrir as acoes dos cards.",
+                    color = if (canCreateMission) MissionMuted else MissionPrimary,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+            }
+
+            Button(
+                onClick = onCreateMissionClick,
+                enabled = canCreateMission,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (canCreateMission) MissionPrimary else MissionSurfaceAlt,
+                    contentColor = if (canCreateMission) MissionBg else MissionMuted
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Criar", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -403,72 +457,61 @@ private fun MissionPreviewPane(mission: Mission) {
         color = MissionSurfaceAlt,
         border = BorderStroke(1.dp, MissionBorder)
     ) {
-        val pointOfInterest = Point.fromLngLat(
-            mission.pointOfInterestLongitude,
-            mission.pointOfInterestLatitude
-        )
-        val previewPoints = mission.previewPoints.map { point ->
-            Point.fromLngLat(point.longitude, point.latitude)
-        }
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawRect(color = Color(0xFF061018))
 
-        if (previewPoints.isNotEmpty() || mission.waypointCount > 0) {
-            MissionPreviewMapView(
-                modifier = Modifier.fillMaxSize(),
-                previewPoints = previewPoints,
-                pointOfInterest = pointOfInterest,
-                primaryColor = MissionPrimary
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFF061018),
-                                Color(0xFF0A1628)
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                PreviewFallbackOverlay()
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Map,
-                        contentDescription = null,
-                        tint = MissionPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text("Sem preview", color = MissionMuted, fontSize = 11.sp)
-                }
+            val gridStep = 32.dp.toPx()
+            var gx = 0f
+            while (gx <= size.width) {
+                drawLine(Color(0x1400C2FF), Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
+                gx += gridStep
             }
-        }
-    }
-}
+            var gy = 0f
+            while (gy <= size.height) {
+                drawLine(Color(0x1400C2FF), Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
+                gy += gridStep
+            }
 
-@Composable
-private fun BoxScope.PreviewFallbackOverlay() {
-    Column(
-        modifier = Modifier
-            .align(Alignment.BottomStart)
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        repeat(4) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(4) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(
-                                color = MissionPrimary.copy(alpha = 0.06f),
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                    )
-                }
+            val waypoints = mission.previewPoints
+            if (waypoints.isEmpty()) return@Canvas
+
+            val allLngs = waypoints.map { it.longitude } + mission.pointOfInterestLongitude
+            val allLats = waypoints.map { it.latitude } + mission.pointOfInterestLatitude
+            val minLng = allLngs.min()
+            val maxLng = allLngs.max()
+            val minLat = allLats.min()
+            val maxLat = allLats.max()
+            val spanX = maxOf(0.0001, maxLng - minLng)
+            val spanY = maxOf(0.0001, maxLat - minLat)
+            val padding = 26.dp.toPx()
+
+            fun toScreen(lat: Double, lng: Double): Offset {
+                val px = ((lng - minLng) / spanX).toFloat() * (size.width - padding * 2) + padding
+                val py = ((maxLat - lat) / spanY).toFloat() * (size.height - padding * 2) + padding
+                return Offset(px, py)
             }
+
+            val screenPoints = waypoints.map { toScreen(it.latitude, it.longitude) }
+
+            if (screenPoints.size > 1) {
+                val path = Path()
+                screenPoints.forEachIndexed { i, o ->
+                    if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
+                }
+                drawPath(
+                    path = path,
+                    color = Color(0x8800C2FF),
+                    style = Stroke(width = 4f, join = StrokeJoin.Round, cap = StrokeCap.Round)
+                )
+            }
+
+            screenPoints.forEachIndexed { index, offset ->
+                drawCircle(Color(0x3300C2FF), radius = if (index == 0) 10f else 7f, center = offset)
+                drawCircle(Color(0xFF00C2FF), radius = if (index == 0) 5f else 3.5f, center = offset)
+            }
+
+            val poiOffset = toScreen(mission.pointOfInterestLatitude, mission.pointOfInterestLongitude)
+            drawCircle(Color(0xFF00E5A0), radius = 4.5f, center = poiOffset)
         }
     }
 }

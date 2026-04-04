@@ -1,8 +1,5 @@
 package com.sloth.registerapp.presentation.app.dashboard.screens
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -37,13 +34,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AirplanemodeActive
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -73,26 +70,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sloth.registerapp.R
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
 
 private const val DASHBOARD_TAG = "DashboardScreen"
-private val NeuralBg = Color(0xFF050E1F)
-private val NeuralSurface = Color(0xFF0A1628)
-private val NeuralSurfaceAlt = Color(0xFF071120)
-private val NeuralBorder = Color(0xFF0D2040)
-private val NeuralBorderStrong = Color(0xFF0D2A50)
-private val NeuralPrimary = Color(0xFF00C2FF)
-private val NeuralSecondary = Color(0xFF0066FF)
-private val NeuralMuted = Color(0xFF4A7FA5)
-private val NeuralSuccess = Color(0xFF00E5A0)
-private val NeuralWarning = Color(0xFFFFB800)
-private val NeuralDanger = Color(0xFFFF3B6E)
+private val NeuralBg        = NeuralColors.Bg
+private val NeuralSurface   = NeuralColors.Surface
+private val NeuralSurfaceAlt = NeuralColors.SurfaceAlt
+private val NeuralBorder    = NeuralColors.Border
+private val NeuralBorderStrong = NeuralColors.BorderStrong
+private val NeuralPrimary   = NeuralColors.Primary
+private val NeuralSecondary = NeuralColors.Secondary
+private val NeuralMuted     = NeuralColors.Muted
+private val NeuralSuccess   = NeuralColors.Success
+private val NeuralWarning   = NeuralColors.Warning
+private val NeuralDanger    = NeuralColors.Danger
+private val NeuralCardGlow  = NeuralColors.CardGlow
+private val DroneCatalogCardHeight = 330.dp
+private val SupportCardHeight = 84.dp
 
 data class CompatibleDrone(
     val name: String,
-    val model: String,
-    val status: String,
-    val battery: Float,
-    val range: String,
+    val description: String,
     val imageRes: Int,
     val officialUrl: String,
     val accentColor: Color
@@ -110,7 +108,7 @@ fun DashboardScreen(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val drones = remember { defaultCompatibleDrones() }
+    val drones = remember { featuredCompatibleDrones() }
     val statusUi = remember(droneStatus) { dashboardStatus(droneStatus) }
     var visible by remember { mutableStateOf(false) }
     val pulse = rememberInfiniteTransition(label = "dashboard_pulse")
@@ -175,34 +173,12 @@ fun DashboardScreen(
                         DroneCarousel(
                             drones = drones,
                             onDroneClick = { drone ->
-                                runCatching {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(drone.officialUrl))
-                                    val activity = intent.resolveActivity(context.packageManager)
-                                    requireNotNull(activity)
-                                    context.startActivity(intent)
-                                }.onFailure { error ->
-                                    when (error) {
-                                        is ActivityNotFoundException,
-                                        is IllegalArgumentException,
-                                        is IllegalStateException -> {
-                                            Log.w(DASHBOARD_TAG, "Falha ao abrir URL oficial do drone: ${drone.officialUrl}", error)
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.dashboard_open_link_error),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-
-                                        else -> {
-                                            Log.e(DASHBOARD_TAG, "Erro inesperado ao abrir URL oficial do drone: ${drone.officialUrl}", error)
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.dashboard_open_link_error),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    }
-                                }
+                                Log.d(DASHBOARD_TAG, "Mock do site oficial para ${drone.name}: ${drone.officialUrl}")
+                                Toast.makeText(
+                                    context,
+                                    "Mock do site oficial da DJI para ${drone.name}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
 
@@ -220,7 +196,7 @@ fun DashboardScreen(
                         )
                         ProjectDescriptionCard()
 
-                        Spacer(modifier = Modifier.height(28.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
                 }
             }
@@ -237,7 +213,7 @@ private fun DashboardTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 2.dp),
+            .padding(horizontal = 20.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
@@ -575,6 +551,7 @@ private fun DroneCarousel(
     ) {
         drones.forEachIndexed { index, drone ->
             DroneStatusCard(
+                modifier = Modifier.width(248.dp),
                 drone = drone,
                 index = index,
                 onClick = { onDroneClick(drone) }
@@ -585,135 +562,181 @@ private fun DroneCarousel(
 
 @Composable
 internal fun DroneStatusCard(
+    modifier: Modifier = Modifier,
     drone: CompatibleDrone,
     index: Int,
     onClick: () -> Unit
 ) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        visible = true
-    }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(500, delayMillis = index * 90)) +
-            slideInVertically(initialOffsetY = { it / 3 }, animationSpec = tween(600, delayMillis = index * 90))
+    val context = LocalContext.current
+    Surface(
+        modifier = modifier.height(DroneCatalogCardHeight),
+        shape = RoundedCornerShape(20.dp),
+        color = NeuralSurface,
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, drone.accentColor.copy(alpha = 0.25f))
     ) {
-        Surface(
-            modifier = Modifier
-                .width(170.dp)
-                .clickable(onClick = onClick),
-            shape = RoundedCornerShape(18.dp),
-            color = Color.Transparent,
-            border = androidx.compose.foundation.BorderStroke(1.2.dp, drone.accentColor.copy(alpha = 0.25f))
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            Column(
+            Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .height(156.dp)
                     .background(
                         Brush.linearGradient(
                             colors = listOf(
-                                NeuralSurface,
-                                drone.accentColor.copy(alpha = 0.06f)
+                                drone.accentColor.copy(alpha = 0.20f),
+                                NeuralCardGlow.copy(alpha = 0.92f)
                             )
                         )
                     )
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        modifier = Modifier.size(44.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = NeuralSurfaceAlt
-                    ) {
-                        Image(
-                            painter = painterResource(id = drone.imageRes),
-                            contentDescription = drone.name,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(statusColorForDrone(drone.status), CircleShape)
-                    )
-                }
+                Image(
+                    painter = painterResource(id = drone.imageRes),
+                    contentDescription = drone.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(156.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
 
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = drone.name,
                         color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = drone.model,
+                        text = drone.description,
                         color = NeuralMuted,
-                        fontSize = 10.sp
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp
                     )
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.SettingsInputAntenna,
-                            contentDescription = null,
-                            tint = NeuralMuted,
-                            modifier = Modifier.size(12.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    drone.accentColor.copy(alpha = 0.82f),
+                                    drone.accentColor
+                                )
+                            ),
+                            RoundedCornerShape(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "${(drone.battery * 100).toInt()}%",
-                            color = NeuralMuted,
-                            fontSize = 10.sp
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        Text(
-                            text = drone.range,
-                            color = NeuralMuted,
-                            fontSize = 10.sp
-                        )
-                    }
-                    LinearProgressIndicator(
-                        progress = drone.battery,
-                        modifier = Modifier.fillMaxWidth().height(5.dp),
-                        color = batteryColor(drone.battery),
-                        trackColor = NeuralBorder
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = statusColorForDrone(drone.status).copy(alpha = 0.12f)
+                        .clickable {
+                            Log.d(DASHBOARD_TAG, "Mock do site oficial para ${drone.name}: ${drone.officialUrl}")
+                            Toast.makeText(
+                                context,
+                                "Mock do site oficial da DJI para ${drone.name}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            onClick()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = drone.status,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        color = statusColorForDrone(drone.status),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "IR PARA DJI",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.2.sp
                     )
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.18f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .size(18.dp)
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-private fun statusColorForDrone(status: String): Color {
-    return when {
-        status.contains("Disponivel", ignoreCase = true) -> NeuralSuccess
-        status.contains("miss", ignoreCase = true) -> NeuralPrimary
-        else -> NeuralWarning
+@Composable
+private fun DroneCardSpec(
+    icon: ImageVector,
+    value: String,
+    tint: Color
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint.copy(alpha = 0.82f),
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = value,
+            color = Color.White.copy(alpha = 0.68f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
-private fun batteryColor(value: Float): Color {
+private fun compatibleDroneFamily(name: String): String {
     return when {
-        value > 0.5f -> NeuralSuccess
-        value > 0.25f -> NeuralWarning
-        else -> NeuralDanger
+        "matrice" in name.lowercase() -> "Linha Matrice"
+        "phantom" in name.lowercase() -> "Linha Phantom"
+        "mini" in name.lowercase() -> "Linha Mini"
+        "air" in name.lowercase() -> "Linha Air"
+        "spark" in name.lowercase() -> "Linha Spark"
+        "enterprise" in name.lowercase() -> "Enterprise"
+        "thermal" in name.lowercase() -> "Thermal"
+        "multispectral" in name.lowercase() -> "Multispectral"
+        else -> "Linha Mavic"
+    }
+}
+
+private fun compatibleDroneModelTag(name: String): String {
+    return compatibleDroneFamily(name)
+        .replace("Linha ", "")
+        .uppercase()
+}
+
+private fun compatibleDroneFamilyLabel(name: String): String {
+    return when {
+        "matrice" in name.lowercase() -> "Matrice"
+        "phantom" in name.lowercase() -> "Phantom"
+        "mini" in name.lowercase() -> "Mini"
+        "air" in name.lowercase() -> "Air"
+        "spark" in name.lowercase() -> "Spark"
+        else -> "Mavic"
+    }
+}
+
+private fun compatibleDroneProfile(name: String): String {
+    val normalized = name.lowercase()
+    return when {
+        "thermal" in normalized -> "Termico"
+        "multispectral" in normalized -> "Mapeamento"
+        "enterprise" in normalized -> "Industrial"
+        "rtk" in normalized -> "Precisao"
+        "mini" in normalized || "air" in normalized || "spark" in normalized -> "Portatil"
+        else -> "Aereo"
     }
 }
 
@@ -744,7 +767,7 @@ private fun SupportCard(
     imageRes: Int? = null
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.height(SupportCardHeight),
         shape = RoundedCornerShape(16.dp),
         color = NeuralSurface,
         border = androidx.compose.foundation.BorderStroke(1.dp, NeuralBorderStrong)
@@ -752,6 +775,7 @@ private fun SupportCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxSize()
                 .padding(horizontal = 14.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -778,7 +802,9 @@ private fun SupportCard(
                 }
             }
             Spacer(modifier = Modifier.width(10.dp))
-            Column {
+            Column(
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Text(subtitle, color = NeuralMuted, fontSize = 10.sp)
             }
@@ -931,35 +957,113 @@ private fun DashboardGridBackground() {
     }
 }
 
-fun defaultCompatibleDrones(): List<CompatibleDrone> = listOf(
-    CompatibleDrone(
-        name = "Falcon X9",
-        model = "DJI Mavic 3 Pro",
-        status = "Disponivel",
-        battery = 0.87f,
-        range = "12 km",
-        imageRes = R.drawable.ic_drone_takeoff,
-        officialUrl = "https://www.dji.com/br/mavic-3-enterprise",
+fun featuredCompatibleDrones(): List<CompatibleDrone> = listOf(
+    compatibleDrone(
+        name = "DJI Mavic Air",
+        description = "Drone compacto da linha Air, focado em mobilidade e captura aérea leve.",
         accentColor = NeuralPrimary
     ),
-    CompatibleDrone(
-        name = "Aguia Thermal",
-        model = "Autel EVO II",
-        status = "Em missao",
-        battery = 0.43f,
-        range = "9 km",
-        imageRes = R.drawable.ic_drone_land,
-        officialUrl = "https://www.autelrobotics.com/productdetail/45.html",
+    compatibleDrone(
+        name = "DJI Mavic Air 2",
+        description = "Modelo Air com foco em autonomia, estabilidade e uso geral de campo.",
         accentColor = NeuralSecondary
     ),
-    CompatibleDrone(
-        name = "Scout V3",
-        model = "Parrot ANAFI AI",
-        status = "Manutencao",
-        battery = 0.12f,
-        range = "6 km",
-        imageRes = R.drawable.ic_drone_takeoff,
-        officialUrl = "https://www.parrot.com/en/drones/anafi-ai",
+    compatibleDrone(
+        name = "DJI Mavic Air 2S",
+        description = "Versão Air com sensor superior e perfil mais forte para imagem aérea.",
         accentColor = NeuralSuccess
+    ),
+    compatibleDrone(
+        name = "DJI Air 3",
+        description = "Air de nova geração com câmera dupla e operação mais versátil.",
+        accentColor = NeuralWarning
+    ),
+    compatibleDrone(
+        name = "DJI Mavic Mini",
+        description = "Mini ultraleve para voo recreativo e missões visuais simples.",
+        accentColor = NeuralPrimary
     )
 )
+
+fun defaultCompatibleDrones(): List<CompatibleDrone> = listOf(
+    compatibleDrone(
+        name = "DJI Mavic Air",
+        description = "Drone compacto da linha Air, focado em mobilidade e captura aérea leve.",
+        accentColor = NeuralPrimary
+    ),
+    compatibleDrone(
+        name = "DJI Mavic Air 2",
+        description = "Modelo Air com foco em autonomia, estabilidade e uso geral de campo.",
+        accentColor = NeuralSecondary
+    ),
+    compatibleDrone(
+        name = "DJI Mavic Air 2S",
+        description = "Versão Air com sensor superior e perfil mais forte para imagem aérea.",
+        accentColor = NeuralSuccess
+    ),
+    compatibleDrone("DJI Air 3", "Air de nova geração com câmera dupla e operação mais versátil.", NeuralPrimary),
+    compatibleDrone("DJI Mavic Mini", "Mini ultraleve para voo recreativo e missões visuais simples.", NeuralSecondary),
+    compatibleDrone("DJI Mini 2", "Mini portátil com melhor estabilidade e alcance para uso leve.", NeuralSuccess),
+    compatibleDrone("DJI Mini 3", "Mini com câmera otimizada e foco em operação portátil.", NeuralPrimary),
+    compatibleDrone("DJI Mini 3 Pro", "Mini avançado com recursos premium de imagem e segurança.", NeuralSecondary),
+    compatibleDrone("DJI Mini 4 Pro", "Mini topo de linha para operação compacta com mais sensores.", NeuralSuccess),
+    compatibleDrone("DJI MAPIR", "Plataforma voltada para mapeamento e captura especializada.", NeuralPrimary),
+    compatibleDrone("DJI Mavic Pro", "Clássico dobrável da linha Mavic para operação geral.", NeuralSecondary),
+    compatibleDrone("DJI Mavic 2 Pro", "Mavic com foco em imagem de maior qualidade e uso profissional.", NeuralSuccess),
+    compatibleDrone("DJI Mavic 2 Zoom", "Versão com câmera zoom para inspeção e observação.", NeuralPrimary),
+    compatibleDrone("DJI Mavic 2 Enterprise Dual", "Enterprise com câmera dual para operação técnica.", NeuralSecondary),
+    compatibleDrone("DJI Mavic 2 Enterprise Advanced", "Enterprise avançado com foco em inspeção e resposta.", NeuralSuccess),
+    compatibleDrone("DJI Mavic 3 / DJI Mavic 3 Pro", "Linha Mavic 3 para captura avançada e missões premium.", NeuralPrimary),
+    compatibleDrone("DJI Mavic 3 Multispectral", "Modelo voltado para agricultura e análise multiespectral.", NeuralSecondary),
+    compatibleDrone("DJI Mavic 3 Enterprise - 3E", "Enterprise com foco em mapeamento e inspeção corporativa.", NeuralSuccess),
+    compatibleDrone("DJI Mavic 3 Thermal - 3T", "Versão térmica para segurança, busca e inspeção.", NeuralPrimary),
+    compatibleDrone("DJI Phantom 3", "Plataforma clássica Phantom para captura aérea e treino.", NeuralSecondary),
+    compatibleDrone("DJI Phantom 3 Advanced", "Phantom 3 com pacote avançado para operação estável.", NeuralSuccess),
+    compatibleDrone("DJI Phantom 3 Pro", "Versão Pro da linha Phantom 3 com perfil mais robusto.", NeuralPrimary),
+    compatibleDrone("DJI Phantom 4", "Plataforma amplamente usada em mapeamento e inspeção.", NeuralSecondary),
+    compatibleDrone("DJI Phantom 4 Pro", "Phantom 4 com câmera melhorada para uso profissional.", NeuralSuccess),
+    compatibleDrone("DJI Phantom 4 Pro V2", "Refinamento da linha Phantom 4 Pro para uso técnico.", NeuralPrimary),
+    compatibleDrone("DJI Phantom 4 RTK", "Modelo RTK para mapeamento preciso e georreferenciamento.", NeuralSecondary),
+    compatibleDrone("DJI Phantom 4 Multispectral", "Plataforma Phantom voltada para agricultura de precisão.", NeuralSuccess),
+    compatibleDrone("DJI Spark", "Drone compacto e leve para captura rápida e uso recreativo.", NeuralPrimary),
+    compatibleDrone("DJI Matrice 100", "Plataforma Matrice modular para pesquisa e desenvolvimento.", NeuralSecondary),
+    compatibleDrone("DJI Matrice 200", "Matrice industrial para inspeção e missões corporativas.", NeuralSuccess),
+    compatibleDrone("DJI Matrice 200 V2", "Revisão V2 com foco em confiabilidade operacional.", NeuralPrimary),
+    compatibleDrone("DJI Matrice 210", "Versão com suporte ampliado a cargas e sensores.", NeuralSecondary),
+    compatibleDrone("DJI Matrice 210 RTK", "Matrice com RTK para missões que exigem precisão.", NeuralSuccess),
+    compatibleDrone("DJI Matrice 210 V2", "Atualização da linha 210 com foco em estabilidade industrial.", NeuralPrimary),
+    compatibleDrone("DJI Matrice 210 V2 RTK", "Variação RTK da linha 210 V2 para mapeamento técnico.", NeuralSecondary),
+    compatibleDrone("DJI Matrice 300 RTK", "Plataforma enterprise robusta para inspeção avançada.", NeuralSuccess),
+    compatibleDrone("DJI Matrice 30T", "Drone compacto enterprise com sensor térmico integrado.", NeuralPrimary),
+    compatibleDrone("DJI Matrice 600", "Hexacóptero para cargas maiores e aplicações especializadas.", NeuralSecondary),
+    compatibleDrone("DJI Matrice 4 / 4T", "Linha enterprise recente para inspeção e operações técnicas.", NeuralSuccess)
+)
+
+private fun compatibleDrone(
+    name: String,
+    description: String,
+    accentColor: Color
+): CompatibleDrone {
+    return CompatibleDrone(
+        name = name,
+        description = description,
+        imageRes = compatibleDroneImageRes(name),
+        officialUrl = "https://www.dji.com/br",
+        accentColor = accentColor
+    )
+}
+
+private fun compatibleDroneImageRes(name: String): Int {
+    val normalized = name.lowercase()
+    return when {
+        normalized == "dji air 3" -> R.drawable.drone_dji_air_3
+        normalized == "dji mavic air" -> R.drawable.drone_dji_mavic_air
+        normalized == "dji mavic air 2" -> R.drawable.drone_dji_mavic_air_2
+        normalized == "dji mavic air 2s" -> R.drawable.drone_dji_mavic_air_2s
+        normalized == "dji mavic mini" -> R.drawable.drone_dji_mavic_mini
+        "matrice" in normalized -> R.drawable.ic_catalog_drone_matrice
+        "phantom" in normalized -> R.drawable.ic_catalog_drone_phantom
+        "air" in normalized || "mini" in normalized || "spark" in normalized -> R.drawable.ic_catalog_drone_air
+        else -> R.drawable.ic_catalog_drone_mavic
+    }
+}

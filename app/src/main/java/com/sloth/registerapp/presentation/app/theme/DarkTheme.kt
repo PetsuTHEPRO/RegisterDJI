@@ -3,65 +3,55 @@ package com.sloth.registerapp.presentation.app.theme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Esquema de cores escuro alinhado com a paleta Neural.
+ * Agora o MaterialTheme.colorScheme reflete as mesmas cores usadas nos screens.
+ */
 val DarkColorScheme = darkColorScheme(
-    // ORIGINAL (comentado para referência)
-    // primary = Color(0xFF4EA1FF), // azul neon
-    // onPrimary = Color(0xEBFFFFFF), // texto principal
-    // secondary = Color(0xFF22C55E), // destaque secundário
-    // onSecondary = Color(0xFF0B1220),
-    // secondaryContainer = Color(0xFF14532D),
-    // onSecondaryContainer = Color(0xFFDCFCE7),
-    // tertiary = Color(0xFFF59E0B), // aviso
-    // onTertiary = Color(0xFF0B1220),
-    // tertiaryContainer = Color(0xFF78350F),
-    // onTertiaryContainer = Color(0xFFFFEDD5),
-    // background = Color(0xFF0B1220), // fundo base
-    // onBackground = Color(0xEBFFFFFF),
-    // surface = Color(0x0FFFFFFF), // card
-    // surfaceVariant = Color(0x14FFFFFF),
-    // onSurface = Color(0xEBFFFFFF),
-    // error = Color(0xFFEF4444),
-    // onError = Color(0xFFFFFFFF),
-    // outline = Color(0x1AFFFFFF),
-
-    // VERSÃO FINAL (ativa)
     // Base
-    background = Color(0xFF0B1220),
-    onBackground = Color(0xEBFFFFFF),
+    background        = NeuralColors.Bg,
+    onBackground      = NeuralColors.TextPrimary,
 
-    // Primárias
-    primary = Color(0xFF4EA1FF),
-    onPrimary = Color(0xEBFFFFFF),
+    // Primária (ciano neural)
+    primary           = NeuralColors.Primary,
+    onPrimary         = Color.White,
+    primaryContainer  = Color(0xFF003A50),
+    onPrimaryContainer = NeuralColors.TextPrimary,
 
-    // Success / Warning / Danger
-    secondary = Color(0xFF22C55E),
-    onSecondary = Color(0xEBFFFFFF),
-    tertiary = Color(0xFFF59E0B),
-    onTertiary = Color(0xEBFFFFFF),
-    error = Color(0xFFEF4444),
-    onError = Color(0xEBFFFFFF),
-
-    // Superfícies e bordas
-    surface = Color(0xFF101826),        // cards escuros (harmonizado com o fundo)
-    surfaceVariant = Color(0xFF121C2C), // variação um pouco mais clara
-    onSurface = Color(0xEBFFFFFF),      // rgba(255,255,255,0.92)
-    onSurfaceVariant = Color(0xB3FFFFFF), // rgba(255,255,255,0.70)
-    outline = Color(0x1AFFFFFF),        // rgba(255,255,255,0.10)
-    outlineVariant = Color(0x8CFFFFFF), // rgba(255,255,255,0.55)
-
-    // Containers (usados em barras/áreas de destaque)
-    primaryContainer = Color(0xFF14223A),
-    onPrimaryContainer = Color(0xEBFFFFFF),
-    secondaryContainer = Color(0xFF14532D),
+    // Secundária (verde — sucesso)
+    secondary         = NeuralColors.Success,
+    onSecondary       = NeuralColors.Bg,
+    secondaryContainer = Color(0xFF003D28),
     onSecondaryContainer = Color(0xFFDCFCE7),
-    tertiaryContainer = Color(0xFF78350F),
+
+    // Terciária (âmbar — aviso)
+    tertiary          = NeuralColors.Warning,
+    onTertiary        = NeuralColors.Bg,
+    tertiaryContainer = Color(0xFF4A3000),
     onTertiaryContainer = Color(0xFFFFEDD5),
-    errorContainer = Color(0xFF7F1D1D),
-    onErrorContainer = Color(0xFFFECACA),
-    inverseSurface = Color(0xFFE5E7EB),
-    inverseOnSurface = Color(0xFF111827),
-    inversePrimary = Color(0xFF2563EB),
-    surfaceTint = Color(0xFF4EA1FF),
-    scrim = Color(0x99000000),
-    // Extras customizados (não nativos do Material3)
+
+    // Erro / Perigo
+    error             = NeuralColors.Danger,
+    onError           = Color.White,
+    errorContainer    = Color(0xFF4A001A),
+    onErrorContainer  = Color(0xFFFFCDD8),
+
+    // Superfícies
+    surface           = NeuralColors.Surface,
+    surfaceVariant    = NeuralColors.SurfaceAlt,
+    onSurface         = NeuralColors.TextPrimary,
+    onSurfaceVariant  = NeuralColors.Muted,
+
+    // Bordas e contornos
+    outline           = NeuralColors.Border,
+    outlineVariant    = NeuralColors.BorderStrong,
+
+    // Inversas (usadas em tooltips/snackbars claros)
+    inverseSurface    = Color(0xFFE5E7EB),
+    inverseOnSurface  = NeuralColors.Bg,
+    inversePrimary    = NeuralColors.Secondary,
+
+    // Extras
+    surfaceTint       = NeuralColors.Primary,
+    scrim             = Color(0x99000000),
 )

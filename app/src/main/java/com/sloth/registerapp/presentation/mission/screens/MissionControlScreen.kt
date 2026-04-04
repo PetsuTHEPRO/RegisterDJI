@@ -77,6 +77,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
+import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.dsl.cameraOptions
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
 import com.sloth.registerapp.presentation.mission.model.Waypoint
@@ -87,15 +89,16 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sqrt
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
 
-private val MissionSurface = Color(0xCC0A1628)
-private val MissionSurfaceAlt = Color(0xF2060D1C)
-private val MissionPrimary = Color(0xFF00C2FF)
-private val MissionSuccess = Color(0xFF00E5A0)
-private val MissionWarning = Color(0xFFFFB800)
-private val MissionDanger = Color(0xFFFF3B6E)
-private val MissionMuted = Color(0xFF4A7FA5)
-private val MissionBorder = Color(0xFF0D2040)
+private val MissionSurface    = NeuralColors.SurfaceOverlay          // semi-transparente para overlay no mapa
+private val MissionSurfaceAlt = NeuralColors.Bg.copy(alpha = 0.95f)
+private val MissionPrimary    = NeuralColors.Primary
+private val MissionSuccess    = NeuralColors.Success
+private val MissionWarning    = NeuralColors.Warning
+private val MissionDanger     = NeuralColors.Danger
+private val MissionMuted      = NeuralColors.Muted
+private val MissionBorder     = NeuralColors.Border
 
 enum class MissionStatus {
     IDLE,
@@ -175,12 +178,30 @@ fun MissionControlScreen(
             selectedWaypointIndex = selectedWaypoint.takeIf { it in waypoints.indices },
             primaryColor = MissionPrimary,
             onMapReady = { map ->
-                map.setCamera(
-                    CameraOptions.Builder()
-                        .center(mapCenter)
-                        .zoom(if (waypoints.size > 1) 14.2 else 15.5)
-                        .build()
-                )
+                val framingPoints = buildList {
+                    add(currentLocation)
+                    droneLocation?.let(::add)
+                    addAll(waypoints.map { Point.fromLngLat(it.longitude, it.latitude) })
+                }.distinctBy { "${it.longitude()}_${it.latitude()}" }
+
+                if (framingPoints.size > 1) {
+                    map.cameraForCoordinates(
+                        framingPoints,
+                        camera = cameraOptions { },
+                        coordinatesPadding = EdgeInsets(84.0, 84.0, 84.0, 84.0),
+                        maxZoom = 17.2,
+                        offset = null
+                    ) { fittedCamera ->
+                        map.setCamera(fittedCamera)
+                    }
+                } else {
+                    map.setCamera(
+                        CameraOptions.Builder()
+                            .center(mapCenter)
+                            .zoom(16.6)
+                            .build()
+                    )
+                }
             }
         )
 

@@ -14,11 +14,18 @@ val localProperties = Properties().apply {
     }
 }
 
-val weatherApiKey = (
-    localProperties.getProperty("WEATHER_API_KEY")
-        ?: System.getenv("WEATHER_API_KEY")
-        ?: ""
-).trim().replace("\"", "\\\"")
+fun resolveSecret(key: String): String {
+    return (
+        localProperties.getProperty(key)
+            ?: providers.gradleProperty(key).orNull
+            ?: System.getenv(key)
+            ?: ""
+    ).trim().replace("\"", "\\\"")
+}
+
+val weatherApiKey = resolveSecret("WEATHER_API_KEY")
+
+val mapboxAccessToken = resolveSecret("MAPBOX_ACCESS_TOKEN")
 
 android {
     namespace = "com.sloth.registerapp"
@@ -32,6 +39,8 @@ android {
         versionName = "1.0"
         buildConfigField("boolean", "ALLOW_PUBLIC_FLIGHT_OPS", "true")
         buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
+        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxAccessToken\"")
+        resValue("string", "mapbox_access_token", mapboxAccessToken.ifBlank { "" })
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -94,6 +103,7 @@ dependencies {
 
     implementation(libs.androidx.camera.view)
     implementation(libs.litert.gpu)
+    implementation(libs.androidx.compose.foundation)
 
     // Room Database
     val roomVersion = "2.8.3"

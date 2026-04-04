@@ -1,353 +1,287 @@
 package com.sloth.registerapp.presentation.app.welcome.screens
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sloth.registerapp.BuildConfig
 import com.sloth.registerapp.R
+import com.sloth.registerapp.presentation.app.components.NeuralAnimatedBackdrop
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
+
+private val Bg          = NeuralColors.Bg
+private val CardSurface = NeuralColors.Surface
+private val Border      = NeuralColors.BorderStrong
+private val BorderSub   = NeuralColors.Border
+private val Primary     = NeuralColors.Primary
+private val Secondary   = NeuralColors.Secondary
+private val Success     = NeuralColors.Success
+private val Muted       = NeuralColors.Muted
 
 @Composable
 fun WelcomeScreen(
     onLoginClick: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "logo_float")
-    val logoOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logo_animation"
-    )
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
 
-    val pulseAnimation = rememberInfiniteTransition(label = "pulse")
-    val pulseScale by pulseAnimation.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_scale"
+    val enterAlpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+        label = "enter_alpha"
     )
-
-    val colorScheme = MaterialTheme.colorScheme
-    val backgroundGradient = Brush.verticalGradient(
-        colors = listOf(
-            colorScheme.background,
-            colorScheme.surface,
-            colorScheme.surfaceVariant
-        )
+    val enterOffset by animateFloatAsState(
+        targetValue = if (visible) 0f else 0.06f,
+        animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+        label = "enter_offset"
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundGradient)
+            .background(Bg)
     ) {
-        GlowingOrb(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(x = (-50).dp, y = 50.dp),
-            color = colorScheme.primary,
-            size = 220.dp
-        )
-
-        GlowingOrb(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = 50.dp, y = 100.dp),
-            color = colorScheme.tertiary,
-            size = 260.dp
+        NeuralAnimatedBackdrop(
+            baseColor = Bg,
+            primaryColor = Primary,
+            secondaryColor = Secondary
         )
 
         Column(
             modifier = Modifier
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .graphicsLayer {
+                    alpha = enterAlpha
+                    translationY = size.height * enterOffset
+                }
         ) {
-            Spacer(modifier = Modifier.height(50.dp))
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                StatusBadge()
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Box(
-                    modifier = Modifier
-                        .size(118.dp)
-                        .offset(y = logoOffset.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(118.dp)
-                            .scale(pulseScale)
-                            .alpha(0.25f)
-                            .background(
-                                color = colorScheme.primary,
-                                shape = CircleShape
-                            )
-                    )
-
-                    Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                        contentDescription = "Logo Vantly Neural",
-                        modifier = Modifier.size(88.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(34.dp))
-
-                Text(
-                    text = "Vantly Neural",
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                    letterSpacing = (-0.5).sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Plataforma Inteligente",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    colorScheme.primaryContainer.copy(alpha = 0.1f),
-                                    colorScheme.primary.copy(alpha = 0.1f),
-                                    colorScheme.primaryContainer.copy(alpha = 0.1f)
-                                )
-                            ),
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "Sistema de planejamento e monitoramento de missões com análise por machine learning para detecção de modelos em campo.",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 22.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    StatItem(label = "Planejamento", value = "Missões")
-                    StatDivider()
-                    StatItem(label = "Monitoramento", value = "Tempo real")
-                    StatDivider()
-                    StatItem(label = "Machine Learning", value = "Ativo")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(34.dp))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Button(
-                    onClick = onLoginClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(0.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(colorScheme.primary, colorScheme.primaryContainer)
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Entrar",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colorScheme.onPrimary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = "Vantly Neural v1.0",
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
-
-                Spacer(modifier = Modifier.height(22.dp))
-            }
+            Spacer(modifier = Modifier.weight(1f))
+            AppHeader()
+            Spacer(modifier = Modifier.height(24.dp))
+            InfoCard()
+            Spacer(modifier = Modifier.weight(1f))
+            BottomSection(onEnterClick = onLoginClick)
         }
+    }
+}
+
+@Composable
+private fun AppHeader() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+            contentDescription = "Logo Vently Neural",
+            modifier = Modifier.size(80.dp)
+        )
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Text(
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(color = Color.White)) { append("Vently") }
+                withStyle(SpanStyle(color = Primary)) { append(" Neural") }
+            },
+            fontSize = 28.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.5).sp
+        )
+    }
+}
+
+@Composable
+private fun InfoCard() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardSurface, RoundedCornerShape(22.dp))
+            .border(1.dp, Border, RoundedCornerShape(22.dp))
+            .padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        Text(
+            text = "Plataforma operacional de drones",
+            color = Color.White,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "Gerencie missoes, rotas e monitoramento em tempo real com suporte a visao computacional.",
+            color = Muted,
+            fontSize = 13.sp,
+            lineHeight = 22.sp
+        )
+
+    }
+}
+
+@Composable
+private fun FeatureItem(
+    color: Color,
+    label: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(color, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(text = label, color = Muted, fontSize = 12.sp)
     }
 }
 
 @Composable
 private fun StatusBadge() {
-    val colorScheme = MaterialTheme.colorScheme
-    val pulseAnimation = rememberInfiniteTransition(label = "badge_pulse")
-    val badgePulse by pulseAnimation.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "badge_pulse"
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .background(
+                color = Primary.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(999.dp)
+            )
+            .border(1.dp, Border, RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .background(Success, CircleShape)
+        )
+        Text(
+            text = "Sistema pronto",
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun BottomSection(onEnterClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        GradientButton(onClick = onEnterClick)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Vently Neural  ·  v${BuildConfig.VERSION_NAME}",
+            color = Muted,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun GradientButton(onClick: () -> Unit) {
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = tween(120),
+        label = "btn_scale"
     )
 
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = colorScheme.primary.copy(alpha = 0.1f),
-        border = ButtonDefaults.outlinedButtonBorder.copy(
-            width = 1.dp,
-            brush = Brush.horizontalGradient(
-                colors = listOf(
-                    colorScheme.primary.copy(alpha = 0.3f),
-                    colorScheme.primaryContainer.copy(alpha = 0.3f)
-                )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .background(
+                Brush.horizontalGradient(listOf(Primary, Secondary)),
+                RoundedCornerShape(16.dp)
             )
-        )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        val released = tryAwaitRelease()
+                        pressed = false
+                        if (released) onClick()
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .scale(badgePulse)
-                    .background(colorScheme.primary, CircleShape)
+            Text(
+                text = "Entrar",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Planejamento + IA para operações aéreas",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.primary
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
-}
-
-@Composable
-private fun StatItem(label: String, value: String) {
-    val colorScheme = MaterialTheme.colorScheme
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = colorScheme.primary,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun StatDivider() {
-    val colorScheme = MaterialTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(40.dp)
-            .background(colorScheme.outline.copy(alpha = 0.5f))
-    )
-}
-
-@Composable
-private fun GlowingOrb(
-    modifier: Modifier = Modifier,
-    color: Color,
-    size: Dp
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .alpha(0.4f)
-            .background(
-                brush = Brush.radialGradient(
-                    colors = listOf(color.copy(alpha = 0.4f), Color.Transparent)
-                ),
-                shape = CircleShape
-            )
-    )
 }

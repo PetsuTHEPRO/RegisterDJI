@@ -10,17 +10,33 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import com.mapbox.common.MapboxOptions
+import com.mapbox.geojson.Point
+import com.mapbox.maps.EdgeInsets
+import com.mapbox.maps.MapSnapshotOptions
+import com.mapbox.maps.Size
+import com.mapbox.maps.SnapshotOverlayOptions
+import com.mapbox.maps.Snapshotter
+import com.mapbox.maps.Style
 import com.sloth.registerapp.R
+import com.sloth.registerapp.BuildConfig
+import com.sloth.registerapp.features.mission.data.mapper.inDisplayOrder
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
 
 object MissionPreviewStorage {
     private const val PREVIEW_DIR = "mission-previews"
     private const val WIDTH = 420
     private const val HEIGHT = 240
+    private const val SNAPSHOT_TIMEOUT_MS = 4_000L
 
-    fun savePreview(context: Context, mission: ServerMissionDto): File? {
+    suspend fun savePreview(context: Context, mission: ServerMissionDto): File? {
         return runCatching {
             val bitmap = createPreviewBitmap(context, mission)
             val file = fileFor(context, mission.id) ?: return null
@@ -63,7 +79,195 @@ object MissionPreviewStorage {
         return File(directory, "mission_$missionId.png")
     }
 
-    private fun createPreviewBitmap(context: Context, mission: ServerMissionDto): Bitmap {
+    private suspend fun createPreviewBitmap(context: Context, mission: ServerMissionDto): Bitmap {
+        if (BuildConfig.MAPBOX_ACCESS_TOKEN.isBlank()) {
+            return createFallbackPreviewBitmap(context, mission)
+        }
+
+        return withContext(Dispatchers.Main.immediate) {
+            withTimeoutOrNull(SNAPSHOT_TIMEOUT_MS) {
+                runCatching {
+                    createMapSnapshotBitmap(context, mission)
+                }.getOrNull()
+            } ?: createFallbackPreviewBitmap(context, mission)
+        }
+    }
+
+    private suspend fun createMapSnapshotBitmap(context: Context, mission: ServerMissionDto): Bitmap {
+        return runCatching {
+            createMapSnapshotBitmapInternal(context, mission)
+        }.getOrElse {
+            createFallbackPreviewBitmap(context, mission)
+        }
+    }
+
+    private suspend fun createMapSnapshotBitmapInternal(context: Context, mission: ServerMissionDto): Bitmap {
+        MapboxOptions.accessToken = BuildConfig.MAPBOX_ACCESS_TOKEN
+
+        val points = mission.snapshotPoints()
+        val snapshotter = Snapshotter(
+            context,
+            MapSnapshotOptions.Builder()
+                .size(Size(WIDTH.toFloat(), HEIGHT.toFloat()))
+                .pixelRatio(context.resources.displayMetrics.density)
+                .build(),
+            SnapshotOverlayOptions(
+                showLogo = false,
+                showAttributes = false
+            )
+        )
+
+        snapshotter.setStyleUri(Style.SATELLITE_STREETS)
+        snapshotter.setCamera(
+            snapshotter.cameraForCoordinates(
+                points,
+                EdgeInsets(40.0, 40.0, 40.0, 40.0),
+                null,
+                null
+            )
+        )
+
+        return suspendCoroutine { continuation ->
+            snapshotter.start(
+                overlayCallback = { overlay ->
+                    drawMissionOverlay(overlay.canvas, overlay, mission)
+                },
+                resultCallback = { snapshot, errorMessage ->
+                    val result = snapshot ?: createFallbackPreviewBitmap(context, mission)
+                    snapshotter.destroy()
+                    continuation.resume(result)
+                }
+            )
+        }
+    }
+
+    private fun drawMissionOverlay(
+        canvas: Canvas,
+        overlay: com.mapbox.maps.SnapshotOverlay,
+        mission: ServerMissionDto
+    ) {
+        val orderedWaypoints = mission.waypoints.inDisplayOrder()
+        val routePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#CC00C2FF")
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+        }
+        val poiOuterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+        val poiInnerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#00E5A0")
+            style = Paint.Style.FILL
+        }
+        val waypointOuterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FF0B1526")
+            style = Paint.Style.FILL
+        }
+        val waypointInnerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FF00C2FF")
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 18f
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+        }
+        val textHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#B3000000")
+            textSize = 18f
+            textAlign = Paint.Align.CENTER
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isFakeBoldText = true
+        }
+
+        val waypointPoints = orderedWaypoints.map {
+            Point.fromLngLat(it.longitude, it.latitude)
+        }
+
+        if (waypointPoints.size > 1) {
+            val path = Path()
+            waypointPoints.forEachIndexed { index, point ->
+                val screen = overlay.screenCoordinate(point)
+                val x = screen.x.toFloat()
+                val y = screen.y.toFloat()
+                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            canvas.drawPath(path, routePaint)
+        }
+
+        waypointPoints.forEachIndexed { index, point ->
+            val screen = overlay.screenCoordinate(point)
+            val x = screen.x.toFloat()
+            val y = screen.y.toFloat()
+            canvas.drawCircle(x, y, 10f, waypointOuterPaint)
+            canvas.drawCircle(x, y, 6.5f, waypointInnerPaint)
+            val labelY = y + 5f
+            canvas.drawText((index + 1).toString(), x, labelY, textHaloPaint)
+            canvas.drawText((index + 1).toString(), x, labelY, textPaint)
+        }
+
+        val poiPoint = Point.fromLngLat(mission.poi_longitude, mission.poi_latitude)
+        val poiScreen = overlay.screenCoordinate(poiPoint)
+        val poiX = poiScreen.x.toFloat()
+        val poiY = poiScreen.y.toFloat()
+        canvas.drawCircle(poiX, poiY, 8.5f, poiOuterPaint)
+        canvas.drawCircle(poiX, poiY, 5.5f, poiInnerPaint)
+
+        drawCompactAttribution(canvas, overlay.attributions)
+    }
+
+    private fun drawCompactAttribution(canvas: Canvas, attributions: List<String>) {
+        val labels = attributions.mapNotNull { attribution ->
+            val lower = attribution.lowercase()
+            when {
+                "mapbox" in lower -> "Mapbox"
+                "openstreetmap" in lower || "osm" in lower -> "OpenStreetMap"
+                "maxar" in lower -> "Maxar"
+                else -> null
+            }
+        }.distinct()
+
+        val creditText = if (labels.isNotEmpty()) {
+            labels.joinToString(" | ")
+        } else {
+            "Mapbox | OpenStreetMap | Maxar"
+        }
+
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 9f
+        }
+        val paddingHorizontal = 8f
+        val paddingVertical = 5f
+        val textWidth = textPaint.measureText(creditText)
+        val boxHeight = textPaint.textSize + paddingVertical * 2
+        val left = WIDTH - textWidth - paddingHorizontal * 2 - 10f
+        val top = HEIGHT - boxHeight - 8f
+
+        val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#80000000")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(
+            RectF(left, top, WIDTH - 10f, HEIGHT - 8f),
+            8f,
+            8f,
+            backgroundPaint
+        )
+        canvas.drawText(
+            creditText,
+            left + paddingHorizontal,
+            HEIGHT - 8f - paddingVertical,
+            textPaint
+        )
+    }
+
+    private fun createFallbackPreviewBitmap(context: Context, mission: ServerMissionDto): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -100,10 +304,8 @@ object MissionPreviewStorage {
             y += step
         }
 
-        val points = mission.waypoints.map { waypoint ->
-            waypoint.longitude to waypoint.latitude
-        }.ifEmpty {
-            listOf(mission.poi_longitude to mission.poi_latitude)
+        val points = mission.snapshotPoints().map { point ->
+            point.longitude() to point.latitude()
         }
 
         val minX = points.minOf { it.first }
@@ -179,5 +381,13 @@ object MissionPreviewStorage {
         )
 
         return bitmap
+    }
+
+    private fun ServerMissionDto.snapshotPoints(): List<Point> {
+        val routePoints = waypoints.inDisplayOrder().map { waypoint ->
+            Point.fromLngLat(waypoint.longitude, waypoint.latitude)
+        }
+        val poiPoint = Point.fromLngLat(poi_longitude, poi_latitude)
+        return (routePoints + poiPoint).ifEmpty { listOf(poiPoint) }
     }
 }

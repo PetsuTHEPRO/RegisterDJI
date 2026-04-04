@@ -38,13 +38,11 @@ object ServerMissionMapper {
 }
 
 fun List<WaypointDto>.inDisplayOrder(): List<WaypointDto> {
-    return this.withIndex()
-        .sortedWith(
-            compareBy<IndexedValue<WaypointDto>>(
-                { it.value.waypointId ?: Int.MAX_VALUE },
-                { it.value.sequence ?: Int.MAX_VALUE },
-                { it.index }
-            )
-        )
-        .map { it.value }
+    // The server returns waypoints in the correct traversal order via the JSON array.
+    // We only sort when the server explicitly provides a dedicated `sequence` field
+    // (mapped strictly from the JSON key "sequence", not from alternate names like
+    // "order", "index", or "position" which could be DB row IDs, not traversal indices).
+    // Preserve server array order in all other cases.
+    val hasExplicitSequence = all { it.sequence != null }
+    return if (hasExplicitSequence) sortedBy { it.sequence } else this
 }

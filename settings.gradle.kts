@@ -12,8 +12,16 @@ pluginManagement {
         maven {
             url = uri("https://api.mapbox.com/downloads/v2/releases/maven")
             credentials {
+                val localProperties = java.util.Properties().apply {
+                    val localFile = java.io.File(settingsDir, "local.properties")
+                    if (localFile.exists()) {
+                        localFile.inputStream().use(::load)
+                    }
+                }
                 username = "mapbox" // Este nome de usuário é fixo para Mapbox
-                password = providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").orNull
+                password = localProperties.getProperty("MAPBOX_DOWNLOADS_TOKEN")
+                    ?: providers.gradleProperty("MAPBOX_DOWNLOADS_TOKEN").orNull
+                    ?: System.getenv("MAPBOX_DOWNLOADS_TOKEN")
             }
             authentication {
                 create<BasicAuthentication>("basic")

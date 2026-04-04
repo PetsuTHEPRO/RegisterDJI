@@ -1,9 +1,14 @@
 package com.sloth.registerapp.presentation.video.screens
 
+import android.graphics.Bitmap
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.util.Log
 import android.widget.Toast
+import android.view.TextureView
 import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
 import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,7 +16,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -41,10 +46,15 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
 import com.sloth.registerapp.core.mission.ActiveMissionStatus
+import com.sloth.registerapp.core.network.ConnectivityMonitor
 import com.sloth.registerapp.core.settings.MediaStorageSettingsRepository
 import com.sloth.registerapp.core.settings.MeasurementSettingsRepository
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.core.utils.MeasurementConverter
+import com.sloth.registerapp.features.mldetection.domain.model.DetectionResult
+import com.sloth.registerapp.features.mldetection.domain.model.MLModel
+import com.sloth.registerapp.features.mldetection.presentation.MLDetectionViewModel
+import com.sloth.registerapp.features.objectdetection.data.repository.ObjectDetectionPreferencesRepository
 import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
@@ -63,10 +73,38 @@ import com.mapbox.geojson.Point
 import com.mapbox.maps.Style
 import dji.sdk.camera.VideoFeeder
 import dji.sdk.codec.DJICodecManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private data class DetectionModelOption(
+    val id: String,
+    val name: String,
+    val summary: String,
+    val classes: String,
+    val installed: Boolean
+)
+
+private fun buildDetectionModelOptions(
+    installedModels: List<MLModel>
+): List<DetectionModelOption> {
+    return installedModels.map { model ->
+        DetectionModelOption(
+            id = model.id,
+            name = model.name,
+            summary = if (model.source.name == "ASSET") {
+                "Modelo embarcado no app e pronto para uso offline."
+            } else {
+                "Modelo local instalado dinamicamente no dispositivo."
+            },
+            classes = model.classes.joinToString().ifBlank { "Objeto" },
+            installed = true
+        )
+    }
+}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -83,25 +121,35 @@ fun DroneCameraScreen(
 
     val colorScheme = MaterialTheme.colorScheme
     val missionManager = remember { DroneMissionManager(DJIConnectionHelper) }
+    val connectivityMonitor = remember { ConnectivityMonitor.getInstance(context) }
 
     // Estados
     var visible by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
     var showMissionOverlay by rememberSaveable { mutableStateOf(true) }
+    var showAiSheet by rememberSaveable { mutableStateOf(false) }
+    var detectionEnabled by rememberSaveable { mutableStateOf(false) }
+    var selectedDetectionModelId by rememberSaveable {
+        mutableStateOf(ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID)
+    }
+    var previewCaptureError by remember { mutableStateOf<String?>(null) }
 
     val droneState by droneController.droneState.collectAsStateWithLifecycle()
     val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
     val product by DJIConnectionHelper.product.collectAsStateWithLifecycle()
     val isFeedAvailable = product != null
+    val mlDetectionViewModel: MLDetectionViewModel = viewModel()
 
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
     val mediaStorageRepo = remember { MediaStorageSettingsRepository.getInstance(context) }
     val measurementRepo = remember { MeasurementSettingsRepository.getInstance(context) }
+    val objectDetectionRepo = remember { ObjectDetectionPreferencesRepository.getInstance(context) }
     val mediaManager = remember { MissionMediaManager.getInstance(context) }
     val weatherModule = remember { WeatherModule.getInstance(context) }
     val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
     val activeMissionSession by ActiveMissionSessionManager.session.collectAsStateWithLifecycle()
+    val hasValidatedInternet by connectivityMonitor.isConnected.collectAsStateWithLifecycle()
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
     val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsStateWithLifecycle(
         initialValue = MediaStorageSettingsRepository.TARGET_PHONE
@@ -109,6 +157,16 @@ fun DroneCameraScreen(
     val measurementSystem by measurementRepo.measurementSystem.collectAsStateWithLifecycle(
         initialValue = MeasurementSettingsRepository.SYSTEM_METRIC
     )
+    val persistedDetectionEnabled by objectDetectionRepo.detectionEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val persistedDetectionModelId by objectDetectionRepo.activeModelId.collectAsStateWithLifecycle(
+        initialValue = ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID
+    )
+    val availableModels by mlDetectionViewModel.availableModels.collectAsStateWithLifecycle()
+    val activeDetectionModelId by mlDetectionViewModel.activeModelId.collectAsStateWithLifecycle()
+    val detectionBoxes by mlDetectionViewModel.detectionBoxes.collectAsStateWithLifecycle()
+    val lastInferenceMs by mlDetectionViewModel.lastInferenceMs.collectAsStateWithLifecycle()
+    val lastDetectionError by mlDetectionViewModel.lastError.collectAsStateWithLifecycle()
+    val downloadProgress by mlDetectionViewModel.downloadProgress.collectAsStateWithLifecycle()
     val rtmpStreamer = remember { DjiRtmpStreamer(rtmpUrl) }
     val streamState by rtmpStreamer.state.collectAsStateWithLifecycle()
     val previewEnabled = streamState !is StreamState.Streaming && streamState !is StreamState.Connecting
@@ -134,6 +192,10 @@ fun DroneCameraScreen(
     val codecManager = remember { mutableStateOf<DJICodecManager?>(null) }
     val surfaceRef = remember { mutableStateOf<SurfaceTexture?>(null) }
     val surfaceSize = remember { mutableStateOf(Pair(0, 0)) }
+    val textureViewRef = remember { mutableStateOf<TextureView?>(null) }
+    val detectionModelOptions = remember(availableModels) {
+        buildDetectionModelOptions(installedModels = availableModels)
+    }
     val videoDataListener = remember {
         VideoFeeder.VideoDataListener { videoBuffer, size ->
             Log.d(tag, "Video frame received: $size bytes")
@@ -184,6 +246,21 @@ fun DroneCameraScreen(
         }
     }
 
+    LaunchedEffect(persistedDetectionEnabled, persistedDetectionModelId) {
+        detectionEnabled = persistedDetectionEnabled
+        selectedDetectionModelId = persistedDetectionModelId
+        mlDetectionViewModel.selectModel(persistedDetectionModelId)
+    }
+
+    LaunchedEffect(activeDetectionModelId, availableModels) {
+        val resolvedModelId = activeDetectionModelId ?: return@LaunchedEffect
+        val selectedExists = availableModels.any { it.id == selectedDetectionModelId }
+        if (selectedDetectionModelId != resolvedModelId && !selectedExists) {
+            selectedDetectionModelId = resolvedModelId
+            objectDetectionRepo.setActiveModelId(resolvedModelId)
+        }
+    }
+
     LaunchedEffect(rtmpUrl) {
         rtmpStreamer.updateUrl(rtmpUrl)
         if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
@@ -210,8 +287,12 @@ fun DroneCameraScreen(
         }
     }
 
-    LaunchedEffect(weatherQueryLocation) {
+    LaunchedEffect(weatherQueryLocation, hasValidatedInternet) {
         val queryLocation = weatherQueryLocation ?: return@LaunchedEffect
+        if (!hasValidatedInternet) {
+            Log.d(tag, "Internet validada indisponível; ignorando atualização de clima")
+            return@LaunchedEffect
+        }
 
         val now = System.currentTimeMillis()
         if (now - lastWeatherRequestMs < WEATHER_MIN_REFRESH_MS) {
@@ -228,6 +309,45 @@ fun DroneCameraScreen(
         lastWeatherRequestMs = now
     }
 
+    LaunchedEffect(
+        detectionEnabled,
+        selectedDetectionModelId,
+        activeDetectionModelId,
+        previewEnabled,
+        isFeedAvailable
+    ) {
+        val canDetect = detectionEnabled &&
+            previewEnabled &&
+            isFeedAvailable &&
+            selectedDetectionModelId == activeDetectionModelId &&
+            availableModels.any { it.id == selectedDetectionModelId }
+
+        if (!canDetect) {
+            mlDetectionViewModel.clearDetections()
+            if (!detectionEnabled) {
+                previewCaptureError = null
+            }
+            return@LaunchedEffect
+        }
+
+        while (isActive) {
+            val textureView = textureViewRef.value
+            val frameBitmap = withContext(Dispatchers.Main) {
+                textureView?.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
+            }
+
+            if (frameBitmap == null) {
+                previewCaptureError = "Preview indisponivel para captura"
+                delay(400)
+                continue
+            }
+
+            previewCaptureError = null
+            mlDetectionViewModel.processFrame(frameBitmap)
+            delay(350)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -235,6 +355,7 @@ fun DroneCameraScreen(
     ) {
         VideoFeedView(
             modifier = Modifier.fillMaxSize(),
+            onTextureViewReady = { textureViewRef.value = it },
             onSurfaceTextureAvailable = { surface, width, height ->
                 Log.d(tag, "Surface available: ${width}x${height}")
                 surfaceRef.value = surface
@@ -252,6 +373,13 @@ fun DroneCameraScreen(
                 onSurfaceTextureDestroyed()
             }
         )
+
+        if (detectionEnabled && detectionBoxes.isNotEmpty()) {
+            PersonDetectionOverlay(
+                detections = detectionBoxes,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         if (!isFeedAvailable) {
             Log.d(tag, "Video feed unavailable (product not connected)")
@@ -348,8 +476,8 @@ fun DroneCameraScreen(
                 summary = summary,
                 measurementSystem = measurementSystem,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 92.dp)
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 58.dp)
             )
         }
 
@@ -481,6 +609,9 @@ fun DroneCameraScreen(
             CameraControls(
                 isRecording = isRecording,
                 streamState = streamState,
+                hasMission = activeMissionSession.hasMission,
+                missionExpanded = showMissionOverlay,
+                detectionEnabled = detectionEnabled,
                 onCellCameraClick = onCellCameraClick,
                 onTakePhotoClick = {
                     droneController.takePhoto { success, message ->
@@ -553,21 +684,13 @@ fun DroneCameraScreen(
                     } else {
                         rtmpStreamer.start()
                     }
+                },
+                onMissionToggle = {
+                    showMissionOverlay = !showMissionOverlay
+                },
+                onAiToggle = {
+                    showAiSheet = true
                 }
-            )
-        }
-
-        AnimatedVisibility(
-            visible = activeMissionSession.hasMission && showControls && visible,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 94.dp, end = 10.dp)
-        ) {
-            MissionPanelToggleButton(
-                expanded = showMissionOverlay,
-                onClick = { showMissionOverlay = !showMissionOverlay }
             )
         }
 
@@ -587,6 +710,31 @@ fun DroneCameraScreen(
             }
         }
 
+    }
+
+    if (showAiSheet) {
+        DetectionModelPickerSheet(
+            detectionEnabled = detectionEnabled,
+            selectedModelId = selectedDetectionModelId,
+            models = detectionModelOptions,
+            lastInferenceMs = lastInferenceMs,
+            lastError = previewCaptureError ?: lastDetectionError,
+            downloadProgress = downloadProgress,
+            onDismiss = { showAiSheet = false },
+            onDetectionEnabledChange = {
+                detectionEnabled = it
+                scope.launch {
+                    objectDetectionRepo.setDetectionEnabled(it)
+                }
+            },
+            onModelSelected = {
+                selectedDetectionModelId = it
+                mlDetectionViewModel.selectModel(it)
+                scope.launch {
+                    objectDetectionRepo.setActiveModelId(it)
+                }
+            }
+        )
     }
 
     DisposableEffect(Unit) {
@@ -652,13 +800,14 @@ private fun isValidCoordinate(latitude: Double, longitude: Double): Boolean {
 @Composable
 private fun MissionPanelToggleButton(
     expanded: Boolean,
+    hasMission: Boolean,
     onClick: () -> Unit
 ) {
     CompactControlButton(
-        icon = if (expanded) Icons.Default.VisibilityOff else Icons.Default.Route,
+        icon = if (expanded && hasMission) Icons.Default.VisibilityOff else Icons.Default.Route,
         onClick = onClick,
         enabled = true,
-        color = Color(0xFF00E5A0),
+        color = if (hasMission) Color(0xFF00E5A0) else Color.White.copy(alpha = 0.70f),
         size = 38.dp
     )
 }
@@ -854,15 +1003,20 @@ fun CompactHeader(
 fun CameraControls(
     isRecording: Boolean,
     streamState: StreamState,
+    hasMission: Boolean,
+    missionExpanded: Boolean,
+    detectionEnabled: Boolean,
     onCellCameraClick: () -> Unit,
     onTakePhotoClick: () -> Unit,
     onRecordClick: () -> Unit,
-    onStreamToggle: () -> Unit
+    onStreamToggle: () -> Unit,
+    onMissionToggle: () -> Unit,
+    onAiToggle: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val buttonGray = colorScheme.onSurfaceVariant
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CompactControlButton(
@@ -888,6 +1042,87 @@ fun CameraControls(
             enabled = true,
             color = buttonGray
         )
+        AiPanelButton(
+            enabled = detectionEnabled,
+            onClick = onAiToggle
+        )
+        MissionPanelToggleButton(
+            expanded = missionExpanded,
+            hasMission = hasMission,
+            onClick = onMissionToggle
+        )
+    }
+}
+
+@Composable
+private fun AiPanelButton(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    CompactControlButton(
+        icon = Icons.Default.Psychology,
+        onClick = onClick,
+        enabled = true,
+        color = if (enabled) Color(0xFF00C2FF) else Color.White.copy(alpha = 0.70f),
+        size = 38.dp
+    )
+}
+
+@Composable
+private fun PersonDetectionOverlay(
+    detections: List<DetectionResult>,
+    modifier: Modifier = Modifier
+) {
+    if (detections.isEmpty()) return
+
+    val boxColor = Color(0xFF00E5A0)
+    val labelPaint = remember {
+        Paint().apply {
+            isAntiAlias = true
+            textSize = 34f
+            color = android.graphics.Color.WHITE
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+    }
+    val badgePaint = remember {
+        Paint().apply {
+            isAntiAlias = true
+            color = android.graphics.Color.argb(210, 0, 194, 255)
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        detections.forEach { detection ->
+            val left = detection.normalizedRect.left * size.width
+            val top = detection.normalizedRect.top * size.height
+            val right = detection.normalizedRect.right * size.width
+            val bottom = detection.normalizedRect.bottom * size.height
+
+            drawRect(
+                color = boxColor,
+                topLeft = androidx.compose.ui.geometry.Offset(left, top),
+                size = androidx.compose.ui.geometry.Size(
+                    width = (right - left).coerceAtLeast(0f),
+                    height = (bottom - top).coerceAtLeast(0f)
+                ),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+            )
+
+            val label = "${detection.label} ${(detection.confidence * 100).toInt()}%"
+            val labelWidth = labelPaint.measureText(label) + 28f
+            val badgeTop = (top - 44f).coerceAtLeast(8f)
+            val badgeRect = RectF(
+                left,
+                badgeTop,
+                left + labelWidth,
+                badgeTop + 36f
+            )
+
+            drawContext.canvas.nativeCanvas.apply {
+                drawRoundRect(badgeRect, 14f, 14f, badgePaint)
+                drawText(label, badgeRect.left + 14f, badgeRect.bottom - 11f, labelPaint)
+            }
+        }
     }
 }
 
@@ -945,39 +1180,237 @@ fun WeatherCompactBadge(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
-        Text(
-            "${summary.snapshot.temperatureC ?: "--"}°C",
-            color = Color.White,
-            fontSize = 11.sp
-        )
+        Icon(Icons.Default.Speed, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
         Text(
             MeasurementConverter.formatSpeed((summary.snapshot.windSpeedMs ?: 0.0).toFloat(), measurementSystem),
             color = Color.White,
             fontSize = 11.sp
         )
         Text(
-            "${"%.1f".format(summary.snapshot.rainMm ?: 0.0)} mm",
-            color = Color.White,
-            fontSize = 11.sp
-        )
-        summary.snapshot.precipitationProbabilityPercent?.let { probability ->
-            Text(
-                "${"%.0f".format(probability)}%",
-                color = Color.White,
-                fontSize = 11.sp
-            )
-        }
-        Text(
-            "⚡${"%.0f".format((summary.snapshot.lightningRisk ?: 0.0) * 100)}%",
-            color = Color.White,
-            fontSize = 11.sp
-        )
-        Text(
-            summary.decision.shortMessage,
+            "Clima favorável para voo",
             color = tint,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetectionModelPickerSheet(
+    detectionEnabled: Boolean,
+    selectedModelId: String,
+    models: List<DetectionModelOption>,
+    lastInferenceMs: Long?,
+    lastError: String?,
+    downloadProgress: Float?,
+    onDismiss: () -> Unit,
+    onDetectionEnabledChange: (Boolean) -> Unit,
+    onModelSelected: (String) -> Unit
+) {
+    val selectedModel = models.firstOrNull { it.id == selectedModelId }
+    val canEnableDetection = selectedModel?.installed == true
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF08111F),
+        contentColor = Color.White,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.28f))
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Detecção de objetos",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Configure o modelo que será usado no vídeo do drone. A lista abaixo reflete os modelos YOLO instalados e prontos para execução local.",
+                color = Color.White.copy(alpha = 0.70f),
+                fontSize = 13.sp,
+                lineHeight = 19.sp
+            )
+
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White.copy(alpha = 0.05f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Detecção em tempo real",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Liga ou desliga o pipeline de IA da tela do drone.",
+                            color = Color.White.copy(alpha = 0.62f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = detectionEnabled,
+                        onCheckedChange = onDetectionEnabledChange,
+                        enabled = canEnableDetection
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White.copy(alpha = 0.05f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Telemetria de runtime",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "Modelo ativo: ${selectedModel?.name ?: "Nenhum"}",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = "Ultima inferencia: ${lastInferenceMs?.let { "${it} ms" } ?: "N/D"}",
+                        color = Color.White.copy(alpha = 0.72f),
+                        fontSize = 12.sp
+                    )
+                    if (!lastError.isNullOrBlank()) {
+                        Text(
+                            text = "Ultimo erro: $lastError",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        )
+                    }
+                    if (downloadProgress != null) {
+                        Text(
+                            text = "Download em andamento: ${(downloadProgress * 100).toInt()}%",
+                            color = Color(0xFF00C2FF),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            if (!canEnableDetection) {
+                Text(
+                    text = "Nenhum detector de objetos está disponível no momento. Instale ou embarque pelo menos um modelo YOLO para ativar a análise.",
+                    color = Color(0xFFF59E0B),
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+
+            models.forEach { model ->
+                val isSelected = selectedModelId == model.id
+                val accent = if (isSelected) Color(0xFF00C2FF) else Color.White.copy(alpha = 0.22f)
+
+                Surface(
+                    onClick = {
+                        if (model.installed) {
+                            onModelSelected(model.id)
+                        }
+                    },
+                    enabled = model.installed,
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color.White.copy(alpha = 0.05f),
+                    border = BorderStroke(1.dp, accent)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = model.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = model.summary,
+                                    color = Color.White.copy(alpha = 0.66f),
+                                    fontSize = 12.sp,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                            if (isSelected && model.installed) {
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = Color(0xFF00C2FF).copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "ATIVO",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        color = Color(0xFF00C2FF),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Classes principais: ${model.classes}",
+                            color = Color.White.copy(alpha = 0.60f),
+                            fontSize = 12.sp
+                        )
+
+                        val availabilityText = when {
+                            model.installed ->
+                                "Modelo disponível no dispositivo."
+                            else ->
+                                "Modelo ainda não instalado no dispositivo."
+                        }
+
+                        Text(
+                            text = availabilityText,
+                            color = Color.White.copy(alpha = 0.54f),
+                            fontSize = 11.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
     }
 }
 

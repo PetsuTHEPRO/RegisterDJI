@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mapbox.geojson.Point
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.mission.data.location.OperatorLocationEstimate
 import com.sloth.registerapp.features.mission.data.location.OperatorLocationRepositoryImpl
 import com.sloth.registerapp.features.mission.data.location.OperatorPositionStabilizer
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import io.sentry.SentryLevel
 
 data class OperatorLocationUiState(
     val location: Point? = null,
@@ -38,6 +40,12 @@ class OperatorLocationViewModel(
 
     fun setPermissionGranted(granted: Boolean) {
         _uiState.update { it.copy(hasPermission = granted) }
+        AppObservability.breadcrumb(
+            category = "permissions",
+            message = if (granted) "Location permission granted" else "Location permission denied",
+            level = if (granted) SentryLevel.INFO else SentryLevel.WARNING,
+            data = mapOf("permission" to "location")
+        )
 
         if (!granted) {
             updatesJob?.cancel()
@@ -65,12 +73,24 @@ class OperatorLocationViewModel(
             try {
                 val last = repository.getLastKnownLocation()
                 last?.let(positionStabilizer::update)?.let(::publishEstimate)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "location",
+                    operation = "load_last_known_location",
+                    level = SentryLevel.WARNING
+                )
                 _uiState.update { it.copy(errorMessage = "Falha ao obter GPS") }
             }
 
             repository.locationUpdates()
-                .catch {
+                .catch { error ->
+                    AppObservability.captureException(
+                        throwable = error,
+                        area = "location",
+                        operation = "observe_location_updates",
+                        level = SentryLevel.WARNING
+                    )
                     _uiState.update { it.copy(errorMessage = "Falha ao obter GPS") }
                 }
                 .collect { location ->

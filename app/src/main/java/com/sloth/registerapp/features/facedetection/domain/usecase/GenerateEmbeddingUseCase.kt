@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.util.Log
+import com.sloth.registerapp.core.observability.AppObservability
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -24,6 +25,7 @@ import kotlin.math.sqrt
 class GenerateEmbeddingUseCase(private val context: Context) {
 
     private var interpreter: Interpreter? = null
+    private var lastEmbeddingFailureReportAt = 0L
     private val inputSize = 112 // MobileFaceNet usa 112x112
     private val embeddingSize = 192 // Tamanho do embedding do MobileFaceNet
 
@@ -32,6 +34,7 @@ class GenerateEmbeddingUseCase(private val context: Context) {
         private const val MODEL_FILE = "mobile_face_net.tflite"
         private const val IMAGE_MEAN = 127.5f
         private const val IMAGE_STD = 128.0f
+        private const val EMBEDDING_FAILURE_REPORT_INTERVAL_MS = 60_000L
     }
 
     init {
@@ -49,8 +52,19 @@ class GenerateEmbeddingUseCase(private val context: Context) {
             // Ele detecta automaticamente
             interpreter = Interpreter(modelFile)
             Log.d(TAG, "✅ Modelo LiteRT carregado com sucesso")
+            AppObservability.breadcrumb(
+                category = "face_detection",
+                message = "Face embedding model loaded",
+                data = mapOf("model_file" to MODEL_FILE)
+            )
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao carregar modelo: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "load_embedding_model",
+                extras = mapOf("model_file" to MODEL_FILE)
+            )
         }
     }
 
@@ -94,8 +108,26 @@ class GenerateEmbeddingUseCase(private val context: Context) {
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao gerar embedding: ${e.message}", e)
+            reportEmbeddingFailureIfNeeded(e, faceBitmap.width, faceBitmap.height)
             return null
         }
+    }
+
+    private fun reportEmbeddingFailureIfNeeded(error: Throwable, bitmapWidth: Int, bitmapHeight: Int) {
+        val now = System.currentTimeMillis()
+        if (now - lastEmbeddingFailureReportAt < EMBEDDING_FAILURE_REPORT_INTERVAL_MS) return
+        lastEmbeddingFailureReportAt = now
+
+        AppObservability.captureException(
+            throwable = error,
+            area = "face_detection",
+            operation = "generate_embedding",
+            extras = mapOf(
+                "bitmap_width" to bitmapWidth,
+                "bitmap_height" to bitmapHeight,
+                "model_file" to MODEL_FILE
+            )
+        )
     }
 
     /**

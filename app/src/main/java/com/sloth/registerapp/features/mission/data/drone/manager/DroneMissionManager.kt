@@ -4,12 +4,14 @@ import android.util.Log
 import com.sloth.registerapp.core.constants.DroneConstants
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.dji.DJIException
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto as ServerWaypoint
 import com.sloth.registerapp.features.mission.domain.model.MissionExecutionMode
 import com.sloth.registerapp.features.mission.domain.model.MissionOutcome
 import com.sloth.registerapp.features.mission.domain.model.MissionOutcomeStatus
 import dji.common.error.DJIError
+import dji.common.model.LocationCoordinate2D
 import dji.common.mission.waypoint.*
 import dji.common.product.Model
 import dji.sdk.mission.MissionControl
@@ -27,6 +29,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import io.sentry.SentryLevel
 
 // O enum de estado interno permanece o mesmo
 enum class MissionState {
@@ -99,6 +102,10 @@ class DroneMissionManager(
                 when {
                     product == null -> {
                         Log.d(TAG, "✈️ Drone desconectado")
+                        AppObservability.breadcrumb(
+                            category = "drone",
+                            message = "Drone disconnected"
+                        )
                         _missionState.value = MissionState.IDLE
                         // Remover listener se estiver adicionado
                         if (listenerAdded) {
@@ -110,6 +117,12 @@ class DroneMissionManager(
 
                     product.model == null -> {
                         Log.e(TAG, "❌ Produto conectado sem modelo definido")
+                        AppObservability.captureMessage(
+                            message = "Drone product connected without model",
+                            area = "drone",
+                            operation = "connection_monitor",
+                            level = SentryLevel.WARNING
+                        )
                         _missionState.value = MissionState.ERROR
                     }
 
@@ -118,11 +131,23 @@ class DroneMissionManager(
                             TAG,
                             "❌ Drone não suportado: ${product.model.displayName}"
                         )
+                        AppObservability.captureMessage(
+                            message = "Unsupported drone model connected",
+                            area = "drone",
+                            operation = "connection_monitor",
+                            level = SentryLevel.WARNING,
+                            extras = mapOf("model" to product.model.displayName)
+                        )
                         _missionState.value = MissionState.ERROR
                     }
 
                     else -> {
                         Log.d(TAG, "✅ Drone conectado: ${product.model.displayName}")
+                        AppObservability.breadcrumb(
+                            category = "drone",
+                            message = "Drone connected",
+                            data = mapOf("model" to product.model.displayName)
+                        )
                         if (_missionState.value == MissionState.ERROR) {
                             _missionState.value = MissionState.IDLE
                         }
@@ -167,6 +192,11 @@ class DroneMissionManager(
             Log.e(TAG, "❌ DRONE NÃO CONECTADO!")
             Log.e(TAG, "  📱 Product: ${product?.model?.displayName ?: "NULL"}")
             Log.e(TAG, "  ⚠️ Não é possível executar operações sem o drone conectado")
+            AppObservability.breadcrumb(
+                category = "drone",
+                message = "Drone operation blocked because product is disconnected",
+                level = SentryLevel.WARNING
+            )
             throw DJIException(
                 "Drone não está conectado. Conecte o drone e tente novamente."
             )
@@ -260,7 +290,12 @@ class DroneMissionManager(
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao fazer diagnóstico: ${e.message}")
-            e.printStackTrace()
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "diagnostic_home_point",
+                level = SentryLevel.WARNING
+            )
         }
     }
 
@@ -321,9 +356,19 @@ class DroneMissionManager(
     suspend fun prepareAndUploadMission(missionData: ServerMissionDto) {
         _missionState.value = MissionState.PREPARING
         _missionOutcome.value = null
+        var failureReportedToSentry = false
 
         try {
             Log.i(TAG, "🚀 Iniciando preparação de missão: ${missionData.name}")
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission preparation started",
+                data = mapOf(
+                    "mission_id" to missionData.id,
+                    "waypoints_count" to missionData.waypoints.size,
+                    "actions_count" to missionData.waypoints.sumOf { it.actions.size }
+                )
+            )
             
             // VALIDAÇÃO CRÍTICA: Verificar se o drone está conectado ANTES de tudo
             validateDroneConnection()
@@ -340,6 +385,14 @@ class DroneMissionManager(
             Log.d(TAG, "📍 Validando ${missionData.waypoints.size} waypoints...")
             val waypointList = validateAndFilterWaypoints(missionData.waypoints)
             Log.d(TAG, "✅ ${waypointList.size} waypoints válidos após filtragem")
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission waypoints validated",
+                data = mapOf(
+                    "mission_id" to missionData.id,
+                    "valid_waypoints_count" to waypointList.size
+                )
+            )
 
             // 2. Validar parâmetros de voo
             Log.d(TAG, "⚙️ Validando parâmetros de voo...")
@@ -365,6 +418,18 @@ class DroneMissionManager(
                     append(" (Código: ${loadError.errorCode})")
                 }
                 Log.e(TAG, "❌ $errorMessage")
+                AppObservability.captureMessage(
+                    message = "DJI mission load failed",
+                    area = "drone",
+                    operation = "load_waypoint_mission",
+                    extras = mapOf(
+                        "mission_id" to missionData.id,
+                        "waypoints_count" to waypointList.size,
+                        "dji_error_code" to loadError.errorCode,
+                        "dji_error_description" to loadError.description
+                    )
+                )
+                failureReportedToSentry = true
                 
                 // Fazer diagnóstico novamente quando falha
                 Log.e(TAG, "⚠️ Diagnóstico após falha de carregamento:")
@@ -377,6 +442,11 @@ class DroneMissionManager(
 
             // 5. Fazer upload com retry e timeout
             Log.d(TAG, "☁️ Iniciando upload da missão com retry...")
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission upload started",
+                data = mapOf("mission_id" to missionData.id)
+            )
             try {
                 retryOperation(MAX_RETRY_ATTEMPTS, RETRY_DELAY_MS) {
                     withTimeout(UPLOAD_TIMEOUT_MS) {
@@ -388,10 +458,27 @@ class DroneMissionManager(
             } catch (e: TimeoutCancellationException) {
                 _missionState.value = MissionState.ERROR
                 Log.e(TAG, "❌ Upload timeout após ${UPLOAD_TIMEOUT_MS}ms")
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "drone",
+                    operation = "upload_waypoint_mission",
+                    extras = mapOf(
+                        "mission_id" to missionData.id,
+                        "timeout_ms" to UPLOAD_TIMEOUT_MS
+                    )
+                )
+                failureReportedToSentry = true
                 throw DJIException("Upload timeout (${UPLOAD_TIMEOUT_MS}ms)", e)
             } catch (e: Exception) {
                 _missionState.value = MissionState.ERROR
                 Log.e(TAG, "❌ Erro durante upload: ${e.message}")
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "drone",
+                    operation = "upload_waypoint_mission",
+                    extras = mapOf("mission_id" to missionData.id)
+                )
+                failureReportedToSentry = true
                 throw e
             }
 
@@ -399,7 +486,17 @@ class DroneMissionManager(
             _missionState.value = MissionState.ERROR
             markFailed("Erro ao preparar/upload missão: ${e.message}")
             Log.e(TAG, "❌ ERRO CRÍTICO ao preparar/upload missão: ${e.message}")
-            e.printStackTrace()
+            if (!failureReportedToSentry) {
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "drone",
+                    operation = "prepare_and_upload_mission",
+                    extras = mapOf(
+                        "mission_id" to missionData.id,
+                        "waypoints_count" to missionData.waypoints.size
+                    )
+                )
+            }
             throw e
         }
     }
@@ -419,12 +516,22 @@ class DroneMissionManager(
         }
 
         try {
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission start requested"
+            )
             withTimeout(START_TIMEOUT_MS) {
                 startMissionSuspend(operator)
             }
             Log.i(TAG, "✅ Missão iniciada com sucesso!")
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "start_mission",
+                extras = mapOf("timeout_ms" to START_TIMEOUT_MS)
+            )
             throw DJIException("Start mission timeout (${START_TIMEOUT_MS}ms)", e)
         }
     }
@@ -438,6 +545,10 @@ class DroneMissionManager(
         )
 
         try {
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission stop requested"
+            )
             withTimeout(STOP_TIMEOUT_MS) {
                 stopMissionSuspend(operator)
             }
@@ -451,6 +562,12 @@ class DroneMissionManager(
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
             markFailed("Stop mission timeout (${STOP_TIMEOUT_MS}ms)")
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "stop_mission",
+                extras = mapOf("timeout_ms" to STOP_TIMEOUT_MS)
+            )
             throw DJIException("Stop mission timeout (${STOP_TIMEOUT_MS}ms)", e)
         }
     }
@@ -464,6 +581,10 @@ class DroneMissionManager(
         )
 
         try {
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission pause requested"
+            )
             withTimeout(PAUSE_TIMEOUT_MS) {
                 pauseMissionSuspend(operator)
             }
@@ -471,10 +592,21 @@ class DroneMissionManager(
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Timeout ao pausar missão (${PAUSE_TIMEOUT_MS}ms)")
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "pause_mission",
+                extras = mapOf("timeout_ms" to PAUSE_TIMEOUT_MS)
+            )
             throw DJIException("Timeout ao pausar missão", e)
         } catch (e: Exception) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Erro ao pausar missão: ${e.message}")
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "pause_mission"
+            )
             throw DJIException("Erro ao pausar missão", e)
         }
     }
@@ -488,6 +620,10 @@ class DroneMissionManager(
         )
 
         try {
+            AppObservability.breadcrumb(
+                category = "drone.mission",
+                message = "Drone mission resume requested"
+            )
             withTimeout(RESUME_TIMEOUT_MS) {
                 resumeMissionSuspend(operator)
             }
@@ -495,10 +631,21 @@ class DroneMissionManager(
         } catch (e: TimeoutCancellationException) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Timeout ao retomar missão (${RESUME_TIMEOUT_MS}ms)")
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "resume_mission",
+                extras = mapOf("timeout_ms" to RESUME_TIMEOUT_MS)
+            )
             throw DJIException("Timeout ao retomar missão", e)
         } catch (e: Exception) {
             _missionState.value = MissionState.ERROR
             Log.e(TAG, "❌ Erro ao retomar missão: ${e.message}")
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "resume_mission"
+            )
             throw DJIException("Erro ao retomar missão", e)
         }
     }
@@ -892,7 +1039,7 @@ class DroneMissionManager(
 
         val validWaypoints = waypoints.mapIndexed { index, wp ->
             val (latitude, longitude, altitude) = extractAndValidateCoordinates(wp) ?: return@mapIndexed null
-            Log.d(TAG, "  ✓ Waypoint #${index + 1}: lat=$latitude, lng=$longitude, alt=${altitude.toFloat()}m")
+            Log.d(TAG, "  ✓ Waypoint #${index + 1}: coordenadas válidas, alt=${altitude.toFloat()}m")
             val waypoint = Waypoint(latitude, longitude, altitude.toFloat())
             extractTurnMode(wp)?.let { waypoint.turnMode = it }
 
@@ -942,6 +1089,46 @@ class DroneMissionManager(
         Log.d(TAG, "✅ Parâmetros de voo validados: auto=$autoSpeed m/s, max=$maxSpeed m/s")
     }
 
+    private fun resolveGotoFirstWaypointMode(rawMode: String): WaypointMissionGotoWaypointMode {
+        return try {
+            WaypointMissionGotoWaypointMode.valueOf(rawMode)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "⚠️ Modo gotoFirstWaypoint inválido: $rawMode, usando padrão")
+            WaypointMissionGotoWaypointMode.SAFELY
+        }
+    }
+
+    private fun resolvePointOfInterest(missionData: ServerMissionDto): LocationCoordinate2D? {
+        val latitude = missionData.poi_latitude
+        val longitude = missionData.poi_longitude
+
+        if (!LocationCoordinate2D.isValid(latitude, longitude)) {
+            Log.w(TAG, "⚠️ POI inválido recebido")
+            return null
+        }
+
+        return LocationCoordinate2D(latitude, longitude)
+    }
+
+    private fun validateMissionBehavior(
+        missionData: ServerMissionDto,
+        headingMode: WaypointMissionHeadingMode,
+        pointOfInterest: LocationCoordinate2D?
+    ) {
+        val repeatTimes = missionData.repeat_times
+        if (repeatTimes !in WaypointMission.MIN_REPEAT_TIME..WaypointMission.MAX_REPEAT_TIME) {
+            throw IllegalArgumentException(
+                "Repeat times inválido: $repeatTimes (permitido: ${WaypointMission.MIN_REPEAT_TIME}-${WaypointMission.MAX_REPEAT_TIME})"
+            )
+        }
+
+        if (headingMode == WaypointMissionHeadingMode.TOWARD_POINT_OF_INTEREST && pointOfInterest == null) {
+            throw IllegalArgumentException(
+                "Modo heading TOWARD_POINT_OF_INTEREST exige um POI válido"
+            )
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun buildWaypointMission(
         missionData: ServerMissionDto,
@@ -970,20 +1157,48 @@ class DroneMissionManager(
                 WaypointMissionFlightPathMode.NORMAL
             }
 
-            Log.d(TAG, "🔧 Configurando missão: finishedAction=$finishedAction, heading=$headingMode, flightPath=$flightPathMode")
+            val gotoFirstWaypointMode = resolveGotoFirstWaypointMode(missionData.goto_first_waypoint_mode)
+            val pointOfInterest = resolvePointOfInterest(missionData)
+            validateMissionBehavior(missionData, headingMode, pointOfInterest)
 
-            WaypointMission.Builder().apply {
+            Log.d(
+                TAG,
+                "🔧 Configurando missão: finishedAction=$finishedAction, heading=$headingMode, flightPath=$flightPathMode, gotoFirstWaypoint=$gotoFirstWaypointMode, repeatTimes=${missionData.repeat_times}"
+            )
+
+            val mission = WaypointMission.Builder().apply {
                 finishedAction(finishedAction)
                 headingMode(headingMode)
                 autoFlightSpeed(missionData.auto_flight_speed.toFloat())
                 maxFlightSpeed(missionData.max_flight_speed.toFloat())
                 flightPathMode(flightPathMode)
+                gotoFirstWaypointMode(gotoFirstWaypointMode)
+                setExitMissionOnRCSignalLostEnabled(missionData.exit_on_signal_lost)
+                setGimbalPitchRotationEnabled(missionData.gimbal_pitch_rotation_enabled)
+                repeatTimes(missionData.repeat_times)
+                pointOfInterest?.let { setPointOfInterest(it) }
                 waypointList(waypointList)
                 waypointCount(waypointList.size)
             }.build()
+
+            mission.checkParameters()?.let { error ->
+                throw IllegalArgumentException(
+                    "Parâmetros da missão rejeitados pelo DJI SDK: ${error.description} (código ${error.errorCode})"
+                )
+            }
+
+            mission
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao construir missão: ${e.message}")
-            e.printStackTrace()
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "build_waypoint_mission",
+                extras = mapOf(
+                    "mission_id" to missionData.id,
+                    "waypoints_count" to waypointList.size
+                )
+            )
             throw IllegalArgumentException("Erro ao construir missão: ${e.message}", e)
         }
     }
@@ -1043,6 +1258,12 @@ class DroneMissionManager(
             Log.d(TAG, "✅ DroneMissionManager destruído com sucesso")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao destruir DroneMissionManager: ${e.message}")
+            AppObservability.captureException(
+                throwable = e,
+                area = "drone",
+                operation = "destroy_mission_manager",
+                level = SentryLevel.WARNING
+            )
         }
     }
 
@@ -1057,6 +1278,15 @@ class DroneMissionManager(
                 Log.e(TAG, "❌ Erro no download: ${error.description}")
                 _missionState.value = MissionState.ERROR
                 markFailed("Erro no download da missão: ${error.description}", error.errorCode)
+                AppObservability.captureMessage(
+                    message = "DJI mission download failed",
+                    area = "drone",
+                    operation = "mission_download_update",
+                    extras = mapOf(
+                        "dji_error_code" to error.errorCode,
+                        "dji_error_description" to error.description
+                    )
+                )
                 return
             }
 
@@ -1117,10 +1347,23 @@ class DroneMissionManager(
                     executionMode = resolveExecutionMode()
                 )
                 Log.i(TAG, "✅ Missão concluída com sucesso!")
+                AppObservability.breadcrumb(
+                    category = "drone.mission",
+                    message = "Drone mission completed"
+                )
             } else {
                 _missionState.value = MissionState.ERROR
                 markFailed("Erro na conclusão: ${error.description}", error.errorCode)
                 Log.e(TAG, "❌ Erro na conclusão: ${error.description}")
+                AppObservability.captureMessage(
+                    message = "DJI mission execution finished with error",
+                    area = "drone",
+                    operation = "mission_execution_finish",
+                    extras = mapOf(
+                        "dji_error_code" to error.errorCode,
+                        "dji_error_description" to error.description
+                    )
+                )
             }
         }
     }

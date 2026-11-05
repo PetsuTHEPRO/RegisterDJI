@@ -1,7 +1,9 @@
 package com.sloth.registerapp.features.mldetection.data.download
 
 import android.util.Log
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.mldetection.data.registry.ModelRegistry
+import io.sentry.SentryLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -49,49 +51,78 @@ class ModelDownloadManager(
             val request = Request.Builder().url(url).build()
             val response = httpClient.newCall(request).execute()
 
-            if (!response.isSuccessful) {
-                return@withContext DownloadResult.Failure("HTTP ${response.code}")
-            }
+            response.use {
+                if (!response.isSuccessful) {
+                    AppObservability.captureMessage(
+                        message = "ML model binary download returned HTTP error",
+                        area = "ml",
+                        operation = "download_model_binary",
+                        level = SentryLevel.WARNING,
+                        tags = mapOf("http.status_code" to response.code.toString()),
+                        extras = mapOf("file_name" to fileName)
+                    )
+                    return@withContext DownloadResult.Failure("HTTP ${response.code}")
+                }
 
-            val body = response.body ?: return@withContext DownloadResult.Failure("Empty response body")
-            val totalBytes = body.contentLength().takeIf { it > 0 } ?: -1L
-            var downloadedBytes = 0L
+                val body = response.body ?: return@withContext DownloadResult.Failure("Empty response body")
+                val totalBytes = body.contentLength().takeIf { it > 0 } ?: -1L
+                var downloadedBytes = 0L
 
-            tempFile.outputStream().use { out ->
-                body.byteStream().use { input ->
-                    val buf = ByteArray(8192)
-                    var read: Int
-                    while (input.read(buf).also { read = it } != -1) {
-                        out.write(buf, 0, read)
-                        downloadedBytes += read
-                        if (totalBytes > 0) {
-                            onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+                AppObservability.breadcrumb(
+                    category = "ml",
+                    message = "ML model binary download started",
+                    data = mapOf(
+                        "file_name" to fileName,
+                        "content_length" to totalBytes
+                    )
+                )
+
+                tempFile.outputStream().use { out ->
+                    body.byteStream().use { input ->
+                        val buf = ByteArray(8192)
+                        var read: Int
+                        while (input.read(buf).also { read = it } != -1) {
+                            out.write(buf, 0, read)
+                            downloadedBytes += read
+                            if (totalBytes > 0) {
+                                onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+                            }
                         }
                     }
                 }
-            }
 
-            if (expectedChecksum.isNotBlank()) {
-                val actualChecksum = sha256(tempFile)
-                if (!actualChecksum.equals(expectedChecksum, ignoreCase = true)) {
-                    tempFile.delete()
-                    return@withContext DownloadResult.Failure(
-                        "Checksum mismatch: expected=$expectedChecksum actual=$actualChecksum"
-                    )
+                if (expectedChecksum.isNotBlank()) {
+                    val actualChecksum = sha256(tempFile)
+                    if (!actualChecksum.equals(expectedChecksum, ignoreCase = true)) {
+                        tempFile.delete()
+                        AppObservability.captureMessage(
+                            message = "ML model checksum mismatch",
+                            area = "ml",
+                            operation = "download_model_binary",
+                            extras = mapOf("file_name" to fileName)
+                        )
+                        return@withContext DownloadResult.Failure("Checksum mismatch")
+                    }
                 }
-            }
 
-            // Write class labels if provided
-            if (classes.isNotEmpty()) {
-                File(registry.modelsDir, "$fileName.txt").writeText(classes.joinToString("\n"))
-            }
+                // Write class labels if provided
+                if (classes.isNotEmpty()) {
+                    File(registry.modelsDir, "$fileName.txt").writeText(classes.joinToString("\n"))
+                }
 
-            tempFile.renameTo(destFile)
-            Log.d(TAG, "Model downloaded: ${destFile.name}")
-            DownloadResult.Success(destFile)
+                tempFile.renameTo(destFile)
+                Log.d(TAG, "Model downloaded: ${destFile.name}")
+                DownloadResult.Success(destFile)
+            }
         }.getOrElse { e ->
             tempFile.delete()
             Log.e(TAG, "Download failed: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "ml",
+                operation = "download_model_binary",
+                extras = mapOf("file_name" to fileName)
+            )
             DownloadResult.Failure(e.message ?: "Unknown error")
         }
     }

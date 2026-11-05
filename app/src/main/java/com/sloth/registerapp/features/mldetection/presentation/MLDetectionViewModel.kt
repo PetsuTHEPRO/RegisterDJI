@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.sloth.registerapp.core.network.RetrofitClient
+import com.sloth.registerapp.core.network.httpStatusCodeOrNull
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.mldetection.data.download.ModelDownloadManager
 import com.sloth.registerapp.features.mldetection.data.ml.YoloInferenceEngine
 import com.sloth.registerapp.features.mldetection.data.remote.dto.ModelCatalogEntryDto
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.sentry.SentryLevel
 
 class MLDetectionViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -55,6 +58,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
     val remoteCatalogLoading: StateFlow<Boolean> = _remoteCatalogLoading
 
     private var activeEngine: YoloInferenceEngine? = null
+    private var lastInferenceFailureReportAt = 0L
 
     init {
         // Auto-select first available model when catalog loads
@@ -76,6 +80,11 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
     fun selectModel(modelId: String) {
         if (_activeModelId.value == modelId) return
         _activeModelId.value = modelId
+        AppObservability.breadcrumb(
+            category = "ml",
+            message = "ML model selected",
+            data = mapOf("model_id" to modelId)
+        )
         viewModelScope.launch(Dispatchers.IO) {
             loadEngine(modelId)
         }
@@ -110,6 +119,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                     _lastError.value = null
                 }.onFailure { e ->
                     Log.e(TAG, "Inference failed", e)
+                    reportInferenceFailureIfNeeded(e, engine.model, bitmap.width, bitmap.height)
                     _detectionBoxes.value = emptyList()
                     _lastError.value = e.message ?: "Falha na inferência"
                 }
@@ -121,12 +131,23 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
     fun refreshRemoteCatalog() {
         viewModelScope.launch {
             _remoteCatalogLoading.value = true
+            AppObservability.breadcrumb(
+                category = "ml",
+                message = "Remote model catalog requested"
+            )
             runCatching {
                 apiService.getMlModelCatalog()
             }.onSuccess { catalog ->
                 _remoteCatalog.value = catalog
             }.onFailure { e ->
                 Log.w(TAG, "Falha ao carregar catálogo remoto de modelos", e)
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "ml",
+                    operation = "refresh_remote_catalog",
+                    level = SentryLevel.WARNING,
+                    tags = e.httpStatusCodeOrNull()?.let { mapOf("http.status_code" to it.toString()) } ?: emptyMap()
+                )
                 _lastError.value = e.message ?: "Falha ao carregar catálogo remoto"
             }
             _remoteCatalogLoading.value = false
@@ -141,6 +162,11 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
         val localFileName = sanitizeModelFileName(catalogEntry.id)
         viewModelScope.launch {
             _downloadProgress.value = 0f
+            AppObservability.breadcrumb(
+                category = "ml",
+                message = "Remote model download URL requested",
+                data = mapOf("model_id" to modelId)
+            )
             runCatching {
                 apiService.getMlModelDownloadUrl(modelId)
             }.onSuccess { downloadDto ->
@@ -159,10 +185,27 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                     }
                     is ModelDownloadManager.DownloadResult.Failure -> {
                         _lastError.value = "Download falhou: ${result.reason}"
+                        AppObservability.captureMessage(
+                            message = "ML model download failed",
+                            area = "ml",
+                            operation = "download_remote_model",
+                            extras = mapOf(
+                                "model_id" to modelId,
+                                "reason" to result.reason
+                            )
+                        )
                     }
                 }
             }.onFailure { e ->
                 _downloadProgress.value = null
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "ml",
+                    operation = "get_model_download_url",
+                    level = SentryLevel.WARNING,
+                    extras = mapOf("model_id" to modelId),
+                    tags = e.httpStatusCodeOrNull()?.let { mapOf("http.status_code" to it.toString()) } ?: emptyMap()
+                )
                 _lastError.value = "Falha ao obter URL de download: ${e.message}"
             }
         }
@@ -192,6 +235,15 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                 is ModelDownloadManager.DownloadResult.Failure -> {
                     _lastError.value = "Download falhou: ${result.reason}"
                     Log.e(TAG, "Download failed: ${result.reason}")
+                    AppObservability.captureMessage(
+                        message = "Manual ML model download failed",
+                        area = "ml",
+                        operation = "download_model",
+                        extras = mapOf(
+                            "file_name" to sanitizeModelFileName(fileName),
+                            "reason" to result.reason
+                        )
+                    )
                 }
             }
         }
@@ -205,15 +257,56 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
             runCatching { old?.close() }
 
             runCatching {
+                AppObservability.breadcrumb(
+                    category = "ml",
+                    message = "Loading inference engine",
+                    data = mapOf(
+                        "model_id" to model.id,
+                        "model_source" to model.source.name
+                    )
+                )
                 YoloInferenceEngine.create(getApplication(), model)
             }.onSuccess { engine ->
                 activeEngine = engine
                 Log.d(TAG, "Engine loaded: ${model.name}")
             }.onFailure { e ->
                 Log.e(TAG, "Failed to load engine for ${model.name}", e)
+                AppObservability.captureException(
+                    throwable = e,
+                    area = "ml",
+                    operation = "load_inference_engine",
+                    extras = mapOf(
+                        "model_id" to model.id,
+                        "model_source" to model.source.name,
+                        "classes_count" to model.classes.size
+                    )
+                )
                 _lastError.value = "Falha ao carregar modelo: ${e.message}"
             }
         }
+    }
+
+    private fun reportInferenceFailureIfNeeded(
+        error: Throwable,
+        model: MLModel,
+        bitmapWidth: Int,
+        bitmapHeight: Int
+    ) {
+        val now = System.currentTimeMillis()
+        if (now - lastInferenceFailureReportAt < INFERENCE_FAILURE_REPORT_INTERVAL_MS) return
+        lastInferenceFailureReportAt = now
+
+        AppObservability.captureException(
+            throwable = error,
+            area = "ml",
+            operation = "run_inference",
+            extras = mapOf(
+                "model_id" to model.id,
+                "model_source" to model.source.name,
+                "bitmap_width" to bitmapWidth,
+                "bitmap_height" to bitmapHeight
+            )
+        )
     }
 
     override fun onCleared() {
@@ -224,6 +317,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
 
     companion object {
         private const val TAG = "MLDetectionViewModel"
+        private const val INFERENCE_FAILURE_REPORT_INTERVAL_MS = 60_000L
 
         fun sanitizeModelFileName(value: String): String {
             return value

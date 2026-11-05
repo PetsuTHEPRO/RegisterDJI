@@ -35,3 +35,6 @@ build/
 !README.md
 !docs/
 !docs/*.md
+
+# Sentry Config File
+sentry.properties

@@ -4,6 +4,7 @@ import android.util.Log
 import com.pedro.common.ConnectChecker
 import com.pedro.library.rtmp.RtmpCamera2
 import com.pedro.library.view.OpenGlView
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.streaming.domain.StreamingController
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,12 @@ class PhoneRtmpStreamer(
     private val connectChecker = object : ConnectChecker {
         override fun onConnectionStarted(url: String) {
             _state.value = StreamState.Connecting
-            Log.d(tag, "RTMP conectando: $url")
+            Log.d(tag, "RTMP conectando")
+            AppObservability.breadcrumb(
+                category = "streaming",
+                message = "Phone RTMP connection started",
+                data = mapOf("source" to "phone_camera")
+            )
         }
 
         override fun onConnectionSuccess() {
@@ -37,6 +43,12 @@ class PhoneRtmpStreamer(
 
         override fun onConnectionFailed(reason: String) {
             Log.e(tag, "Falha RTMP: $reason")
+            AppObservability.captureMessage(
+                message = "Phone RTMP connection failed",
+                area = "streaming",
+                operation = "phone_rtmp_connection",
+                extras = mapOf("reason" to reason)
+            )
             _state.value = StreamState.Error("Falha RTMP: $reason")
             if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
                 rtmpCamera.stopStream()
@@ -51,6 +63,11 @@ class PhoneRtmpStreamer(
         override fun onAuthError() {
             _state.value = StreamState.Error("Erro de autenticação RTMP")
             Log.e(tag, "Erro de autenticação RTMP")
+            AppObservability.captureMessage(
+                message = "Phone RTMP authentication failed",
+                area = "streaming",
+                operation = "phone_rtmp_auth"
+            )
         }
 
         override fun onAuthSuccess() {
@@ -81,6 +98,16 @@ class PhoneRtmpStreamer(
             if (!videoPrepared || !audioPrepared) {
                 _state.value = StreamState.Error("Falha ao preparar stream")
                 Log.e(tag, "Falha ao preparar stream")
+                AppObservability.captureMessage(
+                    message = "Phone RTMP stream preparation failed",
+                    area = "streaming",
+                    operation = "phone_rtmp_prepare",
+                    extras = mapOf(
+                        "video_prepared" to videoPrepared,
+                        "audio_prepared" to audioPrepared,
+                        "audio_enabled" to config.enableAudio
+                    )
+                )
                 return
             }
 
@@ -89,6 +116,12 @@ class PhoneRtmpStreamer(
         } catch (e: Exception) {
             _state.value = StreamState.Error("Erro ao iniciar stream: ${e.message}")
             Log.e(tag, "Erro ao iniciar stream", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "streaming",
+                operation = "phone_rtmp_start",
+                extras = mapOf("audio_enabled" to config.enableAudio)
+            )
         }
     }
 
@@ -102,6 +135,11 @@ class PhoneRtmpStreamer(
         } catch (e: Exception) {
             _state.value = StreamState.Error("Erro ao parar stream: ${e.message}")
             Log.e(tag, "Erro ao parar stream", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "streaming",
+                operation = "phone_rtmp_stop"
+            )
         }
     }
 
@@ -122,6 +160,11 @@ class PhoneRtmpStreamer(
             }
         } catch (e: Exception) {
             Log.e(tag, "Erro ao iniciar preview", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "streaming",
+                operation = "phone_preview_start"
+            )
         }
     }
 
@@ -132,6 +175,11 @@ class PhoneRtmpStreamer(
             }
         } catch (e: Exception) {
             Log.e(tag, "Erro ao parar preview", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "streaming",
+                operation = "phone_preview_stop"
+            )
         }
     }
 }

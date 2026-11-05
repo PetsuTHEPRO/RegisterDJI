@@ -14,6 +14,9 @@ import android.view.SurfaceHolder
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,15 +30,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pedro.library.view.OpenGlView
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.core.settings.RtmpSettingsRepository
 import com.sloth.registerapp.features.detection.data.ml.DetectionBox
 import com.sloth.registerapp.features.detection.data.ml.PersonDetector
@@ -69,6 +74,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
+import io.sentry.SentryLevel
 
 @Composable
 fun CellCameraScreen(
@@ -76,7 +82,6 @@ fun CellCameraScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
 
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
@@ -101,6 +106,11 @@ fun CellCameraScreen(
     var detectionBoxes by remember { mutableStateOf<List<DetectionBox>>(emptyList()) }
     var lastInferenceMs by remember { mutableStateOf<Long?>(null) }
     var lastDetectionError by remember { mutableStateOf<String?>(null) }
+    var lastDetectionFailureReportAt by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        AppObservability.screenOpened("CellCameraScreen")
+    }
 
     LaunchedEffect(rtmpUrl) {
         streamer.updateUrl(rtmpUrl)
@@ -151,9 +161,21 @@ fun CellCameraScreen(
             detectionBoxes = emptyList()
             if (!detectionEnabledPersisted) {
                 lastDetectionError = null
+            } else if (personDetector == null) {
+                AppObservability.breadcrumb(
+                    category = "ml",
+                    message = "Cell camera detection requested without available model",
+                    level = SentryLevel.WARNING
+                )
             }
             return@LaunchedEffect
         }
+
+        AppObservability.breadcrumb(
+            category = "ml",
+            message = "Cell camera object detection started",
+            data = mapOf("model_id" to detectionModelId)
+        )
 
         while (isActive) {
             val frameBitmap = captureOpenGlBitmap(
@@ -165,6 +187,11 @@ fun CellCameraScreen(
             if (frameBitmap == null) {
                 detectionBoxes = emptyList()
                 lastDetectionError = "Falha ao capturar frame da camera"
+                AppObservability.breadcrumb(
+                    category = "camera",
+                    message = "Cell camera frame capture failed",
+                    level = SentryLevel.WARNING
+                )
                 delay(400)
                 continue
             }
@@ -177,6 +204,19 @@ fun CellCameraScreen(
                 }
             }.getOrElse { error ->
                 lastDetectionError = error.message ?: "Falha na inferencia"
+                val now = System.currentTimeMillis()
+                if (now - lastDetectionFailureReportAt > 60_000L) {
+                    lastDetectionFailureReportAt = now
+                    AppObservability.captureException(
+                        throwable = error,
+                        area = "ml",
+                        operation = "cell_camera_person_detection",
+                        extras = mapOf(
+                            "bitmap_width" to frameBitmap.width,
+                            "bitmap_height" to frameBitmap.height
+                        )
+                    )
+                }
                 emptyList()
             }
             lastInferenceMs = System.currentTimeMillis() - inferenceStart
@@ -185,16 +225,22 @@ fun CellCameraScreen(
         }
     }
 
+    val aiColor = if (detectionEnabledPersisted && personDetector != null) Color(0xFF00C2FF)
+                  else Color.White.copy(alpha = 0.55f)
+    val inferenceMs = lastInferenceMs
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colorScheme.background)
+            .background(Color.Black)
     ) {
+        // Feed da câmera
         AndroidView(
             factory = { openGlView },
             modifier = Modifier.fillMaxSize()
         )
 
+        // Overlay de detecção
         if (detectionEnabledPersisted && detectionModelId == ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID) {
             CellDetectionOverlay(
                 detections = detectionBoxes,
@@ -202,113 +248,265 @@ fun CellCameraScreen(
             )
         }
 
+        // Gradiente superior
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .height(90.dp)
+                .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            colorScheme.background.copy(alpha = 0.55f),
-                            colorScheme.background.copy(alpha = 0.05f)
-                        )
+                        colors = listOf(Color.Black.copy(alpha = 0.52f), Color.Transparent)
                     )
                 )
         )
 
-        Surface(
+        // Gradiente inferior
+        Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .height(110.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.52f))
+                    )
+                )
+        )
+
+        // Barra superior
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
                 .align(Alignment.TopStart)
-                .padding(12.dp),
-            color = colorScheme.surfaceVariant.copy(alpha = 0.7f),
-            shape = RoundedCornerShape(12.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color.Black.copy(alpha = 0.28f), CircleShape)
             ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Voltar",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Câmera do Celular",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                val streamColor = when (streamState) {
+                    StreamState.Streaming  -> Color(0xFF00E5A0)
+                    StreamState.Connecting -> Color(0xFFFFC857)
+                    is StreamState.Error   -> Color(0xFFFF6B6B)
+                    StreamState.Idle       -> Color.White.copy(alpha = 0.38f)
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                Column {
-                    Text("Câmera do celular", fontSize = 14.sp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .background(streamColor, CircleShape)
+                    )
                     Text(
                         text = when (streamState) {
-                            StreamState.Idle -> "Pronto para transmitir"
-                            StreamState.Connecting -> "Conectando..."
-                            StreamState.Streaming -> "Transmitindo via RTMP"
-                            is StreamState.Error -> "Erro na transmissão"
+                            StreamState.Idle       -> "Pronto"
+                            StreamState.Connecting -> "Conectando"
+                            StreamState.Streaming  -> "Transmitindo"
+                            is StreamState.Error   -> "Erro RTMP"
                         },
-                        fontSize = 11.sp,
-                        color = colorScheme.onSurfaceVariant
+                        color = streamColor,
+                        fontSize = 10.sp
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Espaço equivalente ao botão de voltar para centralizar o título
+            Spacer(modifier = Modifier.size(40.dp))
         }
 
+        // Botão de IA (canto superior direito, abaixo da barra)
         Surface(
+            onClick = {
+                val next = !detectionEnabledPersisted
+                lastDetectionError = null
+                detectionBoxes = emptyList()
+                lastInferenceMs = null
+                AppObservability.breadcrumb(
+                    category = "ml",
+                    message = if (next) "Cell camera detection enabled" else "Cell camera detection disabled",
+                    data = mapOf("model_id" to ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID)
+                )
+                scope.launch {
+                    objectDetectionRepo.setActiveModelId(ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID)
+                    objectDetectionRepo.setDetectionEnabled(next)
+                }
+            },
+            enabled = personDetector != null,
+            shape = CircleShape,
+            color = aiColor.copy(alpha = 0.18f),
+            border = BorderStroke(1.dp, aiColor.copy(alpha = 0.55f)),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(12.dp),
-            color = colorScheme.surfaceVariant.copy(alpha = 0.7f),
-            shape = RoundedCornerShape(12.dp)
+                .padding(top = 52.dp, end = 10.dp)
+                .size(38.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Psychology,
+                    contentDescription = "Alternar IA",
+                    tint = aiColor,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
+
+        // Badge de status da IA (quando ligada)
+        AnimatedVisibility(
+            visible = detectionEnabledPersisted && personDetector != null,
+            enter = fadeIn() + slideInVertically { -it / 3 },
+            exit = fadeOut() + slideOutVertically { -it / 3 },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 100.dp, end = 10.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF070E1B).copy(alpha = 0.82f),
+                border = BorderStroke(1.dp, Color(0xFF00C2FF).copy(alpha = 0.22f))
             ) {
-                IconButton(
-                    onClick = {
-                        val next = !detectionEnabledPersisted
-                        lastDetectionError = null
-                        detectionBoxes = emptyList()
-                        lastInferenceMs = null
-                        scope.launch {
-                            objectDetectionRepo.setActiveModelId(ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID)
-                            objectDetectionRepo.setDetectionEnabled(next)
-                        }
-                    },
-                    enabled = personDetector != null
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalAlignment = Alignment.End
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Psychology,
-                        contentDescription = "Alternar IA",
-                        tint = if (detectionEnabledPersisted && personDetector != null) Color(0xFF00C2FF) else colorScheme.onSurfaceVariant
-                    )
-                }
-                Column {
                     Text(
-                        text = if (detectionEnabledPersisted && personDetector != null) "IA ativa" else "IA desligada",
-                        fontSize = 13.sp
+                        text = "Person Detector",
+                        color = Color(0xFF00C2FF),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
                     )
+                    val latencyColor = when {
+                        inferenceMs == null  -> Color.White.copy(alpha = 0.40f)
+                        inferenceMs < 80L    -> Color(0xFF00E5A0)
+                        inferenceMs < 200L   -> Color(0xFFFFC857)
+                        else                 -> Color(0xFFFF6B6B)
+                    }
                     Text(
-                        text = when {
-                            personDetector == null -> "Modelo person_detector.tflite não encontrado"
-                            !lastDetectionError.isNullOrBlank() -> lastDetectionError.orEmpty()
-                            lastInferenceMs != null -> "Última inferência: ${lastInferenceMs} ms"
-                            else -> "Teste local do detector de pessoas"
-                        },
+                        text = inferenceMs?.let { "${it} ms" } ?: "aguardando...",
+                        color = latencyColor,
                         fontSize = 11.sp,
-                        color = colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.SemiBold
                     )
+                    if (!lastDetectionError.isNullOrBlank()) {
+                        Text(
+                            text = "erro na captura",
+                            color = Color(0xFFFFC857),
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
         }
 
-        AnimatedVisibility(
-            visible = true,
-            enter = fadeIn(),
-            exit = fadeOut(),
+        // Área inferior
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
+                .padding(bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Badge com contagem de detecções
+            AnimatedVisibility(
+                visible = detectionEnabledPersisted && detectionBoxes.isNotEmpty(),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                val count = detectionBoxes.size
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF00C2FF).copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, Color(0xFF00C2FF).copy(alpha = 0.28f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(Color(0xFF00E5A0), CircleShape)
+                        )
+                        Text(
+                            text = "$count pessoa${if (count != 1) "s" else ""} detectada${if (count != 1) "s" else ""}",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             StreamingControl(
                 state = streamState,
                 onStart = { streamer.start() },
                 onStop = { streamer.stop() }
             )
+        }
+
+        // Aviso se modelo não disponível
+        if (personDetector == null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 32.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF070E1B).copy(alpha = 0.88f),
+                    border = BorderStroke(1.dp, Color(0xFFFFC857).copy(alpha = 0.30f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = Color(0xFFFFC857),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = "Modelo não encontrado",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "person_detector.tflite não está nos assets do app.",
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }

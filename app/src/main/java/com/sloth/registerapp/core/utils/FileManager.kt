@@ -3,6 +3,8 @@ package com.sloth.registerapp.core.utils // Ou qualquer outro pacote para utilit
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import com.sloth.registerapp.core.observability.AppObservability
+import io.sentry.SentryLevel
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -23,7 +25,8 @@ object FileManager {
      * Ex: /storage/emulated/0/Android/data/com.sloth.registerapp/files
      */
     private fun getAppBaseDir(context: Context): File {
-        return context.getExternalFilesDir(null)!!
+        return context.getExternalFilesDir(null)
+            ?: throw IOException("Diretório externo do app indisponível")
     }
 
     /**
@@ -52,24 +55,51 @@ object FileManager {
         val file = File(directory, fileName)
 
         return try {
-            val stream = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-            stream.flush()
-            stream.close()
+            AppObservability.breadcrumb(
+                category = "storage",
+                message = "Saving bitmap",
+                data = mapOf(
+                    "folder_type" to folderType.name,
+                    "format" to "JPEG"
+                )
+            )
+            FileOutputStream(file).use { stream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                stream.flush()
+            }
             file // Retorna o arquivo que foi salvo com sucesso
         } catch (e: IOException) {
-            e.printStackTrace()
+            AppObservability.captureException(
+                throwable = e,
+                area = "storage",
+                operation = "save_bitmap",
+                level = SentryLevel.WARNING,
+                extras = mapOf(
+                    "folder_type" to folderType.name,
+                    "file_extension" to file.extension
+                )
+            )
             null // Retorna null se houve um erro
         }
     }
 
     fun saveDebugBitmap(context: Context, bitmap: Bitmap, name: String) {
         val file = File(context.getExternalFilesDir(null), "$name.png")
-        val fos = FileOutputStream(file)
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
-        fos.flush()
-        fos.close()
-        Log.d("DebugBitmap", "Salvou crop em: ${file.absolutePath}")
+        try {
+            FileOutputStream(file).use { fos ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                fos.flush()
+            }
+            Log.d("DebugBitmap", "Salvou crop em: ${file.name}")
+        } catch (e: IOException) {
+            AppObservability.captureException(
+                throwable = e,
+                area = "storage",
+                operation = "save_debug_bitmap",
+                level = SentryLevel.WARNING,
+                extras = mapOf("file_extension" to file.extension)
+            )
+        }
     }
 
     /**

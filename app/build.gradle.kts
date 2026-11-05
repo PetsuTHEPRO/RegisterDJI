@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.devtools.ksp")
+
+    id("io.sentry.android.gradle") version "6.4.0"
 }
 
 val localProperties = Properties().apply {
@@ -26,6 +28,8 @@ fun resolveSecret(key: String): String {
 val weatherApiKey = resolveSecret("WEATHER_API_KEY")
 
 val mapboxAccessToken = resolveSecret("MAPBOX_ACCESS_TOKEN")
+val sentryDsn = resolveSecret("SENTRY_DSN")
+    .ifBlank { "https://e6a4ae2ec66c934386fcdd581d837f3b@o4511248860774400.ingest.us.sentry.io/4511248870408192" }
 
 android {
     namespace = "com.sloth.registerapp"
@@ -41,13 +45,20 @@ android {
         buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
         buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxAccessToken\"")
         resValue("string", "mapbox_access_token", mapboxAccessToken.ifBlank { "" })
+        manifestPlaceholders["sentryDsn"] = sentryDsn
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["sentryTracesSampleRate"] = "1.0"
+            manifestPlaceholders["sentryProfilesSampleRate"] = "0.0"
+        }
         release {
             isMinifyEnabled = false
+            manifestPlaceholders["sentryTracesSampleRate"] = "0.2"
+            manifestPlaceholders["sentryProfilesSampleRate"] = "0.0"
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -189,4 +200,13 @@ dependencies {
     // Localização (GPS do operador)
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
+}
+
+
+sentry {
+    org.set("ifma-y3")
+    projectName.set("android")
+
+    // Evita expor codigo-fonte no Sentry; stack traces e mappings continuam sendo tratados pelo plugin.
+    includeSourceContext.set(false)
 }

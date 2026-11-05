@@ -25,6 +25,7 @@ object RetrofitClient {
             val refreshAuthenticator = TokenRefreshAuthenticator(context, tokenRepository)
 
             val httpClient = OkHttpClient.Builder()
+                .addInterceptor(SentryNetworkInterceptor())
                 .addInterceptor(logging)
                 .addInterceptor(authInterceptor)
                 .authenticator(refreshAuthenticator)

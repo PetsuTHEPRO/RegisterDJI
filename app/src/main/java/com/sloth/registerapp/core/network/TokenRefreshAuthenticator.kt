@@ -8,6 +8,8 @@ import com.sloth.registerapp.core.auth.SessionManager
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.dto.AuthTokensDto
+import com.sloth.registerapp.core.observability.AppObservability
+import io.sentry.SentryLevel
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -37,6 +39,12 @@ class TokenRefreshAuthenticator(
             return null
         }
         if (responseCount(response) >= 2) {
+            AppObservability.breadcrumb(
+                category = "auth",
+                message = "Token refresh skipped after repeated auth failures",
+                level = SentryLevel.WARNING,
+                data = mapOf("path" to path)
+            )
             return null
         }
 
@@ -53,6 +61,11 @@ class TokenRefreshAuthenticator(
             }
 
             val refreshToken = tokenRepository.getRefreshTokenBlocking() ?: return clearSessionAndAbort()
+            AppObservability.breadcrumb(
+                category = "auth",
+                message = "Token refresh started",
+                data = mapOf("path" to path)
+            )
             val refreshed = refreshTokens(refreshToken) ?: return clearSessionAndAbort()
             val newAccessToken = refreshed.resolvedAccessToken() ?: return clearSessionAndAbort()
             val newRefreshToken = refreshed.refreshToken ?: refreshToken
@@ -63,6 +76,10 @@ class TokenRefreshAuthenticator(
                     .setServerAuthState(ServerAuthState.SERVER_AUTH_OK)
             }
             Log.i(TAG, "Token refresh succeeded")
+            AppObservability.breadcrumb(
+                category = "auth",
+                message = "Token refresh succeeded"
+            )
             return response.request.newBuilder()
                 .header("Authorization", "Bearer $newAccessToken")
                 .build()
@@ -85,7 +102,13 @@ class TokenRefreshAuthenticator(
                     }
                 }
             }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            AppObservability.breadcrumb(
+                category = "auth",
+                message = "Header-style token refresh failed, trying body fallback",
+                level = SentryLevel.WARNING,
+                data = mapOf("error_type" to e::class.java.simpleName)
+            )
             // Fallback below (body style).
         }
 
@@ -102,13 +125,26 @@ class TokenRefreshAuthenticator(
                     gson.fromJson(reader, AuthTokensDto::class.java)
                 }
             }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            AppObservability.captureException(
+                throwable = e,
+                area = "auth",
+                operation = "refresh_token",
+                level = SentryLevel.WARNING,
+                tags = mapOf("exception.kind" to "io")
+            )
             null
         }
     }
 
     private fun clearSessionAndAbort(): Request? {
         Log.w(TAG, "Token refresh failed; marking server auth required and clearing tokens")
+        AppObservability.captureMessage(
+            message = "Token refresh failed; local session was cleared",
+            area = "auth",
+            operation = "refresh_token",
+            level = SentryLevel.WARNING
+        )
         tokenRepository.clearTokensBlocking()
         runBlocking {
             SessionManager.getInstance(appContext).clearSession()

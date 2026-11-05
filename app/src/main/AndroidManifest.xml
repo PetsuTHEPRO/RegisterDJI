@@ -118,6 +118,20 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-    </application>
+    
+    <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
+    <meta-data android:name="io.sentry.send-default-pii" android:value="false" />
+
+    <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
+    <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />
+    <!-- Camera, map and mission screens can contain sensitive visual/location data. -->
+    <meta-data android:name="io.sentry.attach-screenshot" android:value="false" />
+    <!-- enable view hierarchy for crashes -->
+    <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
+
+    <meta-data android:name="io.sentry.traces.sample-rate" android:value="${sentryTracesSampleRate}" />
+    <meta-data android:name="io.sentry.profiles.sample-rate" android:value="${sentryProfilesSampleRate}" />
+    <meta-data android:name="io.sentry.logs.enabled" android:value="false" />
+</application>
 
 </manifest>

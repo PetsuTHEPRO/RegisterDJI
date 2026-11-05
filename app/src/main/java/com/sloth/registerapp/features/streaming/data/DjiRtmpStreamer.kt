@@ -1,6 +1,7 @@
 package com.sloth.registerapp.features.streaming.data
 
 import android.util.Log
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.streaming.domain.StreamingController
 import dji.sdk.sdkmanager.DJISDKManager
@@ -25,12 +26,22 @@ class DjiRtmpStreamer(
             if (liveStreamManager == null) {
                 _state.value = StreamState.Error("LiveStreamManager indisponível")
                 Log.e(tag, "LiveStreamManager não encontrado")
+                AppObservability.captureMessage(
+                    message = "DJI LiveStreamManager unavailable",
+                    area = "streaming",
+                    operation = "dji_rtmp_start"
+                )
                 return
             }
 
             if (!setLiveUrl(liveStreamManager, rtmpUrl)) {
                 _state.value = StreamState.Error("Falha ao configurar URL RTMP")
                 Log.e(tag, "Falha ao configurar URL RTMP")
+                AppObservability.captureMessage(
+                    message = "DJI RTMP URL configuration failed",
+                    area = "streaming",
+                    operation = "dji_rtmp_set_url"
+                )
                 return
             }
 
@@ -44,10 +55,20 @@ class DjiRtmpStreamer(
             } else {
                 _state.value = StreamState.Error("Falha ao iniciar stream")
                 Log.e(tag, "Falha ao iniciar stream")
+                AppObservability.captureMessage(
+                    message = "DJI RTMP stream start returned false",
+                    area = "streaming",
+                    operation = "dji_rtmp_start"
+                )
             }
         } catch (e: Exception) {
             _state.value = StreamState.Error("Erro ao iniciar stream: ${e.message}")
             Log.e(tag, "Erro ao iniciar stream", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "streaming",
+                operation = "dji_rtmp_start"
+            )
         }
     }
 
@@ -60,6 +81,11 @@ class DjiRtmpStreamer(
         } catch (e: Exception) {
             _state.value = StreamState.Error("Erro ao parar stream: ${e.message}")
             Log.e(tag, "Erro ao parar stream", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "streaming",
+                operation = "dji_rtmp_stop"
+            )
         }
     }
 

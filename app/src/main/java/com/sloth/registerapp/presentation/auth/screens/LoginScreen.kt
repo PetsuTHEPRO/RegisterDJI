@@ -76,6 +76,7 @@ import com.sloth.registerapp.core.auth.SessionManager
 import com.sloth.registerapp.core.auth.TokenRepository
 import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.RetrofitClient
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.auth.data.manager.LoginHistoryManager
 import com.sloth.registerapp.features.auth.data.remote.dto.LoginRequestDto
 import com.sloth.registerapp.features.auth.domain.model.LoginAttemptStatus
@@ -84,6 +85,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import com.sloth.registerapp.presentation.app.theme.NeuralColors
+import io.sentry.SentryLevel
 import retrofit2.HttpException
 
 private val NeuralBg         = NeuralColors.Bg
@@ -246,6 +248,11 @@ fun LoginScreen(
                                             isLoading = true
                                             scope.launch {
                                                 try {
+                                                    AppObservability.breadcrumb(
+                                                        category = "auth",
+                                                        message = "Login started",
+                                                        data = mapOf("method" to "password")
+                                                    )
                                                     val apiService = RetrofitClient.getInstance(context)
                                                     val tokenRepository = TokenRepository.getInstance(context)
                                                     val sessionManager = SessionManager.getInstance(context)
@@ -281,6 +288,12 @@ fun LoginScreen(
                                                         effectiveEmail = userMe.email.orEmpty()
                                                     } catch (e: Exception) {
                                                         Log.w(tag, "auth/me falhou apos login, mantendo sessao minima.", e)
+                                                        AppObservability.breadcrumb(
+                                                            category = "auth",
+                                                            message = "User profile lookup failed after login",
+                                                            level = SentryLevel.WARNING,
+                                                            data = mapOf("error_type" to e::class.java.simpleName)
+                                                        )
                                                     }
 
                                                     if (effectiveUserId.isBlank()) {
@@ -306,6 +319,10 @@ fun LoginScreen(
                                                         email = effectiveEmail
                                                     )
                                                     localSessionManager.setServerAuthState(ServerAuthState.SERVER_AUTH_OK)
+                                                    AppObservability.breadcrumb(
+                                                        category = "auth",
+                                                        message = "Login succeeded"
+                                                    )
                                                     loginHistoryManager.recordLoginAttempt(
                                                         username = effectiveUsername.ifBlank { username },
                                                         status = LoginAttemptStatus.SUCCESS,
@@ -317,6 +334,12 @@ fun LoginScreen(
                                                     }
                                                 } catch (e: HttpException) {
                                                     Log.e(tag, "Login HTTP ${e.code()}: ${e.message()}")
+                                                    AppObservability.breadcrumb(
+                                                        category = "auth",
+                                                        message = "Login HTTP failure",
+                                                        level = if (e.code() == 401) SentryLevel.INFO else SentryLevel.WARNING,
+                                                        data = mapOf("status_code" to e.code())
+                                                    )
                                                     val message = if (e.code() == 401) {
                                                         "Usuário ou senha inválidos."
                                                     } else {
@@ -329,6 +352,12 @@ fun LoginScreen(
                                                     showError(message)
                                                 } catch (e: Exception) {
                                                     Log.e(tag, "Login error: ${e.message}", e)
+                                                    AppObservability.captureException(
+                                                        throwable = e,
+                                                        area = "auth",
+                                                        operation = "login",
+                                                        level = SentryLevel.WARNING
+                                                    )
                                                     loginHistoryManager.recordLoginAttempt(
                                                         username = username,
                                                         status = LoginAttemptStatus.FAILED

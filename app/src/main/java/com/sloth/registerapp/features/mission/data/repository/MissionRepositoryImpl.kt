@@ -12,6 +12,8 @@ import com.sloth.registerapp.core.database.MissionCacheEntity
 import com.sloth.registerapp.core.database.SyncQueueEntity
 import com.sloth.registerapp.core.network.ConnectivityMonitor
 import com.sloth.registerapp.core.network.SdiaApiService
+import com.sloth.registerapp.core.network.httpStatusCodeOrNull
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.mission.data.mapper.ServerMissionMapper
 import com.sloth.registerapp.features.mission.data.preview.MissionPreviewStorage
 import com.sloth.registerapp.features.mission.data.remote.dto.MissionCreateRequestDto
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import java.util.UUID
+import io.sentry.SentryLevel
 
 /**
  * Implementação concreta do repositório de missões com suporte offline-first:
@@ -52,6 +55,10 @@ class MissionRepositoryImpl(
         val ownerUserId = resolveOwnerUserId()
         val canSyncWithServer = canSyncWithServer(ownerUserId)
         if (canSyncWithServer) {
+            AppObservability.breadcrumb(
+                category = "mission",
+                message = "Flushing pending mission creates before fetch"
+            )
             flushPendingMissionCreates(ownerUserId)
         }
 
@@ -75,8 +82,20 @@ class MissionRepositoryImpl(
         }.recoverCatching { onlineError ->
             val cached = missionCacheDao.getAll(ownerUserId)
             if (cached.isEmpty()) {
+                AppObservability.captureException(
+                    throwable = onlineError,
+                    area = "mission",
+                    operation = "fetch_missions",
+                    tags = onlineError.httpStatusCodeOrNull()?.let { mapOf("http.status_code" to it.toString()) } ?: emptyMap()
+                )
                 throw onlineError
             }
+            AppObservability.breadcrumb(
+                category = "mission",
+                message = "Fetch missions failed; serving local cache",
+                level = SentryLevel.WARNING,
+                data = mapOf("cached_count" to cached.size)
+            )
             cached.mapNotNull { entity ->
                 entity.missionData.toServerMissionOrNull()?.also { mission ->
                     MissionPreviewStorage.savePreview(appContext, mission)
@@ -100,7 +119,16 @@ class MissionRepositoryImpl(
                 .also { it?.let { m -> logWaypointOrder("getMission:raw", m) } }
             mission?.let { cacheMission(it, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId) }
             mission
-        }.recoverCatching {
+        }.recoverCatching { error ->
+            AppObservability.breadcrumb(
+                category = "mission",
+                message = "Fetch mission failed; trying local cache",
+                level = SentryLevel.WARNING,
+                data = mapOf(
+                    "mission_id" to id,
+                    "http_status_code" to error.httpStatusCodeOrNull()
+                )
+            )
             missionCacheDao.getById(id.toString(), ownerUserId)
                 ?.missionData
                 ?.toServerMissionOrNull()
@@ -132,13 +160,30 @@ class MissionRepositoryImpl(
         }
 
         return runCatching {
+            AppObservability.breadcrumb(
+                category = "mission",
+                message = "Creating mission on server",
+                data = mapOf(
+                    "waypoints_count" to mission.waypoints.size,
+                    "has_actions" to mission.waypoints.any { it.actions.isNotEmpty() }
+                )
+            )
             val response = apiService.createMission(mission.toCreateRequestDto())
             val created = mission.copy(id = response.mission_id)
             MissionPreviewStorage.savePreview(appContext, created)
             cacheMission(created, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId)
             sessionManager.updateLastSyncTime()
             created
-        }.recoverCatching {
+        }.recoverCatching { error ->
+            AppObservability.breadcrumb(
+                category = "mission",
+                message = "Server mission creation failed; enqueueing offline create",
+                level = SentryLevel.WARNING,
+                data = mapOf(
+                    "waypoints_count" to mission.waypoints.size,
+                    "http_status_code" to error.httpStatusCodeOrNull()
+                )
+            )
             enqueueOfflineCreate(mission, ownerUserId).getOrThrow()
         }
     }
@@ -174,6 +219,14 @@ class MissionRepositoryImpl(
             }
 
             MissionPreviewStorage.deletePreview(appContext, id)
+        }.onFailure { error ->
+            AppObservability.captureException(
+                throwable = error,
+                area = "mission",
+                operation = "delete_mission",
+                extras = mapOf("mission_id" to id),
+                tags = error.httpStatusCodeOrNull()?.let { mapOf("http.status_code" to it.toString()) } ?: emptyMap()
+            )
         }
     }
 
@@ -238,6 +291,15 @@ class MissionRepositoryImpl(
 
             val payload = item.payload.toServerMissionOrNull()
             if (payload == null) {
+                AppObservability.captureMessage(
+                    message = "Invalid mission payload in sync queue",
+                    area = "mission",
+                    operation = "flush_pending_mission_create",
+                    extras = mapOf(
+                        "queue_id" to item.id,
+                        "retry_count" to item.retryCount
+                    )
+                )
                 syncQueueDao.updateStatus(
                     id = item.id,
                     status = STATUS_FAILED,
@@ -259,6 +321,18 @@ class MissionRepositoryImpl(
                 cacheMission(createdMission, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId)
                 syncQueueDao.deleteById(item.id)
             }.onFailure { error ->
+                AppObservability.captureException(
+                    throwable = error,
+                    area = "mission",
+                    operation = "flush_pending_mission_create",
+                    level = SentryLevel.WARNING,
+                    extras = mapOf(
+                        "queue_id" to item.id,
+                        "retry_count" to item.retryCount + 1,
+                        "waypoints_count" to payload.waypoints.size
+                    ),
+                    tags = error.httpStatusCodeOrNull()?.let { mapOf("http.status_code" to it.toString()) } ?: emptyMap()
+                )
                 syncQueueDao.updateStatus(
                     id = item.id,
                     status = STATUS_FAILED,
@@ -313,7 +387,7 @@ class MissionRepositoryImpl(
 
     private fun logWaypointOrder(stage: String, mission: ServerMissionDto) {
         val summary = mission.waypoints.mapIndexed { index, waypoint ->
-            "#$index(id=${waypoint.waypointId}, seq=${waypoint.sequence}, lat=${waypoint.latitude}, lon=${waypoint.longitude})"
+            "#$index(id=${waypoint.waypointId}, seq=${waypoint.sequence}, actions=${waypoint.actions.size})"
         }.joinToString()
         Log.d("MissionRepository", "$stage mission=${mission.id} name=${mission.name} waypoints=$summary")
     }

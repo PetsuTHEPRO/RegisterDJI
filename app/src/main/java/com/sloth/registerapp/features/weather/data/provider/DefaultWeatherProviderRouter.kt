@@ -2,6 +2,7 @@ package com.sloth.registerapp.features.weather.data.provider
 
 import android.content.Context
 import android.util.Log
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.core.settings.WeatherProviderSettingsRepository
 import com.sloth.registerapp.core.settings.WeatherQuotaSettingsRepository
 import com.sloth.registerapp.features.weather.domain.model.WeatherSnapshot
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import java.io.IOException
 import java.net.SocketTimeoutException
 import retrofit2.HttpException
+import io.sentry.SentryLevel
 
 class DefaultWeatherProviderRouter(
     context: Context,
@@ -50,6 +52,17 @@ class DefaultWeatherProviderRouter(
                 tag,
                 "Provider principal falhou (${primary.providerId}): ${firstError.toLogReason()}. Tentando fallback ${fallback.providerId}."
             )
+            AppObservability.breadcrumb(
+                category = "weather",
+                message = "Primary weather provider failed; trying fallback",
+                level = SentryLevel.WARNING,
+                data = mapOf(
+                    "primary_provider" to primary.providerId,
+                    "fallback_provider" to fallback.providerId,
+                    "error_type" to firstError::class.java.simpleName,
+                    "http_status_code" to (firstError as? HttpException)?.code()
+                )
+            )
             runCatching {
                 guardedCall(fallback, call)
             }.getOrElse { fallbackError ->
@@ -57,6 +70,20 @@ class DefaultWeatherProviderRouter(
                     tag,
                     "Fallback também falhou (${fallback.providerId}): ${fallbackError.toLogReason()}",
                     fallbackError
+                )
+                AppObservability.captureException(
+                    throwable = fallbackError,
+                    area = "weather",
+                    operation = "get_weather_with_fallback",
+                    tags = mapOf(
+                        "primary_provider" to primary.providerId,
+                        "fallback_provider" to fallback.providerId
+                    ),
+                    extras = mapOf(
+                        "primary_error_type" to firstError::class.java.simpleName,
+                        "primary_http_status_code" to (firstError as? HttpException)?.code(),
+                        "fallback_http_status_code" to (fallbackError as? HttpException)?.code()
+                    )
                 )
                 throw firstError
             }
@@ -72,6 +99,11 @@ class DefaultWeatherProviderRouter(
             "Cota excedida para provider ${provider.providerId}"
         }
         return try {
+            AppObservability.breadcrumb(
+                category = "weather",
+                message = "Weather provider call started",
+                data = mapOf("provider" to provider.providerId)
+            )
             call(provider).also { quotaController.recordCall(provider.providerId) }
         } catch (e: HttpException) {
             if (e.code() == 429) {

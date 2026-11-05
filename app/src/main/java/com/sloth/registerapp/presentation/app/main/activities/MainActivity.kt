@@ -31,6 +31,7 @@ import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.core.auth.LocalSessionManager
 import com.sloth.registerapp.core.auth.model.ServerAuthState
 import com.sloth.registerapp.core.network.ConnectivityMonitor
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.core.settings.AppThemeSettingsRepository
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
@@ -62,11 +63,31 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        AppObservability.screenOpened("MainActivity")
+
         // Inicializa o SDK da DJI imediatamente
-        DJIConnectionHelper.registerApp(applicationContext)
+        runCatching {
+            DJIConnectionHelper.registerApp(applicationContext)
+        }.onSuccess {
+            AppObservability.breadcrumb(
+                category = "drone",
+                message = "DJI SDK registration requested"
+            )
+        }.onFailure { error ->
+            AppObservability.captureException(
+                throwable = error,
+                area = "drone",
+                operation = "register_dji_sdk"
+            )
+            throw error
+        }
 
         PermissionHelper.initializeLaunchers(this) {}
         PermissionHelper.checkAndRequestAllPermissions(this) {}
+        AppObservability.breadcrumb(
+            category = "permissions",
+            message = "Initial permission check requested"
+        )
 
         setContent {
             val controller = WindowInsetsControllerCompat(window, window.decorView)
@@ -104,9 +125,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                navController.addOnDestinationChangedListener { _, _, _ ->
+                navController.addOnDestinationChangedListener { _, destination, _ ->
                     WindowCompat.setDecorFitsSystemWindows(window, true)
                     controller.show(WindowInsetsCompat.Type.systemBars())
+                    destination.route?.let { route ->
+                        AppObservability.screenOpened(route)
+                    }
                 }
 
                 NavHost(navController = navController, startDestination = startDestination) {
@@ -154,6 +178,11 @@ class MainActivity : ComponentActivity() {
                                 onShowAllDronesClick = { navController.navigate("drones_list") },
                                 onWeatherClick = { navController.navigate("weather_overview") },
                                 onRefreshStatusClick = {
+                                    AppObservability.breadcrumb(
+                                        category = "drone",
+                                        message = "Manual drone reconnect requested",
+                                        data = mapOf("screen" to "dashboard")
+                                    )
                                     DJIConnectionHelper.tryReconnect(context)
                                 },
                                 onSettingsClick = { navController.navigate("settings") }
@@ -265,6 +294,11 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 onViewMissionClick = { missionId ->
+                                    AppObservability.breadcrumb(
+                                        category = "mission",
+                                        message = "Mission control opened",
+                                        data = mapOf("mission_id" to missionId)
+                                    )
                                     val intent = Intent(context, MissionControlActivity::class.java).apply {
                                         putExtra("MISSION_ID", missionId)
                                     }
@@ -316,6 +350,10 @@ private fun ScreenWithBottomBar(
             BottomNavBar(
                 navController = navController,
                 onLiveFeedClick = {
+                    AppObservability.breadcrumb(
+                        category = "video",
+                        message = "Drone live feed opened"
+                    )
                     val intent = Intent(context, DroneCameraActivity::class.java)
                     context.startActivity(intent)
                 }

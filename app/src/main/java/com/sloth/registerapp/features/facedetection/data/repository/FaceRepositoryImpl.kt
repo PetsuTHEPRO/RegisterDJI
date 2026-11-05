@@ -1,6 +1,7 @@
 package com.sloth.registerapp.features.facedetection.data.repository
 
 import android.util.Log
+import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.facedetection.data.local.FaceDao
 import com.sloth.registerapp.features.facedetection.data.local.FaceEntity
 import com.sloth.registerapp.features.facedetection.data.mapper.toFloatArray
@@ -8,6 +9,7 @@ import com.sloth.registerapp.features.facedetection.data.mapper.toJson
 import com.sloth.registerapp.features.facedetection.domain.usecase.GenerateEmbeddingUseCase
 import com.sloth.registerapp.features.facedetection.domain.repository.FaceRepository
 import kotlinx.coroutines.flow.Flow
+import io.sentry.SentryLevel
 
 /**
  * Implementação do Repository para gerenciar dados de faces
@@ -55,6 +57,13 @@ class FaceRepositoryImpl(
             face
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao buscar rosto: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "get_face_by_id",
+                level = SentryLevel.WARNING,
+                extras = mapOf("face_id" to id)
+            )
             null
         }
     }
@@ -72,6 +81,12 @@ class FaceRepositoryImpl(
             faces
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao buscar faces: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "get_all_faces",
+                level = SentryLevel.WARNING
+            )
             emptyList()
         }
     }
@@ -132,6 +147,12 @@ class FaceRepositoryImpl(
             Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao salvar rosto: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "save_face",
+                extras = mapOf("embedding_size" to embedding.size)
+            )
             Result.failure(e)
         }
     }
@@ -148,6 +169,14 @@ class FaceRepositoryImpl(
             Log.d(TAG, "✅ Rosto deletado com sucesso")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao deletar rosto: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "delete_face",
+                level = SentryLevel.WARNING,
+                extras = mapOf("face_id" to face.id)
+            )
+            0
         }
     }
 
@@ -161,6 +190,12 @@ class FaceRepositoryImpl(
             Log.d(TAG, "✅ Todos os rostos foram deletados")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao deletar todos: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "delete_all_faces"
+            )
+            0
         }
     }
 
@@ -213,6 +248,15 @@ class FaceRepositoryImpl(
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "⚠️ Erro ao comparar com ${face.name}: ${e.message}")
+                    AppObservability.breadcrumb(
+                        category = "face_detection",
+                        message = "Face comparison failed for one stored face",
+                        level = SentryLevel.WARNING,
+                        data = mapOf(
+                            "face_id" to face.id,
+                            "error_type" to e::class.java.simpleName
+                        )
+                    )
                 }
             }
 
@@ -221,6 +265,12 @@ class FaceRepositoryImpl(
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao procurar rosto similar: ${e.message}", e)
+            AppObservability.captureException(
+                throwable = e,
+                area = "face_detection",
+                operation = "find_similar_face",
+                extras = mapOf("embedding_size" to embedding.size)
+            )
             Pair(false, null)
         }
     }

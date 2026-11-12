@@ -1,6 +1,7 @@
 package com.sloth.registerapp.features.mission.data.drone.manager
 
 import android.util.Log
+import android.os.SystemClock
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.mission.domain.model.DroneTelemetry
@@ -56,6 +57,7 @@ class DroneTelemetryManager(
                 activeFlightController = flightController
                 activeBattery = battery
                 if (flightController == null) {
+                    _telemetry.value = DroneTelemetry()
                     _droneState.value = DroneState.DISCONNECTED
                     return@collect
                 }
@@ -111,6 +113,7 @@ class DroneTelemetryManager(
         }
         activeFlightController = null
         activeBattery = null
+        _telemetry.value = DroneTelemetry()
         _droneState.value = DroneState.DISCONNECTED
     }
 
@@ -127,6 +130,12 @@ class DroneTelemetryManager(
             null
         }
         val isFlying = extractIsFlying(state)
+        val heading = getFloat(state.attitude, "getYaw")
+            ?.takeIf { it.isFinite() }
+        val validAircraftLocation = aircraftLocation?.takeIf {
+            it.first.isFinite() && it.second.isFinite() &&
+                it.first in -90.0..90.0 && it.second in -180.0..180.0
+        }
 
         _telemetry.value = _telemetry.value.copy(
             altitude = altitude ?: _telemetry.value.altitude,
@@ -134,8 +143,11 @@ class DroneTelemetryManager(
             distanceFromHome = distance ?: _telemetry.value.distanceFromHome,
             gpsSatellites = gps ?: _telemetry.value.gpsSatellites,
             batteryLevel = battery ?: _telemetry.value.batteryLevel,
-            latitude = aircraftLocation?.first ?: _telemetry.value.latitude,
-            longitude = aircraftLocation?.second ?: _telemetry.value.longitude,
+            latitude = validAircraftLocation?.first ?: _telemetry.value.latitude,
+            longitude = validAircraftLocation?.second ?: _telemetry.value.longitude,
+            headingDegrees = heading ?: _telemetry.value.headingDegrees,
+            positionUpdatedAtElapsedMs = if (validAircraftLocation != null) SystemClock.elapsedRealtime()
+                else _telemetry.value.positionUpdatedAtElapsedMs,
             isFlying = isFlying ?: _telemetry.value.isFlying
         )
     }
@@ -213,7 +225,8 @@ class DroneTelemetryManager(
         location ?: return null
         val lat = getDouble(location, "getLatitude") ?: return null
         val lon = getDouble(location, "getLongitude") ?: return null
-        if (lat == 0.0 && lon == 0.0) return null
+        if (!lat.isFinite() || !lon.isFinite() || lat !in -90.0..90.0 || lon !in -180.0..180.0 ||
+            (lat == 0.0 && lon == 0.0)) return null
         return Pair(lat, lon)
     }
 

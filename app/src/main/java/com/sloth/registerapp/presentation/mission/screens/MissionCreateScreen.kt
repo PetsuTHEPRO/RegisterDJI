@@ -33,8 +33,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -52,7 +52,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -102,9 +102,16 @@ import com.sloth.registerapp.features.mission.data.remote.dto.ServerMissionDto
 import com.sloth.registerapp.features.mission.data.remote.dto.WaypointDto
 import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
 import com.sloth.registerapp.features.mission.domain.usecase.CreateMissionUseCase
+import androidx.compose.foundation.border
+import com.sloth.registerapp.presentation.shared.components.PrimaryActionButton
+import com.sloth.registerapp.presentation.shared.components.SecondaryActionButton
+import com.sloth.registerapp.presentation.shared.components.VantlyTopBar
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
 import com.sloth.registerapp.presentation.mission.components.MapboxMapView
 import com.sloth.registerapp.presentation.mission.model.Waypoint
 import com.sloth.registerapp.presentation.mission.viewmodels.OperatorLocationViewModel
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -117,13 +124,12 @@ private enum class SelectionTarget {
     WAYPOINT
 }
 
-private val NeuralBackground = Color(0xFF050E1F)
-private val NeuralSurface = Color(0xFF0A1628)
-private val NeuralSurfaceAlt = Color(0xFF071120)
-private val NeuralBorder = Color(0xFF0D2A50)
-private val NeuralPrimary = Color(0xFF00C2FF)
-private val NeuralSecondary = Color(0xFF0066FF)
-private val NeuralTextMuted = Color(0xFF4A7FA5)
+private val ScreenBg = NeuralColors.Bg
+private val CardSurface = NeuralColors.Surface
+private val CardSurfaceAlt = NeuralColors.SurfaceAlt
+private val CardBorder = NeuralColors.Border
+private val ActionPrimary = NeuralColors.Primary
+private val TextMuted = NeuralColors.TextSecondary
 
 data class WaypointActionDraft(
     val type: String,
@@ -248,52 +254,27 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = NeuralBackground,
+        containerColor = ScreenBg,
         topBar = {
             Surface(
                 modifier = Modifier.statusBarsPadding(),
-                color = NeuralBackground,
-                shadowElevation = 6.dp
+                color = ScreenBg
             ) {
                 Column {
-                    TopAppBar(
-                        colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                            containerColor = NeuralBackground,
-                            navigationIconContentColor = Color.White
-                        ),
-                        title = {
-                            Column {
-                                Text(
-                                    text = "Criar Missao",
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    style = TextStyle(
-                                        brush = Brush.linearGradient(
-                                            colors = listOf(NeuralPrimary, NeuralSecondary)
-                                        )
-                                    )
-                                )
-                                Text(
-                                    text = when (currentStep) {
-                                        0 -> "Dados gerais"
-                                        1 -> "Mapa e waypoints"
-                                        else -> "Revisao"
-                                    },
-                                    fontSize = 13.sp,
-                                    color = NeuralTextMuted
-                                )
-                            }
+                    VantlyTopBar(
+                        title = "Planejamento",
+                        subtitle = when (currentStep) {
+                            0 -> "Parâmetros de voo"
+                            1 -> "Definição de rota e waypoints"
+                            else -> "Revisão e confirmação"
                         },
-                        navigationIcon = {
-                            IconButton(onClick = onBackClick) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
-                            }
-                        }
+                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                        onNavigationClick = onBackClick
                     )
                     StepIndicator(
                         currentStep = currentStep,
-                        titles = listOf("Missao", "Waypoints", "Revisao"),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        titles = listOf("Geral", "Mapa", "Revisão"),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -301,30 +282,31 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
         bottomBar = {
             Surface(
                 modifier = Modifier.navigationBarsPadding(),
-                color = NeuralSurfaceAlt,
-                shadowElevation = 10.dp
+                color = CardSurface,
+                border = BorderStroke(1.dp, CardBorder)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (currentStep > 0) {
-                        OutlinedButton(
+                        SecondaryActionButton(
+                            text = "Voltar",
                             onClick = { currentStep -= 1 },
                             modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = NeuralPrimary
-                            )
-                        ) {
-                            Text("Voltar", fontWeight = FontWeight.Bold)
-                        }
+                                .weight(0.7f)
+                                .height(48.dp)
+                        )
                     }
 
-                    Button(
+                    PrimaryActionButton(
+                        text = if (isLoading) "Salvando..." else when (currentStep) {
+                            0 -> "Continuar"
+                            1 -> "Revisar Missão"
+                            else -> "Salvar Missão"
+                        },
                         onClick = {
                             when (currentStep) {
                                 0, 1 -> currentStep += 1
@@ -338,20 +320,20 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                                             }
                                             result.onSuccess { createdMission ->
                                                 successMessage = if (createdMission.id < 0) {
-                                                    "Missao salva localmente. Ela sera enviada ao servidor quando houver conexao."
+                                                    "Missão salva localmente. Ela será enviada ao servidor quando houver conexão."
                                                 } else {
-                                                    "A missao \"${missionData.name}\" foi criada com sucesso."
+                                                    "A missão \"${missionData.name}\" foi criada com sucesso."
                                                 }
                                                 showSuccessDialog = true
                                             }.onFailure { error ->
                                                 errorMessage = when (error) {
-                                                    is IllegalArgumentException -> error.message ?: "Dados invalidos"
-                                                    is HttpException -> "Erro ${error.code()} ao salvar missao"
-                                                    else -> error.message ?: "Erro ao salvar missao"
+                                                    is IllegalArgumentException -> error.message ?: "Dados inválidos"
+                                                    is HttpException -> "Erro ${error.code()} ao salvar missão"
+                                                    else -> error.message ?: "Erro ao salvar missão"
                                                 }
                                             }
                                         } catch (error: Throwable) {
-                                            errorMessage = error.message ?: "Erro ao salvar missao"
+                                            errorMessage = error.message ?: "Erro ao salvar missão"
                                         } finally {
                                             isLoading = false
                                         }
@@ -361,30 +343,9 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp),
-                        enabled = canProceed && !isLoading,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentStep == 2) NeuralSecondary else NeuralPrimary,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = colorScheme.onPrimary,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = when (currentStep) {
-                                    0 -> "Continuar"
-                                    1 -> "Revisar"
-                                    else -> "Salvar"
-                                },
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                            .height(48.dp),
+                        enabled = canProceed && !isLoading
+                    )
                 }
             }
         }
@@ -393,17 +354,8 @@ fun MissionCreateScreen(onBackClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            NeuralBackground,
-                            Color(0xFF091A36),
-                            NeuralBackground
-                        )
-                    )
-                )
+                .background(ScreenBg)
         ) {
-            NeuralGridBackground()
             AnimatedContent(targetState = currentStep, label = "mission_create_step") { step ->
                 when (step) {
                     0 -> ConfigStep(
@@ -464,25 +416,69 @@ private fun StepIndicator(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         titles.forEachIndexed { index, title ->
+            val isActive = index == currentStep
+            val isDone = index < currentStep
             Surface(
                 modifier = Modifier.weight(1f),
-                color = if (index <= currentStep) NeuralPrimary.copy(alpha = 0.14f) else NeuralSurface,
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(
+                color = when {
+                    isActive -> CardSurfaceAlt
+                    isDone -> CardSurface
+                    else -> Color.Transparent
+                },
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(
                     1.dp,
-                    if (index <= currentStep) NeuralPrimary.copy(alpha = 0.35f) else NeuralBorder
+                    when {
+                        isActive -> NeuralColors.BorderStrong
+                        isDone -> CardBorder
+                        else -> CardBorder.copy(alpha = 0.5f)
+                    }
                 )
             ) {
                 Text(
                     text = "${index + 1}. $title",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    color = if (index <= currentStep) NeuralPrimary else NeuralTextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                    color = when {
+                        isActive -> Color.White
+                        isDone -> NeuralColors.Success
+                        else -> TextMuted
+                    },
+                    fontSize = 11.sp,
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                     textAlign = TextAlign.Center
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PlanningMetricItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    value: String,
+    label: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = TextMuted,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = value,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = label,
+            color = TextMuted,
+            fontSize = 10.sp
+        )
     }
 }
 
@@ -496,39 +492,39 @@ private fun ConfigStep(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         MissionStageBanner(
-            eyebrow = "SISTEMA DE PLANEJAMENTO",
-            title = "Configure a base da missao",
-            subtitle = "Velocidade, direcao, trajetoria e regras de seguranca antes da rota."
+            eyebrow = "Planejamento de Missão",
+            title = "Configuração Geral",
+            subtitle = "Defina os parâmetros de voo, velocidade e regras de segurança antes de mapear a rota."
         )
 
         SectionCard(
-            title = "Nome da Missao",
-            subtitle = "Identificacao principal da missao",
+            title = "Nome da Missão",
+            subtitle = "Identificação principal da missão",
             icon = Icons.Default.Flag
         ) {
             OutlinedTextField(
                 value = data.name,
                 onValueChange = { onChange(data.copy(name = it)) },
-                label = { Text("Nome da Missao") },
-                placeholder = { Text("Ex: Missao Alpha") },
+                label = { Text("Nome da Missão") },
+                placeholder = { Text("Ex: Inspeção LT-01") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
         }
 
         SectionCard(
-            title = "Velocidade",
-            subtitle = "Valores padrao usados na missao",
+            title = "Velocidade e Execuções",
+            subtitle = "Limites operacionais da aeronave",
             icon = Icons.Default.Speed
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = data.autoFlightSpeed,
                     onValueChange = { onChange(data.copy(autoFlightSpeed = it)) },
-                    label = { Text("Velocidade Padrao (m/s)") },
+                    label = { Text("Vel. Padrão (m/s)") },
                     placeholder = { Text("10") },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -537,7 +533,7 @@ private fun ConfigStep(
                 OutlinedTextField(
                     value = data.maxFlightSpeed,
                     onValueChange = { onChange(data.copy(maxFlightSpeed = it)) },
-                    label = { Text("Velocidade Maxima (m/s)") },
+                    label = { Text("Vel. Máxima (m/s)") },
                     placeholder = { Text("15") },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -547,7 +543,7 @@ private fun ConfigStep(
             OutlinedTextField(
                 value = data.repeatTimes,
                 onValueChange = { onChange(data.copy(repeatTimes = it)) },
-                label = { Text("Execucoes") },
+                label = { Text("Repetições") },
                 placeholder = { Text("1") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -556,24 +552,24 @@ private fun ConfigStep(
         }
 
         SectionCard(
-            title = "Comportamento da Missao",
-            subtitle = "Campos alinhados ao DTO e ao banco",
+            title = "Comportamento da Missão",
+            subtitle = "Ações de segurança e orientação do gimbal",
             icon = Icons.Default.Settings
         ) {
             SelectionField(
-                label = "Acao ao Finalizar",
+                label = "Ação ao Finalizar",
                 value = data.finishedAction,
                 options = finishedActionOptions,
                 onSelected = { onChange(data.copy(finishedAction = it)) }
             )
             SelectionField(
-                label = "Modo de Trajetoria",
+                label = "Modo de Trajetória",
                 value = data.flightPathMode,
                 options = flightPathOptions,
                 onSelected = { onChange(data.copy(flightPathMode = it)) }
             )
             SelectionField(
-                label = "Modo de Direcao",
+                label = "Modo de Direção",
                 value = data.headingMode,
                 options = headingModeOptions,
                 onSelected = { onChange(data.copy(headingMode = it)) }
@@ -585,12 +581,12 @@ private fun ConfigStep(
                 onSelected = { onChange(data.copy(gotoFirstWaypointMode = it)) }
             )
             SwitchRow(
-                label = "Sair ao Perder Sinal",
+                label = "Retornar ao Perder Sinal",
                 checked = data.exitOnSignalLost,
                 onCheckedChange = { onChange(data.copy(exitOnSignalLost = it)) }
             )
             SwitchRow(
-                label = "Habilitar Rotacao do Gimbal",
+                label = "Habilitar Rotação do Gimbal",
                 checked = data.gimbalPitchRotationEnabled,
                 onCheckedChange = { onChange(data.copy(gimbalPitchRotationEnabled = it)) }
             )
@@ -645,85 +641,19 @@ private fun MapStep(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        MissionStageBanner(
-            eyebrow = "MAPEAMENTO TATICO",
-            title = "Defina POI e waypoints",
-            subtitle = "Clique no mapa para montar a rota e configure cada waypoint no modal."
-        )
-
-        SectionCard(
-            title = "Como Adicionar Waypoint",
-            subtitle = "O mapa está logo abaixo deste card",
-            icon = Icons.Default.EditLocationAlt
+        // Mapa Tático em destaque (estilo DJI)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(380.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
         ) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = colorScheme.primary.copy(alpha = 0.08f)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "1. No mapa abaixo, selecione o modo Waypoint.",
-                        color = colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "2. Toque no mapa no ponto desejado.",
-                        color = colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "3. O modal de configuração do waypoint abrirá automaticamente.",
-                        color = colorScheme.onSurface,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        SectionCard(
-            title = "Mapa da Missão",
-            subtitle = "Selecione primeiro o ponto de interesse e depois os waypoints. Role para baixo para ver os waypoints adicionados.",
-            icon = Icons.Default.Map
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = selectionTarget == SelectionTarget.POI,
-                    onClick = { selectionTarget = SelectionTarget.POI },
-                    label = { Text("Ponto de Interesse") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                )
-                FilterChip(
-                    selected = selectionTarget == SelectionTarget.WAYPOINT,
-                    onClick = { selectionTarget = SelectionTarget.WAYPOINT },
-                    label = { Text("Waypoint") },
-                    leadingIcon = {
-                        Icon(Icons.Default.EditLocationAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    }
-                )
-            }
-
-            Text(
-                text = if (selectionTarget == SelectionTarget.POI) {
-                    "Clique no mapa para definir o ponto de interesse."
-                } else {
-                    "Clique no mapa para selecionar as coordenadas do waypoint."
-                },
-                fontSize = 13.sp,
-                color = colorScheme.onSurfaceVariant
-            )
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+            MapboxMapView(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(320.dp)
+                    .fillMaxSize()
                     .pointerInteropFilter { motionEvent ->
                         when (motionEvent.actionMasked) {
                             MotionEvent.ACTION_DOWN,
@@ -736,74 +666,208 @@ private fun MapStep(
                             }
                         }
                         false
-                    }
-            ) {
-                MapboxMapView(
-                    modifier = Modifier.fillMaxSize(),
-                    waypoints = data.waypoints.map { waypoint ->
-                        Waypoint(
-                            id = waypoint.id,
-                            latitude = waypoint.latitude,
-                            longitude = waypoint.longitude,
-                            altitude = waypoint.altitude.toDoubleOrNull() ?: 20.0,
-                            speed = data.autoFlightSpeed.toDoubleOrNull() ?: 10.0
-                        )
                     },
-                    pointOfInterest = data.pointOfInterest,
-                    pendingPoint = pendingWaypointPoint,
-                    selectedWaypointIndex = selectedWaypointIndex.takeIf { it >= 0 },
-                    primaryColor = colorScheme.primary,
-                    onMapClick = { point ->
-                        when (selectionTarget) {
-                            SelectionTarget.POI -> {
-                                onDataChange(latestData.copy(pointOfInterest = point))
-                            }
-                            SelectionTarget.WAYPOINT -> {
-                                pendingWaypointPoint = point
-                            }
+                waypoints = data.waypoints.map { waypoint ->
+                    Waypoint(
+                        id = waypoint.id,
+                        latitude = waypoint.latitude,
+                        longitude = waypoint.longitude,
+                        altitude = waypoint.altitude.toDoubleOrNull() ?: 20.0,
+                        speed = data.autoFlightSpeed.toDoubleOrNull() ?: 10.0
+                    )
+                },
+                pointOfInterest = data.pointOfInterest,
+                pendingPoint = pendingWaypointPoint,
+                selectedWaypointIndex = selectedWaypointIndex.takeIf { it >= 0 },
+                primaryColor = Color.White,
+                onMapClick = { point ->
+                    when (selectionTarget) {
+                        SelectionTarget.POI -> {
+                            onDataChange(latestData.copy(pointOfInterest = point))
                         }
-                        true
-                    },
-                    onMapReady = { map ->
-                        val initialCenter = data.pointOfInterest
-                            ?: initialMapCenter
-                            ?: Point.fromLngLat(-44.279191, -2.53698)
-                        map.setCamera(
-                            com.mapbox.maps.CameraOptions.Builder()
-                                .center(initialCenter)
-                                .zoom(if (data.pointOfInterest == null) 12.4 else 15.6)
-                                .build()
+                        SelectionTarget.WAYPOINT -> {
+                            pendingWaypointPoint = point
+                        }
+                    }
+                    true
+                },
+                onMapReady = { map ->
+                    val initialCenter = data.pointOfInterest
+                        ?: initialMapCenter
+                        ?: Point.fromLngLat(-44.279191, -2.53698)
+                    map.setCamera(
+                        com.mapbox.maps.CameraOptions.Builder()
+                            .center(initialCenter)
+                            .zoom(if (data.pointOfInterest == null) 12.4 else 15.6)
+                            .build()
+                    )
+                }
+            )
+
+            // Overlays no mapa (estilo DJI)
+            // Top Right: Seletor POI/Waypoint
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = Color.Black.copy(alpha = 0.75f),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Row(
+                    modifier = Modifier.padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Surface(
+                        onClick = { selectionTarget = SelectionTarget.POI },
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (selectionTarget == SelectionTarget.POI) Color.White.copy(alpha = 0.2f) else Color.Transparent
+                    ) {
+                        Text(
+                            "POI",
+                            color = if (selectionTarget == SelectionTarget.POI) Color.White else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                         )
                     }
+                    Surface(
+                        onClick = { selectionTarget = SelectionTarget.WAYPOINT },
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (selectionTarget == SelectionTarget.WAYPOINT) Color.White.copy(alpha = 0.2f) else Color.Transparent
+                    ) {
+                        Text(
+                            "Waypoint",
+                            color = if (selectionTarget == SelectionTarget.WAYPOINT) Color.White else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+            }
+
+            // Bottom Left: Pill de escala 100 m
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = Color.Black.copy(alpha = 0.70f),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Text(
+                    text = "100 m",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 10.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                )
+            }
+        }
+
+        // 3 Métricas da Missão (Barra inferior inspirada na tela de Planejamento DJI)
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = CardSurface,
+            border = BorderStroke(1.dp, CardBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PlanningMetricItem(
+                    icon = Icons.Default.Place,
+                    value = "${data.waypoints.size}",
+                    label = "Pontos"
+                )
+                Box(
+                    modifier = Modifier
+                        .height(30.dp)
+                        .width(1.dp)
+                        .background(CardBorder)
+                )
+                val avgAltitude = data.waypoints.firstOrNull()?.altitude ?: "20"
+                PlanningMetricItem(
+                    icon = Icons.Default.Height,
+                    value = "$avgAltitude m",
+                    label = "Altitude"
+                )
+                Box(
+                    modifier = Modifier
+                        .height(30.dp)
+                        .width(1.dp)
+                        .background(CardBorder)
+                )
+                PlanningMetricItem(
+                    icon = Icons.Default.Speed,
+                    value = "${data.autoFlightSpeed.ifBlank { "10" }} m/s",
+                    label = "Velocidade"
+                )
+            }
+        }
+
+        // Dica Operacional
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = CardSurfaceAlt,
+            border = BorderStroke(1.dp, CardBorder)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.EditLocationAlt,
+                    contentDescription = null,
+                    tint = TextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = if (selectionTarget == SelectionTarget.POI) {
+                        "Toque no mapa para posicionar o ponto de interesse."
+                    } else {
+                        "Toque no mapa para adicionar waypoints à rota."
+                    },
+                    fontSize = 12.sp,
+                    color = TextMuted
                 )
             }
         }
 
         SectionCard(
-            title = "Ponto de Interesse e Rota",
-            subtitle = "Resumo operacional para validar a missão",
+            title = "Ponto de Interesse",
+            subtitle = "Alvo focal da aeronave",
             icon = Icons.Default.Place
         ) {
             CoordinateSummary(
                 label = "Latitude",
-                value = data.pointOfInterest?.latitude()?.formatCoord() ?: "Selecione no mapa"
+                value = data.pointOfInterest?.latitude()?.formatCoord() ?: "Não definido"
             )
             CoordinateSummary(
                 label = "Longitude",
-                value = data.pointOfInterest?.longitude()?.formatCoord() ?: "Selecione no mapa"
+                value = data.pointOfInterest?.longitude()?.formatCoord() ?: "Não definido"
             )
         }
 
         SectionCard(
-            title = "Waypoints Adicionados",
-            subtitle = "A missão precisa de pelo menos 2 waypoints",
+            title = "Waypoints Adicionados (${data.waypoints.size})",
+            subtitle = if (data.waypoints.size < 2) "Mínimo de 2 waypoints necessários" else "Rota configurada",
             icon = Icons.Default.Route
         ) {
             if (data.waypoints.isEmpty()) {
                 Text(
-                    text = "Nenhum waypoint adicionado ainda.",
+                    text = "Nenhum waypoint adicionado ainda. Toque no mapa acima.",
                     fontSize = 13.sp,
-                    color = colorScheme.onSurfaceVariant
+                    color = TextMuted,
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
             } else {
                 data.waypoints.forEachIndexed { index, waypoint ->
@@ -824,7 +888,10 @@ private fun MapStep(
                         }
                     )
                     if (index < data.waypoints.lastIndex) {
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 6.dp),
+                            color = CardBorder
+                        )
                     }
                 }
             }
@@ -959,7 +1026,7 @@ private fun ReviewStep(
                         )
                     }
                     if (index < data.waypoints.lastIndex) {
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
                 }
             }
@@ -975,45 +1042,41 @@ private fun SectionCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        shape = RoundedCornerShape(20.dp)
+        colors = CardDefaults.cardColors(containerColor = CardSurface),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column(
             modifier = Modifier
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            NeuralSurface,
-                            NeuralSurfaceAlt
-                        )
-                    ),
-                    shape = RoundedCornerShape(20.dp)
-                )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            content = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = CircleShape,
-                        color = NeuralPrimary.copy(alpha = 0.12f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, NeuralPrimary.copy(alpha = 0.2f))
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(10.dp),
-                            tint = NeuralPrimary
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color.White)
-                        Text(subtitle, color = NeuralTextMuted, fontSize = 12.sp)
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = CardSurfaceAlt,
+                    border = BorderStroke(1.dp, CardBorder)
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .size(16.dp),
+                        tint = Color.White
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White)
+                    if (subtitle.isNotBlank()) {
+                        Text(subtitle, color = TextMuted, fontSize = 11.sp)
                     }
                 }
-                content()
             }
-        )
+            content()
+        }
     }
 }
 
@@ -1023,114 +1086,37 @@ private fun MissionStageBanner(
     title: String,
     subtitle: String
 ) {
-    val transition = rememberInfiniteTransition(label = "stage_banner")
-    val glow by transition.animateFloat(
-        initialValue = 0.12f,
-        targetValue = 0.22f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "banner_glow"
-    )
-
     Surface(
-        color = Color.Transparent,
-        shape = RoundedCornerShape(24.dp)
+        color = CardSurface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            NeuralSurfaceAlt,
-                            Color(0xFF0A2050),
-                            NeuralBackground
-                        )
-                    ),
-                    shape = RoundedCornerShape(24.dp)
-                )
-                .padding(20.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = NeuralPrimary.copy(alpha = glow)
-                ) {
-                    Text(
-                        text = eyebrow,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        color = NeuralPrimary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = subtitle,
-                    color = NeuralTextMuted,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun NeuralGridBackground() {
-    val transition = rememberInfiniteTransition(label = "grid")
-    val offset by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 40f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing)
-        ),
-        label = "grid_offset"
-    )
-    val glow by transition.animateFloat(
-        initialValue = 0.04f,
-        targetValue = 0.09f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "grid_glow"
-    )
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val step = 40.dp.toPx()
-        var x = -step + offset
-        while (x < size.width + step) {
-            drawLine(
-                color = NeuralPrimary.copy(alpha = 0.05f),
-                start = androidx.compose.ui.geometry.Offset(x, 0f),
-                end = androidx.compose.ui.geometry.Offset(x, size.height),
-                strokeWidth = 1f
+            Text(
+                text = eyebrow.uppercase(),
+                color = TextMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
             )
-            x += step
-        }
-        var y = 0f
-        while (y < size.height) {
-            drawLine(
-                color = NeuralPrimary.copy(alpha = 0.04f),
-                start = androidx.compose.ui.geometry.Offset(0f, y),
-                end = androidx.compose.ui.geometry.Offset(size.width, y),
-                strokeWidth = 1f
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
             )
-            y += step
+            Text(
+                text = subtitle,
+                color = TextMuted,
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
         }
-        drawCircle(
-            color = NeuralPrimary.copy(alpha = glow),
-            radius = size.minDimension * 0.18f,
-            center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.22f)
-        )
     }
 }
 
@@ -1224,33 +1210,33 @@ private fun ActionChipRow(
     action: WaypointActionDraft,
     onRemove: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = colorScheme.primary.copy(alpha = 0.08f)
+        shape = RoundedCornerShape(8.dp),
+        color = CardSurfaceAlt,
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "${index + 1}. ${labelFor(action.type, waypointActionOptions)}",
                 modifier = Modifier.weight(1f),
-                color = colorScheme.onSurface,
+                color = Color.White,
                 fontSize = 13.sp
             )
             if (action.param.isNotBlank()) {
                 Text(
                     text = action.param,
-                    color = colorScheme.onSurfaceVariant,
+                    color = TextMuted,
                     fontSize = 12.sp
                 )
                 Spacer(Modifier.width(8.dp))
             }
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "Remover acao", tint = colorScheme.error)
+            IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.DeleteOutline, contentDescription = "Remover acao", tint = NeuralColors.Danger, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -1265,58 +1251,58 @@ private fun InteractiveWaypointRow(
     onEdit: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onSelect)
             .background(
-                color = if (isSelected) NeuralPrimary.copy(alpha = 0.08f) else Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
+                color = if (isSelected) CardSurfaceAlt else Color.Transparent,
+                shape = RoundedCornerShape(10.dp)
             )
-            .padding(10.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
             shape = CircleShape,
-            color = if (isSelected) colorScheme.primary else colorScheme.primary.copy(alpha = 0.12f),
-            modifier = Modifier.size(34.dp)
+            color = if (isSelected) Color.White else CardSurfaceAlt,
+            border = BorderStroke(1.dp, CardBorder),
+            modifier = Modifier.size(28.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     (index + 1).toString(),
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) Color.White else colorScheme.primary
+                    fontSize = 12.sp,
+                    color = if (isSelected) Color.Black else Color.White
                 )
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = "${waypoint.latitude.formatCoord()}, ${waypoint.longitude.formatCoord()}",
                 fontSize = 13.sp,
-                color = colorScheme.onSurface
+                color = Color.White,
+                fontWeight = FontWeight.Medium
             )
             Text(
-                text = "Altitude ${waypoint.altitude} m | ${labelFor(waypoint.turnMode, turnModeOptions)}",
-                fontSize = 12.sp,
-                color = colorScheme.onSurfaceVariant
+                text = "Alt: ${waypoint.altitude} m • ${labelFor(waypoint.turnMode, turnModeOptions)}",
+                fontSize = 11.sp,
+                color = TextMuted
             )
-            Text(
-                text = if (waypoint.actions.isEmpty()) {
-                    "Sem acoes"
-                } else {
-                    waypoint.actions.joinToString { labelFor(it.type, waypointActionOptions) }
-                },
-                fontSize = 12.sp,
-                color = colorScheme.onSurfaceVariant
-            )
+            if (waypoint.actions.isNotEmpty()) {
+                Text(
+                    text = "Ações: ${waypoint.actions.joinToString { labelFor(it.type, waypointActionOptions) }}",
+                    fontSize = 11.sp,
+                    color = NeuralColors.Success
+                )
+            }
         }
-        IconButton(onClick = onEdit) {
-            Icon(Icons.Default.Tune, contentDescription = "Editar waypoint", tint = colorScheme.primary)
+        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.Tune, contentDescription = "Editar waypoint", tint = TextMuted, modifier = Modifier.size(16.dp))
         }
-        IconButton(onClick = onRemove) {
-            Icon(Icons.Default.DeleteOutline, contentDescription = "Remover waypoint", tint = colorScheme.error)
+        IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.DeleteOutline, contentDescription = "Remover waypoint", tint = NeuralColors.Danger, modifier = Modifier.size(16.dp))
         }
     }
 }

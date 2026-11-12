@@ -4,6 +4,10 @@ import android.graphics.Bitmap
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.SurfaceTexture
+import android.os.SystemClock
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.util.Log
 import android.widget.Toast
 import android.view.TextureView
@@ -20,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +33,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.scale
+import androidx.activity.compose.BackHandler
+import android.app.Application
+import android.content.Intent
+import com.sloth.registerapp.features.mission.domain.model.Mission
+import com.sloth.registerapp.features.mldetection.data.remote.dto.ModelCatalogEntryDto
+import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
+import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
+import com.sloth.registerapp.presentation.mission.viewmodels.MissionListUiState
+import com.sloth.registerapp.presentation.mission.activities.MissionControlActivity
+import com.sloth.registerapp.presentation.app.main.activities.MainActivity
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
@@ -46,6 +66,7 @@ import android.Manifest
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.core.mission.ActiveMissionSession
 import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
 import com.sloth.registerapp.core.mission.ActiveMissionStatus
 import com.sloth.registerapp.core.network.ConnectivityMonitor
@@ -83,6 +104,31 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.sentry.SentryLevel
+import com.sloth.registerapp.presentation.app.theme.NeuralColors
+
+private sealed class ToolsMenuScreen {
+    object Home : ToolsMenuScreen()
+    object AI : ToolsMenuScreen()
+    object Missions : ToolsMenuScreen()
+    data class MissionDetails(val mission: Mission) : ToolsMenuScreen()
+    object Capture : ToolsMenuScreen()
+    object Streaming : ToolsMenuScreen()
+    object PhoneCamera : ToolsMenuScreen()
+    object Settings : ToolsMenuScreen()
+}
+
+private enum class ToolsMissionFilter(val label: String) {
+    ALL("Todas"),
+    PLANNED("Planejadas"),
+    IN_PROGRESS("Em andamento"),
+    COMPLETED("Concluídas")
+}
+
+private fun formatDuration(seconds: Int): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return String.format(java.util.Locale.US, "%02d:%02d", m, s)
+}
 
 private data class DetectionModelOption(
     val id: String,
@@ -122,6 +168,13 @@ fun DroneCameraScreen(
     val tag = "DroneCameraScreen"
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var cameraResumed by remember { mutableStateOf(true) }
+    var positionClock by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    var lastVideoFrameAt by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) { delay(1000); positionClock = SystemClock.elapsedRealtime() }
+    }
 
     val colorScheme = MaterialTheme.colorScheme
     val missionManager = remember { DroneMissionManager(DJIConnectionHelper) }
@@ -130,9 +183,12 @@ fun DroneCameraScreen(
     // Estados
     var visible by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
+    var recordingSeconds by remember { mutableIntStateOf(0) }
+    var isToolsDrawerOpen by rememberSaveable { mutableStateOf(false) }
+    var toolsInitialCategory by remember { mutableStateOf<ToolsMenuScreen>(ToolsMenuScreen.Home) }
+    var isMapExpanded by rememberSaveable { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
     var showMissionOverlay by rememberSaveable { mutableStateOf(true) }
-    var showAiSheet by rememberSaveable { mutableStateOf(false) }
     var detectionEnabled by rememberSaveable { mutableStateOf(false) }
     var selectedDetectionModelId by rememberSaveable {
         mutableStateOf(ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID)
@@ -142,8 +198,23 @@ fun DroneCameraScreen(
     val droneState by droneController.droneState.collectAsStateWithLifecycle()
     val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
     val product by DJIConnectionHelper.product.collectAsStateWithLifecycle()
-    val isFeedAvailable = product != null
+    val isFeedAvailable = product?.isConnected == true && (product as? dji.sdk.products.Aircraft)?.camera != null
+    val isVideoActive = isFeedAvailable && cameraResumed && lastVideoFrameAt > 0L &&
+        positionClock - lastVideoFrameAt <= 3000L
     val mlDetectionViewModel: MLDetectionViewModel = viewModel()
+    val missionListViewModel: MissionListViewModel = viewModel(
+        factory = MissionListViewModelFactory(context.applicationContext as Application)
+    )
+    val missionListUiState by missionListViewModel.uiState.collectAsStateWithLifecycle()
+    val loadedMission = (missionListUiState as? MissionListUiState.Success)?.missions
+        ?.firstOrNull { it.id.toString() == ActiveMissionSessionManager.activeMissionId.value }
+    val missionRoute = remember(loadedMission?.previewPoints) {
+        loadedMission?.previewPoints.orEmpty().filter {
+            isValidCoordinate(it.latitude, it.longitude)
+        }.map { Point.fromLngLat(it.longitude, it.latitude) }
+    }
+    val remoteCatalog by mlDetectionViewModel.remoteCatalog.collectAsStateWithLifecycle()
+    val remoteCatalogLoading by mlDetectionViewModel.remoteCatalogLoading.collectAsStateWithLifecycle()
 
     val rtmpRepo = remember { RtmpSettingsRepository.getInstance(context) }
     val mediaStorageRepo = remember { MediaStorageSettingsRepository.getInstance(context) }
@@ -203,7 +274,8 @@ fun DroneCameraScreen(
     }
     val videoDataListener = remember {
         VideoFeeder.VideoDataListener { videoBuffer, size ->
-            Log.d(tag, "Video frame received: $size bytes")
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastVideoFrameAt >= 1000L) lastVideoFrameAt = now
             codecManager.value?.sendDataToDecoder(videoBuffer, size)
         }
     }
@@ -212,7 +284,7 @@ fun DroneCameraScreen(
         val surface = surfaceRef.value ?: return
         val (width, height) = surfaceSize.value
         if (width <= 0 || height <= 0) return
-        if (codecManager.value != null) return
+        if (codecManager.value != null || !cameraResumed || !previewEnabled) return
         codecManager.value = DJICodecManager(context, surface, width, height)
         VideoFeeder.getInstance().primaryVideoFeed?.addVideoDataListener(videoDataListener)
         Log.d(tag, "Preview attached")
@@ -247,6 +319,7 @@ fun DroneCameraScreen(
     LaunchedEffect(Unit) {
         AppObservability.screenOpened("DroneCameraScreen")
         visible = true
+        missionListViewModel.fetchMissions()
         if (!locationPermissions.allPermissionsGranted) {
             AppObservability.breadcrumb(
                 category = "permissions",
@@ -254,6 +327,18 @@ fun DroneCameraScreen(
                 data = mapOf("screen" to "DroneCameraScreen")
             )
             locationPermissions.launchMultiplePermissionRequest()
+        }
+    }
+
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            recordingSeconds = 0
+            while (isActive) {
+                delay(1000)
+                recordingSeconds++
+            }
+        } else {
+            recordingSeconds = 0
         }
     }
 
@@ -284,8 +369,24 @@ fun DroneCameraScreen(
         }
     }
 
-    LaunchedEffect(previewEnabled) {
-        if (previewEnabled) {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> cameraResumed = true
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    cameraResumed = false
+                    detachPreview()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        cameraResumed = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); detachPreview() }
+    }
+
+    LaunchedEffect(previewEnabled, cameraResumed, isFeedAvailable) {
+        if (previewEnabled && cameraResumed && isFeedAvailable) {
             attachPreview()
         } else {
             detachPreview()
@@ -337,11 +438,13 @@ fun DroneCameraScreen(
         selectedDetectionModelId,
         activeDetectionModelId,
         previewEnabled,
-        isFeedAvailable
+        isFeedAvailable,
+        cameraResumed,
+        isVideoActive
     ) {
         val canDetect = detectionEnabled &&
             previewEnabled &&
-            isFeedAvailable &&
+            isVideoActive &&
             selectedDetectionModelId == activeDetectionModelId &&
             availableModels.any { it.id == selectedDetectionModelId }
 
@@ -397,11 +500,98 @@ fun DroneCameraScreen(
         }
     }
 
-    Box(
+    val onTakePhoto: () -> Unit = {
+        if (isFeedAvailable) droneController.takePhoto { success, message ->
+            val text = if (success) "Foto capturada" else "Erro ao fotografar: ${message ?: "desconhecido"}"
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            if (success && !activeMissionId.isNullOrBlank()) {
+                scope.launch {
+                    val now = System.currentTimeMillis()
+                    if (mediaStorageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) {
+                        mediaManager.registerPhotoCapture(
+                            missionId = activeMissionId!!,
+                            dronePath = "drone://photo/$now.jpg",
+                            source = MissionMediaSource.DRONE_SD
+                        )
+                    } else {
+                        mediaManager.registerPhotoCapture(
+                            missionId = activeMissionId!!,
+                            localPath = "content://vantly/local/photo/$now.jpg",
+                            source = MissionMediaSource.PHONE_LOCAL
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    val onToggleRecord: () -> Unit = {
+        if (isFeedAvailable && isRecording) {
+            droneController.stopRecording { success, message ->
+                if (success) {
+                    isRecording = false
+                }
+                val text = if (success) "Gravação parada" else "Erro ao parar gravação: ${message ?: "desconhecido"}"
+                Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+                if (success && !activeMissionId.isNullOrBlank()) {
+                    scope.launch {
+                        val now = System.currentTimeMillis()
+                        if (mediaStorageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) {
+                            mediaManager.registerVideoCapture(
+                                missionId = activeMissionId!!,
+                                dronePath = "drone://video/$now.mp4",
+                                source = MissionMediaSource.DRONE_SD
+                            )
+                        } else {
+                            mediaManager.registerVideoCapture(
+                                missionId = activeMissionId!!,
+                                localPath = "content://vantly/local/video/$now.mp4",
+                                source = MissionMediaSource.PHONE_LOCAL
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (isFeedAvailable) {
+            droneController.startRecording { success, message ->
+                if (success) {
+                    isRecording = true
+                }
+                val text = if (success) "Gravação iniciada" else "Erro ao iniciar gravação: ${message ?: "desconhecido"}"
+                Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val onStreamToggle: () -> Unit = {
+        if (!isFeedAvailable) {
+            Toast.makeText(context, "Conecte o drone para transmitir", Toast.LENGTH_SHORT).show()
+        } else {
+            if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
+                rtmpStreamer.stop()
+            } else {
+                rtmpStreamer.start()
+            }
+        }
+    }
+
+    val mapWidth by animateDpAsState(
+        targetValue = if (isMapExpanded) 260.dp else 140.dp,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "mapWidth"
+    )
+    val mapHeight by animateDpAsState(
+        targetValue = if (isMapExpanded) 180.dp else 98.dp,
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "mapHeight"
+    )
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(colorScheme.background)
+            .background(NeuralColors.DashboardBg)
     ) {
+        val compactLandscape = maxWidth < 740.dp
         VideoFeedView(
             modifier = Modifier.fillMaxSize(),
             onTextureViewReady = { textureViewRef.value = it },
@@ -423,15 +613,14 @@ fun DroneCameraScreen(
             }
         )
 
-        if (detectionEnabled && detectionBoxes.isNotEmpty()) {
+        if (detectionEnabled && isVideoActive && detectionBoxes.isNotEmpty()) {
             PersonDetectionOverlay(
                 detections = detectionBoxes,
                 modifier = Modifier.fillMaxSize()
             )
         }
 
-        if (!isFeedAvailable) {
-            Log.d(tag, "Video feed unavailable (product not connected)")
+        if (!isVideoActive) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -463,7 +652,7 @@ fun DroneCameraScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Conecte-se ao drone para visualizar",
+                        if (isFeedAvailable) "Aguardando vídeo da aeronave" else "Conecte-se ao drone para visualizar",
                         color = colorScheme.onSurfaceVariant,
                         fontSize = 14.sp
                     )
@@ -500,245 +689,202 @@ fun DroneCameraScreen(
             CompactHeader(
                 droneState = droneState,
                 batteryLevel = telemetry.batteryLevel,
-                onBackClick = onBackClick,
-                onToggleControls = { showControls = !showControls }
-            )
-        }
-
-        // HUD de telemetria linear (sem card)
-        AnimatedVisibility(
-            visible = showControls && visible,
-            enter = fadeIn() + slideInVertically { -it },
-            exit = fadeOut() + slideOutVertically { -it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 8.dp)
-        ) {
-            TelemetryHudStrip(
-                telemetry = telemetry,
-                measurementSystem = measurementSystem
-            )
-        }
-
-        weatherSummary?.let { summary ->
-            WeatherCompactBadge(
-                summary = summary,
+                missionName = activeMissionSession.missionName,
+                weatherSummary = weatherSummary,
                 measurementSystem = measurementSystem,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 12.dp, top = 58.dp)
+                selectedModelName = availableModels.firstOrNull { it.id == selectedDetectionModelId }?.name,
+                onBackClick = onBackClick,
+                onToggleControls = {
+                    toolsInitialCategory = ToolsMenuScreen.Home
+                    isToolsDrawerOpen = true
+                },
+                isFeedAvailable = isFeedAvailable
             )
         }
 
-        AnimatedVisibility(
-            visible = activeMissionSession.hasMission,
-            enter = fadeIn() + slideInHorizontally { it / 3 },
-            exit = fadeOut() + slideOutHorizontally { it / 3 },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 14.dp, bottom = 72.dp)
-        ) {
-            AnimatedVisibility(
-                visible = showMissionOverlay,
-                enter = fadeIn() + slideInVertically { it / 4 },
-                exit = fadeOut() + slideOutVertically { it / 4 }
-            ) {
-                MissionExecutionOverlay(
-                    missionName = activeMissionSession.missionName ?: "Missao pronta",
-                    missionStatus = activeMissionSession.status,
-                    onStartClick = {
-                        scope.launch {
-                            runCatching { missionManager.startMission() }
-                                .onSuccess {
-                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
-                                    Toast.makeText(context, "Missão iniciada", Toast.LENGTH_SHORT).show()
-                                }
-                                .onFailure {
-                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                                    Toast.makeText(
-                                        context,
-                                        "Erro ao iniciar missão: ${it.message ?: "desconhecido"}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                        }
-                    },
-                    onPauseClick = {
-                        scope.launch {
-                            runCatching { missionManager.pauseMission() }
-                                .onSuccess {
-                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
-                                    Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
-                                }
-                                .onFailure {
-                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                                    Toast.makeText(
-                                        context,
-                                        "Erro ao pausar missão: ${it.message ?: "desconhecido"}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                        }
-                    },
-                    onStopClick = {
-                        scope.launch {
-                            runCatching { missionManager.stopMission() }
-                                .onSuccess {
-                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
-                                    Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
-                                }
-                                .onFailure {
-                                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                                    Toast.makeText(
-                                        context,
-                                        "Erro ao parar missão: ${it.message ?: "desconhecido"}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                        }
-                    }
-                )
+        Column(Modifier.align(Alignment.CenterEnd).padding(end = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Surface(onClick = onTakePhoto, enabled = isFeedAvailable,
+                shape = CircleShape, color = NeuralColors.DashboardCard.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+                Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.CameraAlt, "Capturar fotografia", modifier = Modifier.size(19.dp),
+                        tint = if (isFeedAvailable) Color.White else NeuralColors.DashboardTextSecondary)
+                }
+            }
+            Surface(onClick = onToggleRecord, enabled = isFeedAvailable,
+                shape = CircleShape, color = NeuralColors.DashboardCard.copy(alpha = 0.9f),
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+                Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(15.dp).background(
+                        if (isRecording) NeuralColors.Danger else if (isFeedAvailable) Color(0xFFFF344A)
+                        else NeuralColors.DashboardTextSecondary,
+                        if (isRecording) RoundedCornerShape(3.dp) else CircleShape))
+                }
             }
         }
 
-        // Mini mapa no canto inferior esquerdo
+        // 1. Mini mapa persistente no canto inferior esquerdo com transição animada entre compacto e expandido
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 12.dp, bottom = 24.dp)
+                .navigationBarsPadding()
+                .padding(start = 14.dp, bottom = 14.dp)
         ) {
-            Column(
-                horizontalAlignment = Alignment.Start
+            Surface(
+                modifier = Modifier
+                    .size(width = mapWidth.coerceAtMost(if (compactLandscape) 110.dp else 260.dp),
+                        height = mapHeight.coerceAtMost(if (compactLandscape) 78.dp else 180.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(10.dp)),
+                color = Color.Black.copy(alpha = 0.60f),
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Surface(
-                    modifier = Modifier
-                        .size(width = 164.dp, height = 118.dp)
-                        .border(1.dp, colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
-                    color = Color.Black.copy(alpha = 0.45f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (operatorLocation != null) {
-                            MapboxMiniMapView(
-                                modifier = Modifier.fillMaxSize(),
-                                operatorLocation = operatorLocation,
-                                operatorAccuracyMeters = locationUiState.accuracyMeters,
-                                operatorIsStationary = locationUiState.isStationary,
-                                styleUri = Style.STANDARD
+                Box(modifier = Modifier.fillMaxSize()) {
+                    val dronePoint = if (isFeedAvailable &&
+                        telemetry.positionUpdatedAtElapsedMs > 0L &&
+                        positionClock - telemetry.positionUpdatedAtElapsedMs <= 5000L &&
+                        isValidCoordinate(telemetry.latitude, telemetry.longitude)) {
+                        Point.fromLngLat(telemetry.longitude, telemetry.latitude)
+                    } else null
+
+                    MapboxMiniMapView(
+                        modifier = Modifier.fillMaxSize(),
+                        operatorLocation = operatorLocation,
+                        droneLocation = dronePoint,
+                        routePoints = missionRoute,
+                        droneHeadingDegrees = if (dronePoint != null) telemetry.headingDegrees else null,
+                        frameRevision = isMapExpanded,
+                        operatorAccuracyMeters = locationUiState.accuracyMeters,
+                        operatorIsStationary = locationUiState.isStationary,
+                        styleUri = Style.DARK
+                    )
+
+                    if (dronePoint == null) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 6.dp),
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color.Black.copy(alpha = 0.65f)
+                        ) {
+                            Text(
+                                text = if (missionRoute.isNotEmpty()) "Aeronave sem posição" else "Aguardando GPS",
+                                fontSize = 9.sp,
+                                color = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
-                        } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = locationUiState.errorMessage ?: "Aguardando GPS...",
-                                    fontSize = 11.sp,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
+                    }
+
+                    // Botão para alternar tamanho compacto / expandido do mapa
+                    IconButton(
+                        onClick = { isMapExpanded = !isMapExpanded },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(26.dp)
+                            .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (isMapExpanded) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = if (isMapExpanded) "Minimizar mapa" else "Expandir mapa",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
         }
 
-        // Controles de câmera
+        // 2. HUD de telemetria linear estilo DJI (posicionado no centro inferior)
+        val isDroneConnected = isFeedAvailable || (droneState != DroneState.DISCONNECTED && product != null)
         AnimatedVisibility(
             visible = showControls && visible,
-            enter = fadeIn() + slideInVertically { -it },
-            exit = fadeOut() + slideOutVertically { -it },
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 44.dp, end = 10.dp)
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 14.dp)
         ) {
-            CameraControls(
-                isRecording = isRecording,
-                streamState = streamState,
+            TelemetryHudStrip(
+                telemetry = telemetry,
+                measurementSystem = measurementSystem,
+                isConnected = isDroneConnected,
+                compact = compactLandscape
+            )
+        }
+
+        // 3. Controles minimalistas de missão (Play, Pause, Stop) no canto inferior direito
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn() + slideInHorizontally { it / 3 },
+            exit = fadeOut() + slideOutHorizontally { it / 3 },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 16.dp, bottom = 14.dp)
+        ) {
+            MinimalistMissionControls(
                 hasMission = activeMissionSession.hasMission,
-                missionExpanded = showMissionOverlay,
-                detectionEnabled = detectionEnabled,
-                onCellCameraClick = onCellCameraClick,
-                onTakePhotoClick = {
-                    droneController.takePhoto { success, message ->
-                        val text = if (success) "Foto capturada" else "Erro ao fotografar: ${message ?: "desconhecido"}"
-                        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-                        if (success && !activeMissionId.isNullOrBlank()) {
-                            scope.launch {
-                                val now = System.currentTimeMillis()
-                                if (mediaStorageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) {
-                                    mediaManager.registerPhotoCapture(
-                                        missionId = activeMissionId!!,
-                                        dronePath = "drone://photo/$now.jpg",
-                                        source = MissionMediaSource.DRONE_SD
-                                    )
-                                } else {
-                                    mediaManager.registerPhotoCapture(
-                                        missionId = activeMissionId!!,
-                                        localPath = "content://vantly/local/photo/$now.jpg",
-                                        source = MissionMediaSource.PHONE_LOCAL
-                                    )
-                                }
-                            }
+                missionStatus = activeMissionSession.status,
+                isDroneConnected = isDroneConnected,
+                onPlayClick = {
+                    scope.launch {
+                        val action = if (activeMissionSession.status == ActiveMissionStatus.PAUSED) {
+                            runCatching { missionManager.resumeMission() }
+                        } else {
+                            runCatching { missionManager.startMission() }
+                        }
+                        action.onSuccess {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
+                            val msg = if (activeMissionSession.status == ActiveMissionStatus.PAUSED) "Missão retomada" else "Missão iniciada"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }.onFailure {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                            Toast.makeText(
+                                context,
+                                "Erro na missão: ${it.message ?: "desconhecido"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                 },
-                onRecordClick = {
-                    if (isRecording) {
-                        droneController.stopRecording { success, message ->
-                            if (success) {
-                                isRecording = false
+                onPauseClick = {
+                    scope.launch {
+                        runCatching { missionManager.pauseMission() }
+                            .onSuccess {
+                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
+                                Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
                             }
-                            val text = if (success) "Gravação parada" else "Erro ao parar gravação: ${message ?: "desconhecido"}"
-                            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-                            if (success && !activeMissionId.isNullOrBlank()) {
-                                scope.launch {
-                                    val now = System.currentTimeMillis()
-                                    if (mediaStorageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) {
-                                        mediaManager.registerVideoCapture(
-                                            missionId = activeMissionId!!,
-                                            dronePath = "drone://video/$now.mp4",
-                                            source = MissionMediaSource.DRONE_SD
-                                        )
-                                    } else {
-                                        mediaManager.registerVideoCapture(
-                                            missionId = activeMissionId!!,
-                                            localPath = "content://vantly/local/video/$now.mp4",
-                                            source = MissionMediaSource.PHONE_LOCAL
-                                        )
-                                    }
-                                }
+                            .onFailure {
+                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                                Toast.makeText(
+                                    context,
+                                    "Erro ao pausar missão: ${it.message ?: "desconhecido"}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
-                        }
-                    } else {
-                        droneController.startRecording { success, message ->
-                            if (success) {
-                                isRecording = true
-                            }
-                            val text = if (success) "Gravação iniciada" else "Erro ao iniciar gravação: ${message ?: "desconhecido"}"
-                            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-                        }
                     }
                 },
-                onStreamToggle = {
-                    if (!isFeedAvailable) {
-                        Toast.makeText(context, "Conecte o drone para transmitir", Toast.LENGTH_SHORT).show()
-                        return@CameraControls
+                onStopClick = {
+                    scope.launch {
+                        runCatching { missionManager.stopMission() }
+                            .onSuccess {
+                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
+                                Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
+                            }
+                            .onFailure {
+                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                                Toast.makeText(
+                                    context,
+                                    "Erro ao parar missão: ${it.message ?: "desconhecido"}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                     }
-                    if (streamState is StreamState.Streaming || streamState is StreamState.Connecting) {
-                        rtmpStreamer.stop()
-                    } else {
-                        rtmpStreamer.start()
-                    }
-                },
-                onMissionToggle = {
-                    showMissionOverlay = !showMissionOverlay
-                },
-                onAiToggle = {
-                    showAiSheet = true
                 }
             )
         }
@@ -759,31 +905,112 @@ fun DroneCameraScreen(
             }
         }
 
-    }
-
-    if (showAiSheet) {
-        DetectionModelPickerSheet(
-            detectionEnabled = detectionEnabled,
-            selectedModelId = selectedDetectionModelId,
-            models = detectionModelOptions,
-            lastInferenceMs = lastInferenceMs,
-            lastError = previewCaptureError ?: lastDetectionError,
-            downloadProgress = downloadProgress,
-            onDismiss = { showAiSheet = false },
-            onDetectionEnabledChange = {
-                detectionEnabled = it
-                scope.launch {
-                    objectDetectionRepo.setDetectionEnabled(it)
+        // Menu flutuante expansível de ferramentas com navegação hierárquica por categorias
+        CameraToolsDrawer(
+            isOpen = isToolsDrawerOpen,
+            initialCategory = toolsInitialCategory,
+            onDismiss = { isToolsDrawerOpen = false },
+            activeMissionSession = activeMissionSession,
+            activeMissionId = activeMissionId,
+            missionListUiState = missionListUiState,
+            onRefreshMissions = { missionListViewModel.fetchMissions() },
+            showMissionOverlay = showMissionOverlay,
+            onToggleMissionOverlay = { showMissionOverlay = !showMissionOverlay },
+            onStartMission = {
+                if (isDroneConnected && activeMissionSession.hasMission &&
+                    activeMissionSession.status == ActiveMissionStatus.READY) scope.launch {
+                    runCatching { missionManager.startMission() }
+                        .onSuccess {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
+                            Toast.makeText(context, "Missão iniciada", Toast.LENGTH_SHORT).show()
+                        }
+                        .onFailure {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                            Toast.makeText(
+                                context,
+                                "Erro ao iniciar missão: ${it.message ?: "desconhecido"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                 }
             },
-            onModelSelected = {
-                selectedDetectionModelId = it
-                mlDetectionViewModel.selectModel(it)
-                scope.launch {
-                    objectDetectionRepo.setActiveModelId(it)
+            onPauseMission = {
+                if (isDroneConnected && activeMissionSession.hasMission &&
+                    activeMissionSession.status == ActiveMissionStatus.EXECUTING) scope.launch {
+                    runCatching { missionManager.pauseMission() }
+                        .onSuccess {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
+                            Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
+                        }
+                        .onFailure {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                            Toast.makeText(
+                                context,
+                                "Erro ao pausar missão: ${it.message ?: "desconhecido"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                 }
-            }
+            },
+            onStopMission = {
+                if (isDroneConnected && activeMissionSession.hasMission &&
+                    activeMissionSession.status in listOf(ActiveMissionStatus.EXECUTING, ActiveMissionStatus.PAUSED)) scope.launch {
+                    runCatching { missionManager.stopMission() }
+                        .onSuccess {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
+                            Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
+                        }
+                        .onFailure {
+                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                            Toast.makeText(
+                                context,
+                                "Erro ao parar missão: ${it.message ?: "desconhecido"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                }
+            },
+            detectionEnabled = detectionEnabled,
+            onToggleDetection = { enabled ->
+                detectionEnabled = enabled
+                scope.launch {
+                    objectDetectionRepo.setDetectionEnabled(enabled)
+                }
+            },
+            selectedModelId = selectedDetectionModelId,
+            onSelectModel = { modelId ->
+                selectedDetectionModelId = modelId
+                mlDetectionViewModel.selectModel(modelId)
+                scope.launch {
+                    objectDetectionRepo.setActiveModelId(modelId)
+                }
+            },
+            installedModels = availableModels,
+            lastInferenceMs = lastInferenceMs,
+            lastDetectionError = previewCaptureError ?: lastDetectionError,
+            remoteCatalog = remoteCatalog,
+            remoteCatalogLoading = remoteCatalogLoading,
+            downloadProgress = downloadProgress,
+            onDownloadModel = { entry ->
+                mlDetectionViewModel.downloadRemoteModel(entry.id)
+            },
+            isRecording = isRecording,
+            recordingDuration = formatDuration(recordingSeconds),
+            onTakePhotoClick = onTakePhoto,
+            onRecordClick = onToggleRecord,
+            storageTarget = mediaStorageTarget,
+            streamState = streamState,
+            onStreamToggle = onStreamToggle,
+            rtmpUrl = rtmpUrl,
+            onCellCameraClick = onCellCameraClick,
+            productName = product?.model?.displayName,
+            droneState = droneState,
+            telemetry = telemetry,
+            measurementSystem = measurementSystem,
+            weatherSummary = weatherSummary,
+            isFeedAvailable = isFeedAvailable
         )
+
     }
 
     DisposableEffect(Unit) {
@@ -792,6 +1019,1702 @@ fun DroneCameraScreen(
             droneController.stop()
             missionManager.destroy()
         }
+    }
+}
+
+
+@Composable
+private fun CameraToolsDrawer(
+    isOpen: Boolean,
+    initialCategory: ToolsMenuScreen,
+    onDismiss: () -> Unit,
+    activeMissionSession: ActiveMissionSession,
+    activeMissionId: String?,
+    missionListUiState: MissionListUiState,
+    onRefreshMissions: () -> Unit,
+    showMissionOverlay: Boolean,
+    onToggleMissionOverlay: () -> Unit,
+    onStartMission: () -> Unit,
+    onPauseMission: () -> Unit,
+    onStopMission: () -> Unit,
+    detectionEnabled: Boolean,
+    onToggleDetection: (Boolean) -> Unit,
+    selectedModelId: String?,
+    onSelectModel: (String) -> Unit,
+    installedModels: List<MLModel>,
+    lastInferenceMs: Long?,
+    lastDetectionError: String?,
+    remoteCatalog: List<ModelCatalogEntryDto>,
+    remoteCatalogLoading: Boolean,
+    downloadProgress: Float?,
+    onDownloadModel: (ModelCatalogEntryDto) -> Unit,
+    isRecording: Boolean,
+    recordingDuration: String,
+    onTakePhotoClick: () -> Unit,
+    onRecordClick: () -> Unit,
+    storageTarget: String,
+    streamState: StreamState,
+    onStreamToggle: () -> Unit,
+    rtmpUrl: String,
+    onCellCameraClick: () -> Unit,
+    productName: String?,
+    droneState: DroneState,
+    telemetry: DroneTelemetry,
+    measurementSystem: String,
+    weatherSummary: WeatherSummary?,
+    isFeedAvailable: Boolean
+) {
+    var currentScreen by remember { mutableStateOf<ToolsMenuScreen>(initialCategory) }
+
+    LaunchedEffect(isOpen, initialCategory) {
+        if (isOpen) {
+            currentScreen = initialCategory
+        }
+    }
+
+    BackHandler(enabled = isOpen) {
+        when (currentScreen) {
+            is ToolsMenuScreen.MissionDetails -> currentScreen = ToolsMenuScreen.Missions
+            ToolsMenuScreen.Home -> onDismiss()
+            else -> currentScreen = ToolsMenuScreen.Home
+        }
+    }
+
+    AnimatedVisibility(
+        visible = isOpen,
+        enter = fadeIn(animationSpec = tween(220)),
+        exit = fadeOut(animationSpec = tween(180))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.50f))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+        ) {
+            AnimatedVisibility(
+                visible = isOpen,
+                enter = slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                ),
+                exit = slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(220, easing = FastOutSlowInEasing)
+                ),
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(320.dp)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        ),
+                    shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                    color = Color(0xF5121212),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                    ) {
+                        // Header com navegação dinâmica
+                        val isSubmenu = currentScreen != ToolsMenuScreen.Home
+                        val titleText = when (currentScreen) {
+                            ToolsMenuScreen.Home -> "Ferramentas"
+                            ToolsMenuScreen.AI -> "Inteligência Artificial"
+                            ToolsMenuScreen.Missions -> "Missões de Voo"
+                            is ToolsMenuScreen.MissionDetails -> "Detalhes da Missão"
+                            ToolsMenuScreen.Capture -> "Captura e Mídia"
+                            ToolsMenuScreen.Streaming -> "Transmissão Ao Vivo"
+                            ToolsMenuScreen.PhoneCamera -> "Câmera do Celular"
+                            ToolsMenuScreen.Settings -> "Configurações"
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                if (isSubmenu) {
+                                    IconButton(
+                                        onClick = {
+                                            when (currentScreen) {
+                                                is ToolsMenuScreen.MissionDetails -> currentScreen = ToolsMenuScreen.Missions
+                                                else -> currentScreen = ToolsMenuScreen.Home
+                                            }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Voltar",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(Color.White.copy(alpha = 0.08f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Tune,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = titleText,
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Fechar menu",
+                                    tint = Color.White.copy(alpha = 0.65f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.fillMaxWidth(),
+                            thickness = 1.dp,
+                            color = Color.White.copy(alpha = 0.08f)
+                        )
+
+                        // Conteúdo com transição horizontal animada
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = {
+                                if (targetState == ToolsMenuScreen.Home) {
+                                    (slideInHorizontally { -it / 2 } + fadeIn(tween(180))) togetherWith
+                                        (slideOutHorizontally { it / 2 } + fadeOut(tween(180)))
+                                } else if (initialState == ToolsMenuScreen.Home) {
+                                    (slideInHorizontally { it / 2 } + fadeIn(tween(180))) togetherWith
+                                        (slideOutHorizontally { -it / 2 } + fadeOut(tween(180)))
+                                } else if (targetState is ToolsMenuScreen.MissionDetails) {
+                                    (slideInHorizontally { it / 2 } + fadeIn(tween(180))) togetherWith
+                                        (slideOutHorizontally { -it / 2 } + fadeOut(tween(180)))
+                                } else {
+                                    (slideInHorizontally { -it / 2 } + fadeIn(tween(180))) togetherWith
+                                        (slideOutHorizontally { it / 2 } + fadeOut(tween(180)))
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            label = "tools_content"
+                        ) { screen ->
+                            when (screen) {
+                                ToolsMenuScreen.Home -> ToolsHomeScreen(
+                                    activeMissionSession = activeMissionSession,
+                                    detectionEnabled = detectionEnabled,
+                                    selectedModelName = installedModels.firstOrNull { it.id == selectedModelId }?.name,
+                                    isRecording = isRecording,
+                                    streamState = streamState,
+                                    onSelectCategory = { currentScreen = it }
+                                )
+                                ToolsMenuScreen.AI -> ToolsAiScreen(
+                                    detectionEnabled = detectionEnabled,
+                                    onToggleDetection = onToggleDetection,
+                                    selectedModelId = selectedModelId,
+                                    onSelectModel = onSelectModel,
+                                    installedModels = installedModels,
+                                    lastInferenceMs = lastInferenceMs,
+                                    lastDetectionError = lastDetectionError,
+                                    remoteCatalog = remoteCatalog,
+                                    remoteCatalogLoading = remoteCatalogLoading,
+                                    downloadProgress = downloadProgress,
+                                    onDownloadModel = onDownloadModel
+                                )
+                                ToolsMenuScreen.Missions -> ToolsMissionsScreen(
+                                    activeMissionSession = activeMissionSession,
+                                    activeMissionId = activeMissionId,
+                                    missionListUiState = missionListUiState,
+                                    onRefreshMissions = onRefreshMissions,
+                                    showMissionOverlay = showMissionOverlay,
+                                    onToggleMissionOverlay = onToggleMissionOverlay,
+                                    onStartMission = onStartMission,
+                                    onPauseMission = onPauseMission,
+                                    onStopMission = onStopMission,
+                                    onSelectMission = { mission ->
+                                        currentScreen = ToolsMenuScreen.MissionDetails(mission)
+                                    }
+                                )
+                                is ToolsMenuScreen.MissionDetails -> ToolsMissionDetailsScreen(
+                                    mission = screen.mission,
+                                    activeMissionId = activeMissionId,
+                                    onLoadedSession = {
+                                        ActiveMissionSessionManager.startMissionSession(screen.mission.id.toString(), screen.mission.name)
+                                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.READY)
+                                    }
+                                )
+                                ToolsMenuScreen.Capture -> ToolsCaptureScreen(
+                                    isRecording = isRecording,
+                                    recordingDuration = recordingDuration,
+                                    onTakePhotoClick = onTakePhotoClick,
+                                    onRecordClick = onRecordClick,
+                                    storageTarget = storageTarget
+                                )
+                                ToolsMenuScreen.Streaming -> ToolsStreamingScreen(
+                                    streamState = streamState,
+                                    onStreamToggle = onStreamToggle,
+                                    rtmpUrl = rtmpUrl
+                                )
+                                ToolsMenuScreen.PhoneCamera -> ToolsPhoneCameraScreen(
+                                    onCellCameraClick = {
+                                        onDismiss()
+                                        onCellCameraClick()
+                                    }
+                                )
+                                ToolsMenuScreen.Settings -> ToolsSettingsScreen(
+                                    productName = productName,
+                                    droneState = droneState,
+                                    telemetry = telemetry,
+                                    storageTarget = storageTarget,
+                                    measurementSystem = measurementSystem,
+                                    weatherSummary = weatherSummary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsHomeScreen(
+    activeMissionSession: ActiveMissionSession,
+    detectionEnabled: Boolean,
+    selectedModelName: String?,
+    isRecording: Boolean,
+    streamState: StreamState,
+    onSelectCategory: (ToolsMenuScreen) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // A. Inteligência Artificial
+        ToolsCategoryRow(
+            icon = Icons.Default.Psychology,
+            title = "Inteligência Artificial",
+            subtitle = if (detectionEnabled) {
+                selectedModelName ?: "Detecção ativa"
+            } else {
+                "Pipeline YOLO inativo"
+            },
+            statusText = if (detectionEnabled) "ATIVO" else null,
+            statusColor = if (detectionEnabled) NeuralColors.Success else null,
+            onClick = { onSelectCategory(ToolsMenuScreen.AI) }
+        )
+
+        // B. Missões
+        ToolsCategoryRow(
+            icon = Icons.Default.Route,
+            title = "Missões de Voo",
+            subtitle = if (activeMissionSession.hasMission) {
+                activeMissionSession.missionName ?: "Missão carregada"
+            } else {
+                "Planejamento e rotas"
+            },
+            statusText = if (activeMissionSession.hasMission) "SESSÃO" else null,
+            statusColor = if (activeMissionSession.hasMission) NeuralColors.Success else null,
+            onClick = { onSelectCategory(ToolsMenuScreen.Missions) }
+        )
+
+        // C. Captura
+        ToolsCategoryRow(
+            icon = Icons.Default.CameraAlt,
+            title = "Captura e Mídia",
+            subtitle = if (isRecording) "Gravando vídeo agora..." else "Fotos e vídeos",
+            statusText = if (isRecording) "REC" else null,
+            statusColor = if (isRecording) NeuralColors.Danger else null,
+            onClick = { onSelectCategory(ToolsMenuScreen.Capture) }
+        )
+
+        // D. Transmissão
+        val isStreaming = streamState is StreamState.Streaming
+        ToolsCategoryRow(
+            icon = Icons.Default.WifiTethering,
+            title = "Transmissão Ao Vivo",
+            subtitle = if (isStreaming) "Transmitindo feed RTMP" else "Configurar transmissão",
+            statusText = if (isStreaming) "LIVE" else null,
+            statusColor = if (isStreaming) NeuralColors.Danger else null,
+            onClick = { onSelectCategory(ToolsMenuScreen.Streaming) }
+        )
+
+        // E. Câmera do Celular
+        ToolsCategoryRow(
+            icon = Icons.Default.Smartphone,
+            title = "Câmera do Smartphone",
+            subtitle = "Sensor óptico local (CameraX)",
+            statusText = null,
+            statusColor = null,
+            onClick = { onSelectCategory(ToolsMenuScreen.PhoneCamera) }
+        )
+
+        // F. Configurações
+        ToolsCategoryRow(
+            icon = Icons.Default.Settings,
+            title = "Configurações e Drone",
+            subtitle = "Aeronave, unidades e clima",
+            statusText = null,
+            statusColor = null,
+            onClick = { onSelectCategory(ToolsMenuScreen.Settings) }
+        )
+    }
+}
+
+@Composable
+private fun ToolsAiScreen(
+    detectionEnabled: Boolean,
+    onToggleDetection: (Boolean) -> Unit,
+    selectedModelId: String?,
+    onSelectModel: (String) -> Unit,
+    installedModels: List<MLModel>,
+    lastInferenceMs: Long?,
+    lastDetectionError: String?,
+    remoteCatalog: List<ModelCatalogEntryDto>,
+    remoteCatalogLoading: Boolean,
+    downloadProgress: Float?,
+    onDownloadModel: (ModelCatalogEntryDto) -> Unit
+) {
+    val activeModel = installedModels.firstOrNull { it.id == selectedModelId }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Switch Ativar / Desativar detecção
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, if (detectionEnabled) NeuralColors.Success.copy(alpha = 0.4f) else NeuralColors.Border)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Detecção em Tempo Real",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (detectionEnabled) "Pipeline YOLO ativo sobre o vídeo" else "Inferência desativada",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 11.sp
+                    )
+                }
+                Switch(
+                    checked = detectionEnabled,
+                    onCheckedChange = onToggleDetection,
+                    enabled = installedModels.isNotEmpty(),
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = NeuralColors.Success,
+                        uncheckedThumbColor = Color.White.copy(alpha = 0.5f),
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
+                    )
+                )
+            }
+        }
+
+        // Métricas de Desempenho e Modelo Ativo
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.SurfaceAlt,
+                border = BorderStroke(1.dp, NeuralColors.Border)
+            ) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Latência", color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp)
+                    val latencyColor = when {
+                        lastInferenceMs == null -> Color.White.copy(alpha = 0.6f)
+                        lastInferenceMs < 80L -> NeuralColors.Success
+                        lastInferenceMs < 200L -> NeuralColors.Warning
+                        else -> NeuralColors.Danger
+                    }
+                    Text(
+                        text = lastInferenceMs?.let { "${it} ms" } ?: "--",
+                        color = latencyColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Surface(
+                modifier = Modifier.weight(1.4f),
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.SurfaceAlt,
+                border = BorderStroke(1.dp, NeuralColors.Border)
+            ) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Modelo Ativo", color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp)
+                    Text(
+                        text = activeModel?.name ?: "Nenhum",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // Alerta de Erro se houver
+        if (!lastDetectionError.isNullOrBlank()) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.Danger.copy(alpha = 0.10f),
+                border = BorderStroke(1.dp, NeuralColors.Danger.copy(alpha = 0.30f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = NeuralColors.Danger, modifier = Modifier.size(15.dp))
+                    Text(
+                        text = lastDetectionError,
+                        color = NeuralColors.Danger,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // Seção: Modelos Instalados
+        DrawerSectionHeader(title = "MODELOS INSTALADOS (${installedModels.size})")
+
+        if (installedModels.isEmpty()) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color.White.copy(alpha = 0.04f),
+                border = BorderStroke(1.dp, NeuralColors.Border)
+            ) {
+                Text(
+                    text = "Nenhum modelo YOLO instalado localmente. Baixe um modelo abaixo.",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        } else {
+            installedModels.forEach { model ->
+                val isSelected = model.id == selectedModelId
+                Surface(
+                    onClick = { onSelectModel(model.id) },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isSelected) Color.White.copy(alpha = 0.08f) else NeuralColors.SurfaceAlt,
+                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.4f) else NeuralColors.Border)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(if (isSelected) NeuralColors.Success.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.05f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = NeuralColors.Success, modifier = Modifier.size(14.dp))
+                            } else {
+                                Box(modifier = Modifier.size(6.dp).background(Color.White.copy(alpha = 0.3f), CircleShape))
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = model.name,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (model.classes.isNotEmpty()) {
+                                Text(
+                                    text = model.classes.take(3).joinToString(", "),
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        if (isSelected) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = NeuralColors.Success.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "ATIVO",
+                                    color = NeuralColors.Success,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Seção: Catálogo Remoto
+        DrawerSectionHeader(title = "CATÁLOGO REMOTO")
+
+        if (downloadProgress != null) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.SurfaceAlt,
+                border = BorderStroke(1.dp, NeuralColors.Border)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Baixando modelo...", color = Color.White, fontSize = 11.sp)
+                        Text("${(downloadProgress * 100).toInt()}%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    LinearProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.15f)
+                    )
+                }
+            }
+        }
+
+        if (remoteCatalogLoading) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Carregando catálogo...", color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp)
+            }
+        } else if (remoteCatalog.isEmpty()) {
+            Text(
+                text = "Nenhum modelo adicional no catálogo remoto.",
+                color = Color.White.copy(alpha = 0.45f),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+        } else {
+            val uninstalled = remoteCatalog.filter { entry -> installedModels.none { it.id == entry.id } }
+            if (uninstalled.isEmpty()) {
+                Text(
+                    text = "Todos os modelos do catálogo já estão instalados.",
+                    color = Color.White.copy(alpha = 0.45f),
+                    fontSize = 11.sp
+                )
+            } else {
+                uninstalled.forEach { entry ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = NeuralColors.SurfaceAlt,
+                        border = BorderStroke(1.dp, NeuralColors.Border)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = entry.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                val sizeMb = String.format(java.util.Locale.US, "%.1f MB", entry.sizeBytes / (1024.0 * 1024.0))
+                                Text(
+                                    text = "$sizeMb • ${entry.classes.size} classes",
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 10.sp
+                                )
+                            }
+                            IconButton(
+                                onClick = { onDownloadModel(entry) },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color.White.copy(alpha = 0.10f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = "Baixar", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsMissionsScreen(
+    activeMissionSession: ActiveMissionSession,
+    activeMissionId: String?,
+    missionListUiState: MissionListUiState,
+    onRefreshMissions: () -> Unit,
+    showMissionOverlay: Boolean,
+    onToggleMissionOverlay: () -> Unit,
+    onStartMission: () -> Unit,
+    onPauseMission: () -> Unit,
+    onStopMission: () -> Unit,
+    onSelectMission: (Mission) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf(ToolsMissionFilter.ALL) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Card de Missão Ativa no Topo (se houver missão carregada)
+        if (activeMissionSession.hasMission) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = NeuralColors.SurfaceAlt,
+                border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.35f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("MISSÃO NA SESSÃO", color = NeuralColors.Success, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Text(
+                                text = activeMissionSession.missionName ?: "Missão Ativa",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        val (statusText, statusColor) = when (activeMissionSession.status) {
+                            ActiveMissionStatus.LOADING -> "Carregando" to NeuralColors.Warning
+                            ActiveMissionStatus.READY -> "Pronta" to NeuralColors.Success
+                            ActiveMissionStatus.EXECUTING -> "Executando" to Color(0xFF00C2FF)
+                            ActiveMissionStatus.PAUSED -> "Pausada" to NeuralColors.Warning
+                            ActiveMissionStatus.STOPPED -> "Parada" to NeuralColors.Danger
+                            ActiveMissionStatus.COMPLETED -> "Concluída" to NeuralColors.Success
+                            ActiveMissionStatus.ERROR -> "Erro" to NeuralColors.Danger
+                            ActiveMissionStatus.IDLE -> "Inativa" to Color.White.copy(alpha = 0.5f)
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = statusColor.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = statusText,
+                                color = statusColor,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    // Ações de Voo da Missão
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Button(
+                            onClick = onStartMission,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Success),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Iniciar", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onPauseMission,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Pause, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Pausar", color = Color.White, fontSize = 11.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = onStopMission,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, NeuralColors.Danger.copy(alpha = 0.4f)),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = NeuralColors.Danger, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Parar", color = NeuralColors.Danger, fontSize = 11.sp)
+                        }
+                    }
+
+                    // Switch sobreposição da câmera
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Exibir HUD na câmera", color = Color.White.copy(alpha = 0.65f), fontSize = 11.sp)
+                        Switch(
+                            checked = showMissionOverlay,
+                            onCheckedChange = { onToggleMissionOverlay() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = NeuralColors.Success,
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.5f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Campo de busca
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                androidx.compose.foundation.text.BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 8.dp),
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
+                    cursorBrush = Brush.verticalGradient(listOf(Color.White, Color.White)),
+                    decorationBox = { innerTextField ->
+                        if (searchQuery.isEmpty()) {
+                            Text("Pesquisar missão...", color = Color.White.copy(alpha = 0.35f), fontSize = 12.sp)
+                        }
+                        innerTextField()
+                    }
+                )
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Limpar", tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+
+        // Filtros Rápidos (Chips)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            ToolsMissionFilter.values().forEach { filter ->
+                val isSelected = selectedFilter == filter
+                Surface(
+                    onClick = { selectedFilter = filter },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) Color.White.copy(alpha = 0.15f) else Color.Transparent,
+                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.4f) else NeuralColors.Border)
+                ) {
+                    Text(
+                        text = filter.label,
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // Lista de Missões reais
+        DrawerSectionHeader(title = "CATÁLOGO DE MISSÕES")
+
+        when (missionListUiState) {
+            is MissionListUiState.Loading -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Carregando missões...", color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp)
+                }
+            }
+            is MissionListUiState.Error -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = missionListUiState.message,
+                        color = NeuralColors.Danger,
+                        fontSize = 11.sp
+                    )
+                    OutlinedButton(
+                        onClick = onRefreshMissions,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Recarregar", color = Color.White, fontSize = 11.sp)
+                    }
+                }
+            }
+            is MissionListUiState.Unauthorized -> {
+                Text("Autenticação necessária para sincronizar missões.", color = NeuralColors.Warning, fontSize = 11.sp)
+            }
+            is MissionListUiState.Idle -> {
+                OutlinedButton(
+                    onClick = onRefreshMissions,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Carregar missões", color = Color.White, fontSize = 11.sp)
+                }
+            }
+            is MissionListUiState.Success -> {
+                val allMissions = missionListUiState.missions
+                val filtered = allMissions.filter { mission ->
+                    val matchesQuery = mission.name.contains(searchQuery, ignoreCase = true)
+                    val matchesFilter = when (selectedFilter) {
+                        ToolsMissionFilter.ALL -> true
+                        ToolsMissionFilter.PLANNED -> mission.id.toString() != activeMissionId
+                        ToolsMissionFilter.IN_PROGRESS -> mission.id.toString() == activeMissionId
+                        ToolsMissionFilter.COMPLETED -> false
+                    }
+                    matchesQuery && matchesFilter
+                }
+
+                if (filtered.isEmpty()) {
+                    Text(
+                        text = if (searchQuery.isNotEmpty()) "Nenhuma missão corresponde à busca." else "Nenhuma missão encontrada.",
+                        color = Color.White.copy(alpha = 0.45f),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    filtered.forEach { mission ->
+                        val isCurrentActive = mission.id.toString() == activeMissionId
+                        Surface(
+                            onClick = { onSelectMission(mission) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isCurrentActive) NeuralColors.Success.copy(alpha = 0.08f) else NeuralColors.SurfaceAlt,
+                            border = BorderStroke(1.dp, if (isCurrentActive) NeuralColors.Success.copy(alpha = 0.35f) else NeuralColors.Border)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Color.White.copy(alpha = 0.06f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Route, contentDescription = null, tint = if (isCurrentActive) NeuralColors.Success else Color.White, modifier = Modifier.size(16.dp))
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = mission.name,
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${mission.waypointCount} pts • ${mission.altitude.toInt()}m • ${mission.autoSpeed.toInt()}m/s",
+                                        color = Color.White.copy(alpha = 0.45f),
+                                        fontSize = 10.sp
+                                    )
+                                }
+
+                                Icon(
+                                    Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.3f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsMissionDetailsScreen(
+    mission: Mission,
+    activeMissionId: String?,
+    onLoadedSession: () -> Unit
+) {
+    val context = LocalContext.current
+    val isAlreadyLoaded = mission.id.toString() == activeMissionId
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Card de Informações da Missão
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = mission.name,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color.White.copy(alpha = 0.10f)
+                    ) {
+                        Text(
+                            text = "ID #${mission.id}",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
+
+                InfoRow(label = "Waypoints", value = "${mission.waypointCount} pontos")
+                InfoRow(label = "Altitude Planejada", value = "${mission.altitude} m")
+                InfoRow(label = "Velocidade de Cruzeiro", value = "${mission.autoSpeed} m/s")
+                InfoRow(label = "Velocidade Máxima", value = "${mission.maxSpeed} m/s")
+                InfoRow(
+                    label = "Origem",
+                    value = String.format(java.util.Locale.US, "%.4f, %.4f", mission.latitude, mission.longitude)
+                )
+            }
+        }
+
+        // Ações Principais
+        Button(
+            onClick = {
+                val intent = Intent(context, MissionControlActivity::class.java).apply {
+                    putExtra("MISSION_ID", mission.id)
+                }
+                context.startActivity(intent)
+            },
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Primary),
+            contentPadding = PaddingValues(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Map, contentDescription = null, tint = NeuralColors.OnPrimary, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Abrir Mapa da Missão", color = NeuralColors.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+
+        OutlinedButton(
+            onClick = {
+                onLoadedSession()
+                Toast.makeText(context, "Missão '${mission.name}' preparada para o drone", Toast.LENGTH_SHORT).show()
+            },
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.dp, if (isAlreadyLoaded) NeuralColors.Success.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.25f)),
+            contentPadding = PaddingValues(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                if (isAlreadyLoaded) Icons.Default.CheckCircle else Icons.Default.FlightTakeoff,
+                contentDescription = null,
+                tint = if (isAlreadyLoaded) NeuralColors.Success else Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isAlreadyLoaded) "Missão Pronta na Sessão" else "Carregar / Preparar no Drone",
+                color = if (isAlreadyLoaded) NeuralColors.Success else Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color.White.copy(alpha = 0.04f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(15.dp))
+                Text(
+                    text = "Ao carregar a missão, seus waypoints e limites são enviados para a sessão operacional da aeronave, permitindo execução direta ou acompanhamento pelo minimapa.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsCaptureScreen(
+    isRecording: Boolean,
+    recordingDuration: String,
+    onTakePhotoClick: () -> Unit,
+    onRecordClick: () -> Unit,
+    storageTarget: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        DrawerSectionHeader(title = "DISPARO MANUAL")
+
+        // Botão de Captura de Foto
+        Surface(
+            onClick = onTakePhotoClick,
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color.White.copy(alpha = 0.08f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Capturar Foto", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Salvar snapshot em alta resolução", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                }
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(16.dp))
+            }
+        }
+
+        // Botão de Gravação de Vídeo
+        Surface(
+            onClick = onRecordClick,
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, if (isRecording) NeuralColors.Danger.copy(alpha = 0.5f) else NeuralColors.Border)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(if (isRecording) NeuralColors.Danger.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (isRecording) Icons.Default.StopCircle else Icons.Default.Videocam,
+                        contentDescription = null,
+                        tint = if (isRecording) NeuralColors.Danger else Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isRecording) "Gravando Vídeo" else "Gravação de Vídeo",
+                        color = if (isRecording) NeuralColors.Danger else Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (isRecording) "Tempo: $recordingDuration" else "Iniciar registro contínuo",
+                        color = if (isRecording) NeuralColors.Danger.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.5f),
+                        fontSize = 11.sp
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isRecording) NeuralColors.Danger.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.10f)
+                ) {
+                    Text(
+                        text = if (isRecording) "PARAR" else "GRAVAR",
+                        color = if (isRecording) NeuralColors.Danger else Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        DrawerSectionHeader(title = "ARMAZENAMENTO")
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoRow(
+                    label = "Destino Selecionado",
+                    value = if (storageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) "SD Card do Drone" else "Armazenamento do Celular"
+                )
+                InfoRow(label = "Modo de Gravação", value = "H.264 / MP4")
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color.White.copy(alpha = 0.04f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(15.dp))
+                Text(
+                    text = "Fotos e vídeos capturados durante uma missão são automaticamente indexados ao relatório pós-voo para download ou visualização.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsStreamingScreen(
+    streamState: StreamState,
+    onStreamToggle: () -> Unit,
+    rtmpUrl: String
+) {
+    val isStreaming = streamState is StreamState.Streaming
+    val isConnecting = streamState is StreamState.Connecting
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        DrawerSectionHeader(title = "STATUS DO SERVIÇO")
+
+        // Status Card
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, if (isStreaming) NeuralColors.Danger.copy(alpha = 0.4f) else NeuralColors.Border)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Transmissão RTMP", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    val (badgeText, badgeColor) = when {
+                        isStreaming -> "AO VIVO" to NeuralColors.Danger
+                        isConnecting -> "CONECTANDO" to NeuralColors.Warning
+                        else -> "INATIVO" to Color.White.copy(alpha = 0.4f)
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = badgeColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = badgeColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onStreamToggle,
+                    enabled = !isConnecting,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isStreaming) NeuralColors.Danger else NeuralColors.Primary
+                    ),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        if (isStreaming) Icons.Default.StopCircle else Icons.Default.WifiTethering,
+                        contentDescription = null,
+                        tint = if (isStreaming) Color.White else NeuralColors.OnPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when {
+                            isStreaming -> "Encerrar Transmissão"
+                            isConnecting -> "Conectando..."
+                            else -> "Iniciar Transmissão RTMP"
+                        },
+                        color = if (isStreaming) Color.White else NeuralColors.OnPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        DrawerSectionHeader(title = "ENDPOINT CONFIGURADO")
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Servidor RTMP", color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp)
+                Text(
+                    text = rtmpUrl.ifBlank { "rtmp://vantly.cloud:1935/live/drone" },
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color.White.copy(alpha = 0.04f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(15.dp))
+                Text(
+                    text = "Aviso: Durante transmissões ao vivo com alta taxa de bits, o preview local de vídeo pode ser suspenso temporariamente para garantir a integridade da transmissão e economia de processamento da controladora.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsPhoneCameraScreen(
+    onCellCameraClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        DrawerSectionHeader(title = "SENSOR ÓPTICO DO SMARTPHONE")
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color.White.copy(alpha = 0.08f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.FlipCameraAndroid, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Câmera Integrada", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Pipeline CameraX nativo", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
+
+                InfoRow(label = "Compatibilidade", value = "CameraX 1.4+")
+                InfoRow(label = "Sensores", value = "Traseira / Frontal")
+                InfoRow(label = "Uso Recomendado", value = "Solo / Contingência")
+            }
+        }
+
+        Button(
+            onClick = onCellCameraClick,
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Primary),
+            contentPadding = PaddingValues(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Camera, contentDescription = null, tint = NeuralColors.OnPrimary, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Alternar para Câmera do Celular", color = NeuralColors.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color.White.copy(alpha = 0.04f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(15.dp))
+                Text(
+                    text = "A câmera do smartphone opera em modo independente, permitindo validação visual preliminar da área de pouso ou registro mesmo sem comunicação com a aeronave.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolsSettingsScreen(
+    productName: String?,
+    droneState: DroneState,
+    telemetry: DroneTelemetry,
+    storageTarget: String,
+    measurementSystem: String,
+    weatherSummary: WeatherSummary?
+) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        DrawerSectionHeader(title = "AERONAVE & TELEMETRIA")
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoRow(label = "Modelo", value = productName ?: "Não conectada")
+                InfoRow(label = "Estado de Voo", value = droneState.name)
+                InfoRow(label = "Bateria da Aeronave", value = "${telemetry.batteryLevel}%")
+                InfoRow(label = "Satélites GPS", value = "${telemetry.gpsSatellites}")
+            }
+        }
+
+        DrawerSectionHeader(title = "PREFERÊNCIAS OPERACIONAIS")
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = NeuralColors.SurfaceAlt,
+            border = BorderStroke(1.dp, NeuralColors.Border)
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoRow(
+                    label = "Destino de Mídia",
+                    value = if (storageTarget == MediaStorageSettingsRepository.TARGET_DRONE_SD) "SD Card do Drone" else "Armazenamento do Celular"
+                )
+                InfoRow(
+                    label = "Sistema de Medidas",
+                    value = if (measurementSystem == MeasurementSettingsRepository.SYSTEM_IMPERIAL) "Imperial (ft, mph)" else "Métrico (m, km/h)"
+                )
+            }
+        }
+
+        weatherSummary?.let { summary ->
+            DrawerSectionHeader(title = "CONDIÇÃO CLIMÁTICA")
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = NeuralColors.SurfaceAlt,
+                border = BorderStroke(1.dp, NeuralColors.Border)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val statusText = when (summary.decision.level) {
+                        WeatherSafetyLevel.SAFE -> "Favorável para Voo"
+                        WeatherSafetyLevel.CAUTION -> "Atenção Operacional"
+                        WeatherSafetyLevel.NO_FLY -> "Desfavorável (Não Decolar)"
+                    }
+                    InfoRow(label = "Segurança", value = statusText)
+                    val windSpeed = MeasurementConverter.formatSpeed(
+                        (summary.snapshot.windSpeedMs ?: 0.0).toFloat(),
+                        measurementSystem
+                    )
+                    InfoRow(label = "Vento", value = windSpeed)
+                }
+            }
+        }
+
+        DrawerSectionHeader(title = "ATALHOS")
+
+        OutlinedButton(
+            onClick = {
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                context.startActivity(intent)
+            },
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Configurações do Aplicativo", color = Color.White, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun ToolsCategoryRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    statusText: String?,
+    statusColor: Color?,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = NeuralColors.SurfaceAlt,
+        border = BorderStroke(1.dp, NeuralColors.Border)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(Color.White.copy(alpha = 0.06f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (statusText != null && statusColor != null) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = statusColor.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = statusText,
+                        color = statusColor,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            } else {
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerSectionHeader(title: String) {
+    Text(
+        text = title,
+        color = Color.White.copy(alpha = 0.38f),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.1.sp,
+        modifier = Modifier.padding(start = 2.dp, top = 2.dp)
+    )
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+        Text(text = value, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -862,145 +2785,130 @@ private fun MissionPanelToggleButton(
 }
 
 @Composable
-private fun MissionExecutionOverlay(
-    missionName: String,
+private fun MinimalistMissionControls(
+    hasMission: Boolean,
     missionStatus: ActiveMissionStatus,
-    onStartClick: () -> Unit,
+    isDroneConnected: Boolean,
+    onPlayClick: () -> Unit,
     onPauseClick: () -> Unit,
-    onStopClick: () -> Unit
+    onStopClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val (statusLabel, statusColor) = when (missionStatus) {
-        ActiveMissionStatus.LOADING   -> "Carregando"     to Color(0xFFFFC857)
-        ActiveMissionStatus.READY     -> "Pronta"         to Color(0xFF00E5A0)
-        ActiveMissionStatus.EXECUTING -> "Em execução"    to Color(0xFF00C2FF)
-        ActiveMissionStatus.PAUSED    -> "Pausada"        to Color(0xFFFFC857)
-        ActiveMissionStatus.STOPPED   -> "Interrompida"   to Color(0xFFFF6B6B)
-        ActiveMissionStatus.COMPLETED -> "Concluída"      to Color(0xFF00E5A0)
-        ActiveMissionStatus.ERROR     -> "Falha"          to Color(0xFFFF6B6B)
-        ActiveMissionStatus.IDLE      -> "Aguardando"     to Color.White.copy(alpha = 0.5f)
-    }
+    val canPlay = isDroneConnected && hasMission && (missionStatus == ActiveMissionStatus.READY || missionStatus == ActiveMissionStatus.PAUSED)
+    val canPause = isDroneConnected && hasMission && (missionStatus == ActiveMissionStatus.EXECUTING)
+    val canStop = isDroneConnected && hasMission && (missionStatus == ActiveMissionStatus.EXECUTING || missionStatus == ActiveMissionStatus.PAUSED || missionStatus == ActiveMissionStatus.LOADING)
 
-    val isPulsing = missionStatus == ActiveMissionStatus.EXECUTING
-    val infiniteTransition = rememberInfiniteTransition(label = "mission_pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
+    val isExecuting = missionStatus == ActiveMissionStatus.EXECUTING
+    val isPaused = missionStatus == ActiveMissionStatus.PAUSED
 
-    Surface(
-        color = Color(0xFF080F1C).copy(alpha = 0.82f),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.28f))
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .width(192.dp)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .background(
-                            color = statusColor.copy(alpha = if (isPulsing) pulseAlpha else 0.9f),
-                            shape = CircleShape
-                        )
-                )
-                Text(
-                    text = missionName,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
+        // Indicação sutil se houver missão mas o drone estiver desconectado ou em execução
+        if (hasMission && !isDroneConnected) {
             Surface(
-                color = statusColor.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(4.dp),
+                color = Color.Black.copy(alpha = 0.55f)
             ) {
                 Text(
-                    text = statusLabel,
-                    color = statusColor,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    text = "Aguardando conexão",
+                    color = NeuralColors.Warning.copy(alpha = 0.9f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                when (missionStatus) {
-                    ActiveMissionStatus.READY,
-                    ActiveMissionStatus.PAUSED,
-                    ActiveMissionStatus.STOPPED -> {
-                        MissionOverlayButton(
-                            icon = Icons.Default.PlayArrow,
-                            accent = Color(0xFF00E5A0),
-                            modifier = Modifier.weight(1f),
-                            onClick = onStartClick
-                        )
-                    }
-                    ActiveMissionStatus.EXECUTING -> {
-                        MissionOverlayButton(
-                            icon = Icons.Default.Pause,
-                            accent = Color(0xFFFFC857),
-                            modifier = Modifier.weight(1f),
-                            onClick = onPauseClick
-                        )
-                    }
-                    else -> Unit
-                }
-
-                if (missionStatus == ActiveMissionStatus.EXECUTING ||
-                    missionStatus == ActiveMissionStatus.PAUSED
-                ) {
-                    MissionOverlayButton(
-                        icon = Icons.Default.Stop,
-                        accent = Color(0xFFFF6B6B),
-                        modifier = if (missionStatus == ActiveMissionStatus.EXECUTING ||
-                            missionStatus == ActiveMissionStatus.PAUSED
-                        ) Modifier.weight(1f) else Modifier,
-                        onClick = onStopClick
-                    )
-                }
+        } else if (hasMission && isExecuting) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = Color.Black.copy(alpha = 0.55f)
+            ) {
+                Text(
+                    text = "Missão em execução",
+                    color = NeuralColors.Success,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
+        } else if (hasMission && isPaused) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = Color.Black.copy(alpha = 0.55f)
+            ) {
+                Text(
+                    text = "Missão pausada",
+                    color = NeuralColors.Warning,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Play (Iniciar / Retomar)
+            MissionActionButton(
+                icon = Icons.Default.PlayArrow,
+                contentDescription = if (isPaused) "Retomar missão" else "Iniciar missão",
+                enabled = canPlay,
+                activeColor = NeuralColors.Success,
+                onClick = onPlayClick
+            )
+
+            // Pause
+            MissionActionButton(
+                icon = Icons.Default.Pause,
+                contentDescription = "Pausar missão",
+                enabled = canPause,
+                activeColor = NeuralColors.Warning,
+                onClick = onPauseClick
+            )
+
+            // Stop
+            MissionActionButton(
+                icon = Icons.Default.Stop,
+                contentDescription = "Parar missão",
+                enabled = canStop,
+                activeColor = NeuralColors.Danger,
+                onClick = onStopClick
+            )
         }
     }
 }
 
 @Composable
-private fun MissionOverlayButton(
+private fun MissionActionButton(
     icon: ImageVector,
-    accent: Color,
-    modifier: Modifier = Modifier,
+    contentDescription: String,
+    enabled: Boolean,
+    activeColor: Color,
     onClick: () -> Unit
 ) {
+    val tint = if (enabled) activeColor else Color.White.copy(alpha = 0.25f)
+    val bgColor = if (enabled) Color.Black.copy(alpha = 0.65f) else Color.Black.copy(alpha = 0.35f)
+    val borderColor = if (enabled) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
+
     Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = accent.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+        onClick = { if (enabled) onClick() },
+        enabled = enabled,
+        shape = CircleShape,
+        color = bgColor,
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier.size(38.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -1009,77 +2917,91 @@ private fun MissionOverlayButton(
 fun CompactHeader(
     droneState: DroneState,
     batteryLevel: Int,
+    missionName: String?,
+    weatherSummary: WeatherSummary?,
+    measurementSystem: String,
+    selectedModelName: String?,
     onBackClick: () -> Unit,
-    onToggleControls: () -> Unit
+    onToggleControls: () -> Unit,
+    isFeedAvailable: Boolean = true
 ) {
-    val statusText = when (droneState) {
-        DroneState.ON_GROUND -> "Pronto"
-        DroneState.IN_AIR -> "No ar"
-        DroneState.TAKING_OFF -> "Decolando"
-        DroneState.LANDING -> "Pousando"
-        DroneState.DISCONNECTED -> "Desconectado"
-        DroneState.EMERGENCY_STOP -> "Emergência"
-        DroneState.GOING_HOME -> "Retornando"
-        DroneState.ERROR -> "Erro"
+    BoxWithConstraints(Modifier.fillMaxWidth().statusBarsPadding()
+        .padding(horizontal = 10.dp, vertical = 7.dp)) {
+        val compact = maxWidth < 700.dp
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Surface(onClick = onBackClick, shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.DashboardCard.copy(alpha = 0.92f),
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.White,
+                        modifier = Modifier.size(18.dp))
+                }
+            }
+            if (!missionName.isNullOrBlank()) {
+                HudChip {
+                    Icon(Icons.Default.Route, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
+                    Text("Missão: $missionName", color = Color.White, fontSize = 11.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = if (compact) 105.dp else 155.dp))
+                }
+            }
+            if (!compact && weatherSummary != null) {
+                HudChip {
+                    Icon(Icons.Default.WbSunny, null, tint = when (weatherSummary.decision.level) {
+                        WeatherSafetyLevel.SAFE -> NeuralColors.Success
+                        WeatherSafetyLevel.CAUTION -> NeuralColors.Warning
+                        WeatherSafetyLevel.NO_FLY -> NeuralColors.Danger
+                    }, modifier = Modifier.size(14.dp))
+                    weatherSummary.snapshot.windSpeedMs?.let { speed ->
+                        Text(MeasurementConverter.formatSpeed(speed.toFloat(), measurementSystem),
+                            color = Color.White, fontSize = 11.sp)
+                    }
+                    Text(weatherSummary.decision.shortMessage,
+                        color = NeuralColors.DashboardTextSecondary, fontSize = 10.sp,
+                        maxLines = 1, modifier = Modifier.widthIn(max = 130.dp))
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            HudChip {
+                Box(Modifier.size(7.dp).background(
+                    if (isFeedAvailable) NeuralColors.Success else NeuralColors.Warning, CircleShape))
+                Text(if (isFeedAvailable) "Conectado" else "Desconectado", color = Color.White,
+                    fontSize = 11.sp, maxLines = 1)
+            }
+            Spacer(Modifier.weight(1f))
+            HudChip {
+                Icon(Icons.Default.BatteryFull, null, tint = NeuralColors.DashboardTextSecondary,
+                    modifier = Modifier.size(14.dp))
+                Text(if (isFeedAvailable && batteryLevel > 0) "$batteryLevel%" else "--%",
+                    color = Color.White, fontSize = 11.sp)
+            }
+            if (!compact && !selectedModelName.isNullOrBlank()) {
+                HudChip {
+                    Icon(Icons.Default.Memory, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
+                    Text(selectedModelName, color = Color.White, fontSize = 11.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 118.dp))
+                }
+            }
+            Surface(onClick = onToggleControls, shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.DashboardCard.copy(alpha = 0.92f),
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Tune, "Ferramentas", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
     }
-    val colorScheme = MaterialTheme.colorScheme
-    val safeBattery = batteryLevel.coerceIn(0, 100)
-    val batteryColor = when {
-        safeBattery > 50 -> colorScheme.secondary
-        safeBattery > 20 -> colorScheme.tertiary
-        else -> colorScheme.error
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Transparent)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(
-            onClick = onBackClick,
-            modifier = Modifier
-                .size(40.dp)
-                .background(Color.Black.copy(alpha = 0.25f), CircleShape)
-        ) {
-            Icon(
-                Icons.Default.ArrowBack,
-                contentDescription = "Voltar",
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+}
 
-        Text(
-            text = statusText,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "${safeBattery}%",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Icon(Icons.Default.BatteryFull, null, tint = batteryColor, modifier = Modifier.size(18.dp))
-        }
-        IconButton(
-            onClick = onToggleControls,
-            modifier = Modifier
-                .size(40.dp)
-                .background(Color.Black.copy(alpha = 0.25f), CircleShape)
-        ) {
-            Icon(
-                Icons.Default.Tune,
-                contentDescription = "Controles",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
-        }
+@Composable
+private fun HudChip(content: @Composable RowScope.() -> Unit) {
+    Surface(shape = RoundedCornerShape(9.dp), color = NeuralColors.DashboardCard.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+        Row(Modifier.heightIn(min = 36.dp).padding(horizontal = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp), content = content)
     }
 }
 
@@ -1097,44 +3019,80 @@ fun CameraControls(
     onMissionToggle: () -> Unit,
     onAiToggle: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-    val buttonGray = colorScheme.onSurfaceVariant
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Botão Foto
         CompactControlButton(
             icon = Icons.Default.CameraAlt,
             onClick = onTakePhotoClick,
             enabled = true,
-            color = buttonGray
+            color = Color.White,
+            size = 40.dp
         )
-        SmallStreamingButton(
-            streamState = streamState,
-            onToggle = onStreamToggle,
-            color = buttonGray
-        )
+
+        // Botão Vídeo / Gravação
         CompactControlButton(
             icon = Icons.Default.Videocam,
             onClick = onRecordClick,
             enabled = true,
-            color = if (isRecording) colorScheme.error else buttonGray
+            color = if (isRecording) NeuralColors.Danger else Color.White,
+            size = 40.dp
         )
-        CompactControlButton(
-            icon = Icons.Default.PhoneAndroid,
-            onClick = onCellCameraClick,
-            enabled = true,
-            color = buttonGray
-        )
+
+        // Botão IA
         AiPanelButton(
             enabled = detectionEnabled,
             onClick = onAiToggle
         )
+
+        // Botão Streaming
+        SmallStreamingButton(
+            streamState = streamState,
+            onToggle = onStreamToggle,
+            color = Color.White
+        )
+
+        // Botão Câmera Celular
+        CompactControlButton(
+            icon = Icons.Default.PhoneAndroid,
+            onClick = onCellCameraClick,
+            enabled = true,
+            color = Color.White.copy(alpha = 0.85f),
+            size = 36.dp
+        )
+
+        // Botão Missão
         MissionPanelToggleButton(
             expanded = missionExpanded,
             hasMission = hasMission,
             onClick = onMissionToggle
         )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Shutter Trigger Button (Grande botão circular vermelho estilo DJI)
+        Surface(
+            onClick = {
+                if (isRecording) onRecordClick() else onTakePhotoClick()
+            },
+            shape = CircleShape,
+            color = if (isRecording) NeuralColors.Danger else Color.White.copy(alpha = 0.15f),
+            border = BorderStroke(2.dp, if (isRecording) Color.White else NeuralColors.Danger),
+            modifier = Modifier.size(50.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(if (isRecording) 18.dp else 38.dp)
+                        .background(
+                            if (isRecording) Color.White else NeuralColors.Danger,
+                            if (isRecording) RoundedCornerShape(4.dp) else CircleShape
+                        )
+                )
+            }
+        }
     }
 }
 
@@ -1213,28 +3171,39 @@ private fun PersonDetectionOverlay(
 @Composable
 fun TelemetryHudStrip(
     telemetry: DroneTelemetry,
-    measurementSystem: String
+    measurementSystem: String,
+    isConnected: Boolean = true,
+    compact: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .background(Color.Black.copy(alpha = 0.34f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Black.copy(alpha = 0.60f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
     ) {
-        HudMetric(
-            icon = Icons.Default.Height,
-            value = MeasurementConverter.formatAltitude(telemetry.altitude, measurementSystem)
-        )
-        HudMetric(
-            icon = Icons.Default.Speed,
-            value = MeasurementConverter.formatSpeed(telemetry.speed, measurementSystem)
-        )
-        HudMetric(
-            icon = Icons.Default.TripOrigin,
-            value = MeasurementConverter.formatDistance(telemetry.distanceFromHome, measurementSystem)
-        )
-        HudMetric(icon = Icons.Default.GpsFixed, value = "${telemetry.gpsSatellites}")
+        Row(
+            modifier = Modifier.padding(horizontal = if (compact) 8.dp else 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HudMetric(
+                label = "A",
+                value = if (isConnected) MeasurementConverter.formatAltitude(telemetry.altitude, measurementSystem) else "--"
+            )
+            HudMetric(
+                label = "D",
+                value = if (isConnected) MeasurementConverter.formatDistance(telemetry.distanceFromHome, measurementSystem) else "--"
+            )
+            HudMetric(
+                label = "V",
+                value = if (isConnected) MeasurementConverter.formatSpeed(telemetry.speed, measurementSystem) else "--"
+            )
+            HudMetric(
+                label = "GPS",
+                value = if (isConnected && telemetry.gpsSatellites > 0) "${telemetry.gpsSatellites}" else "--"
+            )
+        }
     }
 }
 
@@ -1279,317 +3248,26 @@ fun WeatherCompactBadge(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DetectionModelPickerSheet(
-    detectionEnabled: Boolean,
-    selectedModelId: String,
-    models: List<DetectionModelOption>,
-    lastInferenceMs: Long?,
-    lastError: String?,
-    downloadProgress: Float?,
-    onDismiss: () -> Unit,
-    onDetectionEnabledChange: (Boolean) -> Unit,
-    onModelSelected: (String) -> Unit
-) {
-    val selectedModel = models.firstOrNull { it.id == selectedModelId }
-    val canEnableDetection = selectedModel?.installed == true
-
-    val AiBlue   = Color(0xFF00C2FF)
-    val AiGreen  = Color(0xFF00E5A0)
-    val AiAmber  = Color(0xFFFFC857)
-    val AiRed    = Color(0xFFFF6B6B)
-    val SheetBg  = Color(0xFF070E1B)
-    val CardBg   = Color(0xFF0C1626)
-    val Divider  = Color.White.copy(alpha = 0.07f)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = SheetBg,
-        contentColor = Color.White,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .size(width = 36.dp, height = 3.dp)
-                    .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(2.dp))
-            )
-        }
+fun HudMetric(label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = AiBlue.copy(alpha = 0.12f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Psychology,
-                        contentDescription = null,
-                        tint = AiBlue,
-                        modifier = Modifier
-                            .padding(8.dp)
-                            .size(18.dp)
-                    )
-                }
-                Column {
-                    Text(
-                        text = "Detecção de objetos",
-                        color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Pipeline YOLO em tempo real",
-                        color = Color.White.copy(alpha = 0.45f),
-                        fontSize = 11.sp
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Switch(
-                    checked = detectionEnabled,
-                    onCheckedChange = onDetectionEnabledChange,
-                    enabled = canEnableDetection,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = AiBlue,
-                        uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
-                        uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
-                    )
-                )
-            }
-
-            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Divider))
-
-            // Status / telemetry row
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = CardBg,
-                border = BorderStroke(1.dp, Divider)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AiMetricChip(
-                            label = "Modelo",
-                            value = selectedModel?.name ?: "—",
-                            modifier = Modifier.weight(1f)
-                        )
-                        AiMetricChip(
-                            label = "Latência",
-                            value = lastInferenceMs?.let { "${it} ms" } ?: "—",
-                            valueColor = when {
-                                lastInferenceMs == null -> Color.White.copy(alpha = 0.7f)
-                                lastInferenceMs < 80   -> AiGreen
-                                lastInferenceMs < 200  -> AiAmber
-                                else                   -> AiRed
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    if (downloadProgress != null) {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Baixando modelo...",
-                                    color = AiBlue,
-                                    fontSize = 11.sp
-                                )
-                                Text(
-                                    text = "${(downloadProgress * 100).toInt()}%",
-                                    color = AiBlue,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            LinearProgressIndicator(
-                                progress = { downloadProgress },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = AiBlue,
-                                trackColor = AiBlue.copy(alpha = 0.15f)
-                            )
-                        }
-                    }
-
-                    if (!lastError.isNullOrBlank()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = AiAmber,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = lastError,
-                                color = AiAmber,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (!canEnableDetection && models.isEmpty()) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = AiAmber.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, AiAmber.copy(alpha = 0.20f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = AiAmber, modifier = Modifier.size(16.dp))
-                        Text(
-                            text = "Nenhum modelo YOLO disponível. Embarque um modelo no APK ou baixe via servidor.",
-                            color = AiAmber.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
-                        )
-                    }
-                }
-            }
-
-            // Model list
-            if (models.isNotEmpty()) {
-                Text(
-                    text = "MODELOS INSTALADOS",
-                    color = Color.White.copy(alpha = 0.38f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp
-                )
-                models.forEach { model ->
-                    val isSelected = selectedModelId == model.id
-                    val accent = if (isSelected) AiBlue else Color.White.copy(alpha = 0.10f)
-
-                    Surface(
-                        onClick = { if (model.installed) onModelSelected(model.id) },
-                        enabled = model.installed,
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) AiBlue.copy(alpha = 0.06f) else CardBg,
-                        border = BorderStroke(1.dp, accent)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            if (isSelected) {
-                                Surface(shape = CircleShape, color = AiBlue.copy(alpha = 0.12f)) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = AiBlue,
-                                        modifier = Modifier.padding(6.dp).size(16.dp)
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .background(Color.White.copy(alpha = 0.06f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .background(Color.White.copy(alpha = 0.25f), CircleShape)
-                                    )
-                                }
-                            }
-
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = model.name,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = model.classes,
-                                    color = Color.White.copy(alpha = 0.50f),
-                                    fontSize = 11.sp
-                                )
-                            }
-
-                            if (isSelected) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = AiBlue.copy(alpha = 0.16f)
-                                ) {
-                                    Text(
-                                        text = "ATIVO",
-                                        color = AiBlue,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.8.sp,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AiMetricChip(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    valueColor: Color = Color.White.copy(alpha = 0.85f)
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = Color.White.copy(alpha = 0.04f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Text(label, color = Color.White.copy(alpha = 0.40f), fontSize = 10.sp)
-            Text(value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
+        Text(
+            text = value,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
     }
 }
 
@@ -1748,23 +3426,21 @@ fun CompactControlButton(
     onClick: () -> Unit,
     enabled: Boolean,
     color: Color,
-    size: Dp = 36.dp
+    size: Dp = 38.dp
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     Surface(
         onClick = { if (enabled) onClick() },
         shape = CircleShape,
-        color = if (enabled) color.copy(alpha = 0.2f) else colorScheme.surfaceVariant.copy(alpha = 0.2f),
-        border = BorderStroke(1.dp, if (enabled) color.copy(alpha = 0.5f) else colorScheme.outline.copy(alpha = 0.3f)),
-        modifier = Modifier.size(size),
-        shadowElevation = if(enabled) 4.dp else 0.dp
+        color = Color.Black.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+        modifier = Modifier.size(size)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (enabled) color else colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(size * 0.5f)
+                tint = if (enabled) color else Color.White.copy(alpha = 0.3f),
+                modifier = Modifier.size(size * 0.48f)
             )
         }
     }

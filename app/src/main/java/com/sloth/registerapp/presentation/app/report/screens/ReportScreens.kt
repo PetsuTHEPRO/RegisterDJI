@@ -36,15 +36,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
+import com.sloth.registerapp.presentation.shared.components.EmptyStateView
+import com.sloth.registerapp.presentation.shared.components.PrimaryActionButton
+import com.sloth.registerapp.presentation.shared.components.VantlyFilterChip
+import com.sloth.registerapp.presentation.shared.components.VantlySearchField
+import com.sloth.registerapp.presentation.shared.components.VantlyTopBar
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -206,27 +214,22 @@ fun ReportScreen(
             .fillMaxSize()
             .background(ReportBg)
     ) {
-        ReportGridBackground()
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
                 ReportTopBar(
-                    title = "Relatórios de Missão",
-                    subtitle = "Visão consolidada das execuções registradas",
                     onBackClick = onBackClick
                 )
             }
 
             item {
-                NeuralInput(
+                VantlySearchField(
                     value = query,
-                    onValueChange = { query = it },
-                    label = "Buscar missão, data ou drone",
-                    leadingIcon = Icons.Default.Search
+                    onValueChange = { newQuery -> query = newQuery },
+                    placeholder = "Buscar missão, data ou drone..."
                 )
             }
 
@@ -239,11 +242,13 @@ fun ReportScreen(
 
             if (filteredMissions.isEmpty()) {
                 item {
-                    EmptyReportCard(
-                        message = if (missions.isEmpty()) {
-                            "Nenhum relatório disponível ainda."
+                    EmptyStateView(
+                        icon = Icons.Default.Description,
+                        title = "Nenhum relatório",
+                        description = if (missions.isEmpty()) {
+                            "Nenhum relatório de missão registrado ainda."
                         } else {
-                            "Nenhum relatório encontrado com os filtros atuais."
+                            "Nenhum relatório encontrado para o filtro selecionado."
                         }
                     )
                 }
@@ -426,24 +431,14 @@ private fun TacticalTopBar(
     statusColor: Color,
     onBack: () -> Unit
 ) {
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF0A1220), ReportBg)))
-            .border(1.dp, ReportBorderStrong, RoundedCornerShape(18.dp))
+            .statusBarsPadding(),
+        shape = RoundedCornerShape(12.dp),
+        color = ReportSurface,
+        border = BorderStroke(1.dp, ReportBorder)
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color.Transparent, ReportPrimary, ReportSecondary, Color.Transparent)
-                    )
-                )
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -451,7 +446,7 @@ private fun TacticalTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = ReportPrimary)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar", tint = Color.White)
             }
             Column(
                 modifier = Modifier
@@ -986,48 +981,16 @@ private fun String.toAlertList(): List<String> {
 
 @Composable
 private fun ReportTopBar(
-    title: String,
-    subtitle: String,
+    title: String = "Relatórios",
+    subtitle: String = "Histórico de missões e telemetria",
     onBackClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = ReportSurface,
-            border = BorderStroke(1.dp, ReportBorderStrong)
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Voltar",
-                    tint = Color.White
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = subtitle,
-                color = ReportMuted,
-                fontSize = 12.sp
-            )
-        }
-    }
+    VantlyTopBar(
+        title = title,
+        subtitle = subtitle,
+        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+        onNavigationClick = onBackClick
+    )
 }
 
 @Composable
@@ -1038,16 +1001,16 @@ private fun HeroMetric(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(0.31f),
-        shape = RoundedCornerShape(18.dp),
-        color = accent.copy(alpha = 0.09f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.22f))
+        shape = RoundedCornerShape(12.dp),
+        color = ReportSurfaceAlt,
+        border = BorderStroke(1.dp, ReportBorder)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(text = value, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(text = label, color = accent, fontSize = 11.sp)
+            Text(text = value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(text = label, color = ReportMuted, fontSize = 11.sp)
         }
     }
 }
@@ -1056,19 +1019,14 @@ private fun HeroMetric(
 private fun ExportPdfButton(
     onClick: () -> Unit
 ) {
-    OutlinedButton(
+    PrimaryActionButton(
+        text = "Gerar PDF",
+        icon = Icons.Default.PictureAsPdf,
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, ReportPrimary.copy(alpha = 0.35f))
-    ) {
-        Icon(
-            imageVector = Icons.Default.PictureAsPdf,
-            contentDescription = null,
-            tint = ReportPrimary
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("Gerar PDF", color = Color.White)
-    }
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+    )
 }
 
 @Composable
@@ -1078,16 +1036,10 @@ private fun NeuralInput(
     label: String,
     leadingIcon: ImageVector
 ) {
-    OutlinedTextField(
+    VantlySearchField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        leadingIcon = {
-            Icon(leadingIcon, contentDescription = null, tint = ReportPrimary)
-        },
-        label = { Text(label, color = ReportMuted) },
-        shape = RoundedCornerShape(18.dp)
+        placeholder = label
     )
 }
 
@@ -1098,50 +1050,41 @@ private fun ReportFilterRow(
 ) {
     val scroll = rememberScrollState()
     Row(
-        modifier = Modifier.horizontalScroll(scroll),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scroll),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ReportFilterChip("Todos", selectedStatus == null) { onStatusSelected(null) }
-        ReportFilterChip("Concluídas", selectedStatus == MissionOutcomeStatus.COMPLETED) {
-            onStatusSelected(MissionOutcomeStatus.COMPLETED)
-        }
-        ReportFilterChip("Falhas", selectedStatus == MissionOutcomeStatus.FAILED) {
-            onStatusSelected(MissionOutcomeStatus.FAILED)
-        }
-        ReportFilterChip("Abortadas", selectedStatus == MissionOutcomeStatus.ABORTED) {
-            onStatusSelected(MissionOutcomeStatus.ABORTED)
-        }
+        VantlyFilterChip(
+            label = "Todos",
+            selected = selectedStatus == null,
+            onClick = { onStatusSelected(null) }
+        )
+        VantlyFilterChip(
+            label = "Concluídos",
+            selected = selectedStatus == MissionOutcomeStatus.COMPLETED,
+            onClick = { onStatusSelected(MissionOutcomeStatus.COMPLETED) }
+        )
+        VantlyFilterChip(
+            label = "Falhas",
+            selected = selectedStatus == MissionOutcomeStatus.FAILED,
+            onClick = { onStatusSelected(MissionOutcomeStatus.FAILED) }
+        )
+        VantlyFilterChip(
+            label = "Abortadas",
+            selected = selectedStatus == MissionOutcomeStatus.ABORTED,
+            onClick = { onStatusSelected(MissionOutcomeStatus.ABORTED) }
+        )
     }
-}
-
-@Composable
-private fun ReportFilterChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(text) }
-    )
 }
 
 @Composable
 private fun EmptyReportCard(message: String) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = ReportSurface,
-        border = BorderStroke(1.dp, ReportBorder)
-    ) {
-        Text(
-            text = message,
-            modifier = Modifier.padding(18.dp),
-            color = ReportMuted,
-            textAlign = TextAlign.Start
-        )
-    }
+    EmptyStateView(
+        icon = Icons.Default.Description,
+        title = "Nenhum relatório",
+        description = message
+    )
 }
 
 @Composable
@@ -1150,85 +1093,74 @@ private fun MissionReportCard(
     onClick: () -> Unit
 ) {
     val statusColor = mission.statusColor()
-    val statusLabel = mission.statusLabel()
     val statusIcon = mission.statusIcon()
 
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
         color = ReportSurface,
         border = BorderStroke(1.dp, ReportBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(74.dp),
-                shape = RoundedCornerShape(18.dp),
-                color = Color.Transparent
+                modifier = Modifier.size(46.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = ReportSurfaceAlt,
+                border = BorderStroke(1.dp, ReportBorder)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(ReportPrimary.copy(alpha = 0.24f), ReportSecondary.copy(alpha = 0.14f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("🚁", fontSize = 30.sp)
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Route,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = mission.name,
                     color = Color.White,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = mission.modelName,
+                    text = "${mission.date} • ${mission.duration}",
                     color = ReportMuted,
                     fontSize = 12.sp
                 )
-                Text(
-                    text = mission.subtitle,
-                    color = ReportMuted,
-                    fontSize = 12.sp
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(statusLabel, fontSize = 11.sp) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = statusIcon,
-                                contentDescription = null,
-                                tint = statusColor,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        },
-                        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f))
-                    )
-                    Text(
-                        text = "${mission.date} • ${mission.duration}",
-                        color = Color.White.copy(alpha = 0.72f),
-                        fontSize = 11.sp
-                    )
-                }
             }
+
+            Icon(
+                imageVector = statusIcon,
+                contentDescription = null,
+                tint = statusColor,
+                modifier = Modifier.size(18.dp)
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                tint = ReportMuted.copy(alpha = 0.6f),
+                modifier = Modifier.size(12.dp)
+            )
         }
     }
 }
@@ -1475,20 +1407,7 @@ private fun MissionMediaCard(
 
 @Composable
 private fun ReportGridBackground() {
-    Box(modifier = Modifier.fillMaxSize()) {
-        repeat(10) { index ->
-            Box(
-                modifier = Modifier
-                    .padding(start = (18 + index * 34).dp, top = (24 + index * 52).dp)
-                    .size((120 + (index % 3) * 20).dp)
-                    .alpha(0.05f)
-                    .background(
-                        color = if (index % 2 == 0) ReportPrimary else ReportSecondary,
-                        shape = CircleShape
-                    )
-            )
-        }
-    }
+    // Fundo limpo monocromático conforme estilo DJI
 }
 
 private fun FlightReport.toUiModel(): MissionReport {

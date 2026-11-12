@@ -220,7 +220,7 @@ private fun BottomSection(onEnterClick: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Vently Neural  ·  v${BuildConfig.VERSION_NAME}",
+            text = "Vantly Neural  ·  v${BuildConfig.VERSION_NAME}",
             color = Muted,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,

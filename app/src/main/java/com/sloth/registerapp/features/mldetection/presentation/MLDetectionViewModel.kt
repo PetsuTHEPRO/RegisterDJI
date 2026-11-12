@@ -2,6 +2,8 @@ package com.sloth.registerapp.features.mldetection.presentation
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,8 +14,10 @@ import com.sloth.registerapp.features.mldetection.data.download.ModelDownloadMan
 import com.sloth.registerapp.features.mldetection.data.ml.YoloInferenceEngine
 import com.sloth.registerapp.features.mldetection.data.remote.dto.ModelCatalogEntryDto
 import com.sloth.registerapp.features.mldetection.data.registry.ModelRegistry
+import com.sloth.registerapp.features.mldetection.data.registry.ModelCompatibilityValidator
 import com.sloth.registerapp.features.mldetection.domain.model.DetectionResult
 import com.sloth.registerapp.features.mldetection.domain.model.MLModel
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,6 +49,15 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
     private val _lastInferenceMs = MutableStateFlow<Long?>(null)
     val lastInferenceMs: StateFlow<Long?> = _lastInferenceMs
 
+    private val _engineReady = MutableStateFlow(false)
+    val engineReady: StateFlow<Boolean> = _engineReady
+
+    private val _inferenceInProgress = MutableStateFlow(false)
+    val inferenceInProgress: StateFlow<Boolean> = _inferenceInProgress
+
+    private val _importMessage = MutableStateFlow<String?>(null)
+    val importMessage: StateFlow<String?> = _importMessage
+
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError
 
@@ -56,6 +69,9 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
 
     private val _remoteCatalogLoading = MutableStateFlow(false)
     val remoteCatalogLoading: StateFlow<Boolean> = _remoteCatalogLoading
+
+    private val _remoteCatalogUnavailable = MutableStateFlow(false)
+    val remoteCatalogUnavailable: StateFlow<Boolean> = _remoteCatalogUnavailable
 
     private var activeEngine: YoloInferenceEngine? = null
     private var lastInferenceFailureReportAt = 0L
@@ -74,7 +90,6 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
 
-        refreshRemoteCatalog()
     }
 
     fun selectModel(modelId: String) {
@@ -110,6 +125,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
         }
         viewModelScope.launch(Dispatchers.Default) {
             inferenceMutex.withLock {
+                _inferenceInProgress.value = true
                 val start = System.currentTimeMillis()
                 runCatching {
                     engine.detect(bitmap)
@@ -124,11 +140,13 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                     _lastError.value = e.message ?: "Falha na inferência"
                 }
                 runCatching { bitmap.recycle() }
+                _inferenceInProgress.value = false
             }
         }
     }
 
     fun refreshRemoteCatalog() {
+        if (_remoteCatalogLoading.value) return
         viewModelScope.launch {
             _remoteCatalogLoading.value = true
             AppObservability.breadcrumb(
@@ -139,6 +157,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                 apiService.getMlModelCatalog()
             }.onSuccess { catalog ->
                 _remoteCatalog.value = catalog
+                _remoteCatalogUnavailable.value = false
             }.onFailure { e ->
                 Log.w(TAG, "Falha ao carregar catálogo remoto de modelos", e)
                 AppObservability.captureException(
@@ -148,7 +167,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                     level = SentryLevel.WARNING,
                     tags = e.httpStatusCodeOrNull()?.let { mapOf("http.status_code" to it.toString()) } ?: emptyMap()
                 )
-                _lastError.value = e.message ?: "Falha ao carregar catálogo remoto"
+                _remoteCatalogUnavailable.value = true
             }
             _remoteCatalogLoading.value = false
         }
@@ -254,6 +273,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
         withContext(Dispatchers.IO) {
             val old = activeEngine
             activeEngine = null
+            _engineReady.value = false
             runCatching { old?.close() }
 
             runCatching {
@@ -268,6 +288,7 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                 YoloInferenceEngine.create(getApplication(), model)
             }.onSuccess { engine ->
                 activeEngine = engine
+                _engineReady.value = true
                 Log.d(TAG, "Engine loaded: ${model.name}")
             }.onFailure { e ->
                 Log.e(TAG, "Failed to load engine for ${model.name}", e)
@@ -282,6 +303,37 @@ class MLDetectionViewModel(application: Application) : AndroidViewModel(applicat
                     )
                 )
                 _lastError.value = "Falha ao carregar modelo: ${e.message}"
+            }
+        }
+    }
+
+    /** Copies a user-selected TFLite file only after checking the tensor layout used by this engine. */
+    fun importLocalModel(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val name = app.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                ?: uri.lastPathSegment.orEmpty()
+            if (!name.endsWith(".tflite", ignoreCase = true)) {
+                _importMessage.value = "Formato não suportado. Selecione um modelo .tflite compatível."
+                return@launch
+            }
+            val baseName = "imported_${sanitizeModelFileName(name.substringBeforeLast('.'))}_${System.currentTimeMillis()}"
+            val temp = File(registry.modelsDir, "$baseName.tmp")
+            val destination = File(registry.modelsDir, "$baseName.tflite")
+            runCatching {
+                app.contentResolver.openInputStream(uri)?.use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                } ?: error("Arquivo não pôde ser aberto")
+                ModelCompatibilityValidator.validate(temp)
+                runCatching { File(registry.modelsDir, "$baseName.origin").writeText("imported") }
+                require(temp.renameTo(destination)) { "Não foi possível salvar o modelo" }
+                registry.reload()
+                _importMessage.value = "Modelo importado. Confira as classes antes de selecioná-lo."
+            }.onFailure { error ->
+                temp.delete()
+                if (!destination.exists()) File(registry.modelsDir, "$baseName.origin").delete()
+                _importMessage.value = "Falha na importação: ${error.message ?: "arquivo incompatível"}"
             }
         }
     }

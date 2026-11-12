@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.sloth.registerapp.presentation.video.screens.CellCameraScreen
 import com.sloth.registerapp.presentation.video.screens.DroneCameraScreen
@@ -23,7 +24,7 @@ class DroneCameraActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
             com.sloth.registerapp.presentation.app.theme.AppTheme(darkTheme = isDarkTheme) {
-                var showCellCamera by remember { mutableStateOf(false) }
+                var showCellCamera by rememberSaveable { mutableStateOf(false) }
                 if (showCellCamera) {
                     CellCameraScreen(onBackClick = { showCellCamera = false })
                 } else {

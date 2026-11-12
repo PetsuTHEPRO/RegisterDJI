@@ -8,5 +8,7 @@ data class DroneTelemetry(
     val batteryLevel: Int = 0,             // Bateria em %
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
+    val headingDegrees: Float? = null,
+    val positionUpdatedAtElapsedMs: Long = 0L,
     val isFlying: Boolean = false
 )

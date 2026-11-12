@@ -151,7 +151,7 @@ fun WeatherOverviewScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NeuralBg)
+            .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
     ) {
         WeatherGridBackground()
 

@@ -36,6 +36,7 @@ import com.sloth.registerapp.core.settings.AppThemeSettingsRepository
 import com.sloth.registerapp.features.mission.domain.model.Mission
 import com.sloth.registerapp.presentation.mission.screens.MissionCreateScreen
 import com.sloth.registerapp.presentation.mission.screens.MissionsTableScreen
+import com.sloth.registerapp.presentation.app.ai.screens.AiCenterScreen
 import com.sloth.registerapp.presentation.app.dashboard.screens.DashboardScreen
 import com.sloth.registerapp.presentation.app.dashboard.screens.DronesListScreen
 import com.sloth.registerapp.presentation.app.welcome.screens.WelcomeScreen
@@ -177,6 +178,12 @@ class MainActivity : ComponentActivity() {
                                 isLoggedIn = isLoggedIn,
                                 onShowAllDronesClick = { navController.navigate("drones_list") },
                                 onWeatherClick = { navController.navigate("weather_overview") },
+                                onMissionsClick = { navController.navigate("mission") },
+                                onCameraClick = {
+                                    val intent = Intent(context, DroneCameraActivity::class.java)
+                                    context.startActivity(intent)
+                                },
+                                onReportsClick = { navController.navigate("report") },
                                 onRefreshStatusClick = {
                                     AppObservability.breadcrumb(
                                         category = "drone",
@@ -185,6 +192,15 @@ class MainActivity : ComponentActivity() {
                                     )
                                     DJIConnectionHelper.tryReconnect(context)
                                 },
+                                onAiCenterClick = { navController.navigate("ai_center") },
+                                onSettingsClick = { navController.navigate("settings") }
+                            )
+                        }
+                    }
+                    composable("ai_center") {
+                        ScreenWithBottomBar(navController = navController) {
+                            AiCenterScreen(
+                                onBackClick = { navController.popBackStack() },
                                 onSettingsClick = { navController.navigate("settings") }
                             )
                         }

@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
@@ -366,7 +366,7 @@ private fun CompactMissionHeader(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        GlassIconButton(icon = Icons.Default.ArrowBack, tint = Color.White, onClick = onBackClick)
+        GlassIconButton(icon = Icons.AutoMirrored.Filled.ArrowBack, tint = Color.White, onClick = onBackClick)
         Spacer(modifier = Modifier.size(10.dp))
         Surface(
             modifier = Modifier.weight(1f),

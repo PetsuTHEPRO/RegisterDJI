@@ -1,146 +1,158 @@
 package com.sloth.registerapp.presentation.app.components
 
-import com.sloth.registerapp.R
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.sloth.registerapp.presentation.app.theme.NeuralColors
+import com.sloth.registerapp.R
+import com.sloth.registerapp.presentation.app.theme.VantlyMotion
 
 sealed class BottomItem(
     val route: String,
-    val label: @Composable () -> String,
-    val icon: @Composable () -> Unit
+    val labelRes: Int,
+    val icon: ImageVector,
+    val isLiveFeedAction: Boolean = false
 ) {
-    object Home : BottomItem("dashboard", { stringResource(R.string.bottom_nav_home) }, { Icon(Icons.Filled.Home, contentDescription = null) })
-    object Live : BottomItem("camera", { stringResource(R.string.bottom_nav_live) }, { Icon(Icons.Filled.PlayCircle, contentDescription = null) })
-    object Missions : BottomItem("mission", { stringResource(R.string.bottom_nav_missions) }, { Icon(Icons.Filled.List, contentDescription = null) })
-    object Reports : BottomItem("report", { stringResource(R.string.bottom_nav_reports) }, { Icon(Icons.Filled.Assessment, contentDescription = null) })
+    object Home : BottomItem("dashboard", R.string.bottom_nav_home, Icons.Outlined.Home)
+    object Missions : BottomItem("mission", R.string.bottom_nav_missions, Icons.AutoMirrored.Outlined.List)
+    object Camera : BottomItem("camera", R.string.bottom_nav_camera, Icons.Outlined.Videocam, isLiveFeedAction = true)
+    object AiCenter : BottomItem("ai_center", R.string.bottom_nav_ai, Icons.Outlined.Memory)
+    object Settings : BottomItem("settings", R.string.bottom_nav_settings, Icons.Outlined.Settings)
 }
 
+/**
+ * Barra de navegação inferior compacta no estilo DJI:
+ * - 5 destinos principais: Início, Missões, Câmera (centro), IA, Ajustes
+ * - Fundo preto/cinza (#141414) com divisor sutil no topo (#2A2A2A)
+ * - Ícones monocromáticos lineares (branco ativo, cinza #A3A3A3 inativo)
+ * - Câmera ao vivo abre a DroneCameraActivity em tela cheia horizontal
+ * - Altura enxuta respeitando insets do sistema (gestures bar)
+ */
 @Composable
 fun BottomNavBar(
     navController: NavController,
-    onLiveFeedClick: () -> Unit,
+    onLiveFeedClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val neuralBg = NeuralColors.Bg
-    val neuralSurface = NeuralColors.Surface
-    val neuralBorder = NeuralColors.Border
-    val neuralPrimary = NeuralColors.Primary
-    val neuralSecondary = NeuralColors.Secondary
-    val inactive = Color(0xFF2A4A6A)
-
     val items = listOf(
         BottomItem.Home,
-        BottomItem.Live,
         BottomItem.Missions,
-        BottomItem.Reports
+        BottomItem.Camera,
+        BottomItem.AiCenter,
+        BottomItem.Settings
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    Surface(
-        modifier = modifier,
-        color = neuralBg,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0B111A))
     ) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF1F2937)))
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .height(64.dp)
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
             items.forEach { item ->
-                val selected = currentRoute == item.route
-                val itemColor = if (selected) neuralPrimary else inactive
+                val selected = !item.isLiveFeedAction && currentRoute == item.route
+                val label = stringResource(item.labelRes)
 
-                Surface(
+                val itemColor by animateColorAsState(
+                    targetValue = if (selected) Color(0xFF60A5FA) else Color(0xFF94A3B8),
+                    animationSpec = tween(VantlyMotion.Quick, easing = VantlyMotion.Standard),
+                    label = "nav_item_color"
+                )
+
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp),
-                    color = if (selected) neuralSurface else Color.Transparent,
-                    contentColor = itemColor,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(
-                        1.dp,
-                        if (selected) neuralPrimary.copy(alpha = 0.28f) else neuralBorder
-                    ),
-                    onClick = {
-                        if (item.route == BottomItem.Live.route) {
-                            onLiveFeedClick()
-                        } else if (currentRoute != item.route) {
-                            navController.navigate(item.route) {
-                                popUpTo("dashboard") { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    }
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (selected) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .align(Alignment.TopCenter)
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors = listOf(Color.Transparent, neuralSecondary, Color.Transparent)
-                                        )
-                                    )
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
                         ) {
-                            ProvideTextStyle(MaterialTheme.typography.labelSmall) {
-                                CompositionLocalProvider(LocalContentColor provides itemColor) {
-                                    item.icon()
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(item.label())
+                            if (item.isLiveFeedAction) {
+                                onLiveFeedClick()
+                            } else if (currentRoute != item.route) {
+                                navController.navigate(item.route) {
+                                    popUpTo("dashboard") { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
                             }
-                        }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (selected) {
+                        Box(Modifier.align(Alignment.TopCenter).size(width = 32.dp, height = 3.dp)
+                            .background(Color(0xFF3B82F6), RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp)))
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = label,
+                            tint = itemColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = label,
+                            color = itemColor,
+                            fontSize = 10.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 2,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }

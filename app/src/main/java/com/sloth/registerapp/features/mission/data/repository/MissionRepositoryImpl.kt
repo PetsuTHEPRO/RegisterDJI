@@ -170,7 +170,6 @@ class MissionRepositoryImpl(
             )
             val response = apiService.createMission(mission.toCreateRequestDto())
             val created = mission.copy(id = response.mission_id)
-            MissionPreviewStorage.savePreview(appContext, created)
             cacheMission(created, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId)
             sessionManager.updateLastSyncTime()
             created
@@ -251,7 +250,6 @@ class MissionRepositoryImpl(
         val localMission = mission.copy(id = generateLocalMissionId())
 
         return runCatching {
-            MissionPreviewStorage.savePreview(appContext, localMission)
             syncQueueDao.insert(
                 SyncQueueEntity(
                     ownerUserId = ownerUserId,
@@ -316,7 +314,6 @@ class MissionRepositoryImpl(
             }.onSuccess { response ->
                 MissionPreviewStorage.renamePreview(appContext, payload.id, response.mission_id)
                 val createdMission = payload.copy(id = response.mission_id)
-                MissionPreviewStorage.savePreview(appContext, createdMission)
                 missionCacheDao.deleteById(item.entityId, ownerUserId)
                 cacheMission(createdMission, syncStatus = STATUS_SYNCED, ownerUserId = ownerUserId)
                 syncQueueDao.deleteById(item.id)
@@ -346,9 +343,6 @@ class MissionRepositoryImpl(
 
     private suspend fun cacheMissions(missions: List<ServerMissionDto>, syncStatus: String, ownerUserId: String) {
         val now = System.currentTimeMillis()
-        missions.forEach { mission ->
-            MissionPreviewStorage.savePreview(appContext, mission)
-        }
         missionCacheDao.insertAll(
             missions.map { mission ->
                 MissionCacheEntity(
@@ -362,6 +356,7 @@ class MissionRepositoryImpl(
                 )
             }
         )
+        missions.forEach { MissionPreviewStorage.savePreview(appContext, it) }
     }
 
     private suspend fun cacheMission(
@@ -371,7 +366,6 @@ class MissionRepositoryImpl(
         ownerUserId: String
     ) {
         val now = System.currentTimeMillis()
-        MissionPreviewStorage.savePreview(appContext, mission)
         missionCacheDao.insert(
             MissionCacheEntity(
                 missionId = missionIdOverride ?: mission.id.toString(),
@@ -383,6 +377,7 @@ class MissionRepositoryImpl(
                 syncedAt = if (syncStatus == STATUS_SYNCED) now else null
             )
         )
+        MissionPreviewStorage.savePreview(appContext, mission)
     }
 
     private fun logWaypointOrder(stage: String, mission: ServerMissionDto) {

@@ -1,24 +1,21 @@
 package com.sloth.registerapp.presentation.app.dashboard.screens
 
-import android.util.Log
-import android.widget.Toast
+import android.app.Application
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,29 +25,45 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AirplanemodeActive
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Hub
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,1012 +71,728 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.registerapp.R
+import com.sloth.registerapp.core.dji.DJIConnectionHelper
+import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
+import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
+import com.sloth.registerapp.features.mission.domain.model.DroneState
+import com.sloth.registerapp.features.mission.domain.model.Mission
+import com.sloth.registerapp.features.mldetection.presentation.MLDetectionViewModel
+import com.sloth.registerapp.features.objectdetection.data.repository.ObjectDetectionPreferencesRepository
 import com.sloth.registerapp.presentation.app.theme.NeuralColors
+import com.sloth.registerapp.presentation.app.theme.VantlyMotion
+import com.sloth.registerapp.presentation.mission.activities.MissionControlActivity
+import com.sloth.registerapp.presentation.mission.viewmodels.MissionListUiState
+import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
+import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
+import com.sloth.registerapp.presentation.shared.components.AviationCard
+import com.sloth.registerapp.presentation.shared.components.StatusDot
+import com.sloth.registerapp.presentation.shared.components.TelemetryBadge
+import com.sloth.registerapp.presentation.shared.components.TelemetryStatusTone
+import com.sloth.registerapp.presentation.shared.components.VantlyDivider
+import java.util.Locale
 
-private const val DASHBOARD_TAG = "DashboardScreen"
-private val NeuralBg        = NeuralColors.Bg
-private val NeuralSurface   = NeuralColors.Surface
-private val NeuralSurfaceAlt = NeuralColors.SurfaceAlt
-private val NeuralBorder    = NeuralColors.Border
-private val NeuralBorderStrong = NeuralColors.BorderStrong
-private val NeuralPrimary   = NeuralColors.Primary
-private val NeuralSecondary = NeuralColors.Secondary
-private val NeuralMuted     = NeuralColors.Muted
-private val NeuralSuccess   = NeuralColors.Success
-private val NeuralWarning   = NeuralColors.Warning
-private val NeuralDanger    = NeuralColors.Danger
-private val NeuralCardGlow  = NeuralColors.CardGlow
-private val DroneCatalogCardHeight = 330.dp
-private val SupportCardHeight = 84.dp
-
-data class CompatibleDrone(
-    val name: String,
-    val description: String,
-    val imageRes: Int,
-    val officialUrl: String,
-    val accentColor: Color
-)
-
+/**
+ * Dashboard principal do Vantly Neural.
+ * Central de operações moderna, informativa e profissional, seguindo o design system estilo DJI.
+ *
+ * Estrutura vertical estrita:
+ * 1. Cabeçalho Vantly Neural (Central de Operações)
+ * 2. Card principal da aeronave (destaque operacional com telemetria real)
+ * 3. Seção Últimas Missões (até 3 missões recentes cadastradas)
+ * 4. Resumo do Sistema de IA (resumo operacional e acesso à Central de IA)
+ */
 @Composable
 fun DashboardScreen(
     droneStatus: String = "Desconectado",
-    userName: String = "Usuario",
+    userName: String = "Usuário",
     isLoggedIn: Boolean = true,
+    onMissionsClick: () -> Unit = {},
+    onAiCenterClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
+    onRefreshStatusClick: () -> Unit = {},
     onShowAllDronesClick: () -> Unit = {},
     onWeatherClick: () -> Unit = {},
-    onSettingsClick: () -> Unit = {},
-    onRefreshStatusClick: () -> Unit = {}
+    onCameraClick: () -> Unit = {},
+    onReportsClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val drones = remember { featuredCompatibleDrones() }
-    val statusUi = remember(droneStatus) { dashboardStatus(droneStatus) }
-    var visible by remember { mutableStateOf(false) }
-    val pulse = rememberInfiniteTransition(label = "dashboard_pulse")
-    val pulseAlpha by pulse.animateFloat(
-        initialValue = 0.10f,
-        targetValue = 0.24f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_alpha"
+
+    // Controlador do Drone para telemetria em tempo real
+    val droneController = remember { DroneCommandManager() }
+    val droneState by droneController.droneState.collectAsStateWithLifecycle()
+    val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
+
+    // Produto DJI
+    val product by DJIConnectionHelper.product.collectAsStateWithLifecycle()
+    val isConnected = product?.isConnected == true || (droneState != DroneState.DISCONNECTED && product != null)
+    val modelName = if (isConnected) {
+        product?.model?.displayName ?: "Aeronave DJI conectada"
+    } else {
+        "Nenhuma aeronave conectada"
+    }
+
+    // Missões Reais
+    val missionListViewModel: MissionListViewModel = viewModel(
+        factory = MissionListViewModelFactory(context.applicationContext as Application)
     )
+    val missionListUiState by missionListViewModel.uiState.collectAsStateWithLifecycle()
+    val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
+
+    // Sistema de IA
+    val objectDetectionRepo = remember { ObjectDetectionPreferencesRepository.getInstance(context) }
+    val detectionEnabled by objectDetectionRepo.detectionEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val activeModelId by objectDetectionRepo.activeModelId.collectAsStateWithLifecycle(
+        initialValue = ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID
+    )
+    val mlViewModel: MLDetectionViewModel = viewModel()
+    val availableModels by mlViewModel.availableModels.collectAsStateWithLifecycle()
+    val lastInferenceMs by mlViewModel.lastInferenceMs.collectAsStateWithLifecycle()
+
+    var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         visible = true
+        missionListViewModel.fetchMissions()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            droneController.stop()
+        }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NeuralBg)
+            .background(Color(0xFF0B111A))
     ) {
-        DashboardGridBackground()
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
         ) {
-            DashboardTopBar(
-                onSettingsClick = onSettingsClick,
-                pulseAlpha = pulseAlpha
+            // 1. Cabeçalho Vantly Neural
+            DashboardHeader(
+                onSettingsClick = onSettingsClick
             )
 
             AnimatedVisibility(
                 visible = visible,
-                enter = fadeIn(tween(600)) + slideInVertically(initialOffsetY = { it / 5 }, animationSpec = tween(700))
+                enter = fadeIn(tween(VantlyMotion.Slow, easing = VantlyMotion.Emphasized)) +
+                    slideInVertically(initialOffsetY = { it / 8 }, animationSpec = tween(VantlyMotion.Slow, easing = VantlyMotion.Emphasized))
             ) {
-                Column {
-                    HeroBanner(
-                        userName = userName,
-                        isLoggedIn = isLoggedIn
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 2. Card Principal da Aeronave
+                    AircraftPrimaryCard(
+                        modelName = modelName,
+                        isConnected = isConnected,
+                        onRefreshStatusClick = onRefreshStatusClick
                     )
 
-                    Column(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(28.dp)
-                    ) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        ConnectionStatusCard(
-                            statusUi = statusUi,
-                            isRefreshing = false,
-                            onRefreshStatusClick = onRefreshStatusClick
-                        )
+                    FlightTelemetryCard(
+                        isConnected = isConnected,
+                        droneState = droneState,
+                        gpsSatellites = telemetry.gpsSatellites,
+                        altitude = telemetry.altitude,
+                        speed = telemetry.speed
+                    )
 
-                        SectionTitle(
-                            title = "Drones Compativeis",
-                            icon = Icons.Default.AirplanemodeActive,
-                            actionLabel = "Lista completa",
-                            onActionClick = onShowAllDronesClick
-                        )
-                        DroneCarousel(
-                            drones = drones,
-                            onDroneClick = { drone ->
-                                Log.d(DASHBOARD_TAG, "Mock do site oficial para ${drone.name}: ${drone.officialUrl}")
-                                Toast.makeText(
-                                    context,
-                                    "Mock do site oficial da DJI para ${drone.name}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                    AiSystemSummaryCard(
+                        detectionEnabled = detectionEnabled,
+                        activeModelName = availableModels.firstOrNull { it.id == activeModelId }?.name ?: "--",
+                        modelsCount = availableModels.size,
+                        lastInferenceMs = if (detectionEnabled) lastInferenceMs else null,
+                        onDetailsClick = onAiCenterClick
+                    )
+
+                    RecentMissionsSection(
+                        uiState = missionListUiState,
+                        activeMissionId = activeMissionId,
+                        onViewAllClick = onMissionsClick,
+                        onRefreshClick = { missionListViewModel.fetchMissions() },
+                        onMissionClick = { mission ->
+                            val intent = Intent(context, MissionControlActivity::class.java).apply {
+                                putExtra("MISSION_ID", mission.id)
                             }
-                        )
+                            context.startActivity(intent)
+                        }
+                    )
 
-                        SectionTitle(
-                            title = "Apoio Institucional",
-                            icon = Icons.Default.Business
-                        )
-                        InstitutionalSupportGrid()
-
-                        SectionTitle(
-                            title = "Sobre o Projeto",
-                            icon = Icons.Default.Info,
-                            actionLabel = "Clima",
-                            onActionClick = onWeatherClick
-                        )
-                        ProjectDescriptionCard()
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                    }
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }
     }
 }
 
+/** 1. Cabeçalho compacto: Vantly Neural + Central de Operações + Status Dot + Ajustes */
 @Composable
-private fun DashboardTopBar(
-    onSettingsClick: () -> Unit,
-    pulseAlpha: Float
+private fun DashboardHeader(
+    onSettingsClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 7.dp),
+            .background(Color(0xFF0B111A))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(
-            modifier = Modifier.size(38.dp),
-            shape = RoundedCornerShape(10.dp),
-            color = Color.Transparent
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(NeuralPrimary, NeuralSecondary)
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Hub,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+        Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF111827),
+            border = BorderStroke(1.dp, Color(0xFF1F2937))) {
+            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Hub, contentDescription = null, tint = Color(0xFF93C5FD),
+                    modifier = Modifier.size(20.dp))
             }
         }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
+        Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Vantly Neural",
-                style = TextStyle(
-                    brush = Brush.linearGradient(listOf(NeuralPrimary, NeuralSecondary)),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                color = NeuralColors.TextPrimary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Visao computacional e rotas",
-                color = NeuralMuted,
-                fontSize = 10.sp
+                text = "Central de Operações • Drones & IA",
+                color = Color(0xFF94A3B8),
+                fontSize = 11.sp
             )
         }
 
-        Surface(
-            modifier = Modifier.size(42.dp),
-            shape = RoundedCornerShape(12.dp),
-            color = NeuralSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, NeuralBorderStrong.copy(alpha = 0.9f))
-        ) {
-            IconButton(onClick = onSettingsClick) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Configuracoes",
-                    tint = NeuralPrimary,
-                    modifier = Modifier.alpha(0.95f + pulseAlpha * 0.2f)
-                )
+        Surface(onClick = onSettingsClick, shape = CircleShape, color = Color(0xFF111827),
+            border = BorderStroke(1.dp, Color(0xFF1F2937))) {
+            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.PersonOutline, contentDescription = "Perfil e ajustes",
+                    tint = Color(0xFFCBD5E1), modifier = Modifier.size(18.dp))
             }
         }
     }
 }
 
+/** Card horizontal com altura mínima; texto e ações podem crescer com a fonte do sistema. */
 @Composable
-private fun HeroBanner(
-    userName: String,
-    isLoggedIn: Boolean
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(228.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            NeuralBg,
-                            Color(0xFF0A2050),
-                            NeuralBg
-                        )
-                    )
-                )
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 28.dp)
-        ) {
-            Column(
-                modifier = Modifier.align(Alignment.TopStart),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = NeuralPrimary.copy(alpha = 0.16f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(NeuralPrimary, CircleShape)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "SISTEMA ATIVO",
-                            color = NeuralPrimary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Bem-vindo de volta,\n${if (isLoggedIn) userName else "Piloto"}.",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "Gerencie rotas e monitore seus drones com inteligencia artificial em tempo real.",
-                    color = NeuralMuted,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            NeuralPrimary,
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-    }
-}
-
-private data class DashboardStatusUi(
-    val title: String,
-    val subtitle: String,
-    val icon: ImageVector,
-    val accent: Color
-)
-
-private fun dashboardStatus(raw: String): DashboardStatusUi {
-    val normalized = raw.ifBlank { "Status indisponivel" }
-    return when {
-        raw.contains("conect", ignoreCase = true) ->
-            DashboardStatusUi(
-                title = normalized,
-                subtitle = "Link ativo com o drone",
-                icon = Icons.Default.Wifi,
-                accent = NeuralPrimary
-            )
-        raw.contains("pronto", ignoreCase = true) ->
-            DashboardStatusUi(
-                title = normalized,
-                subtitle = "Aguardando conexao com o drone",
-                icon = Icons.Default.Wifi,
-                accent = NeuralWarning
-            )
-        raw.contains("registr", ignoreCase = true) || raw.contains("falha", ignoreCase = true) || raw.contains("erro", ignoreCase = true) ->
-            DashboardStatusUi(
-                title = normalized,
-                subtitle = "Verifique SDK, permissao ou rede",
-                icon = Icons.Default.WifiOff,
-                accent = NeuralDanger
-            )
-        else -> DashboardStatusUi(
-            title = normalized,
-            subtitle = "Estado atual informado pelo SDK",
-            icon = Icons.Default.WifiOff,
-            accent = NeuralDanger
-        )
-    }
-}
-
-@Composable
-private fun ConnectionStatusCard(
-    statusUi: DashboardStatusUi,
-    isRefreshing: Boolean,
+private fun AircraftPrimaryCard(
+    modelName: String,
+    isConnected: Boolean,
     onRefreshStatusClick: () -> Unit
 ) {
+    var refreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(refreshing) { if (refreshing) { kotlinx.coroutines.delay(2500); refreshing = false } }
+    val statusColor = if (isConnected) Color(0xFF34D399) else Color(0xFFFBBF24)
+    val illustration = when {
+        !isConnected -> R.drawable.dashboard_controller_disconnected
+        modelName.removePrefix("DJI ").equals("Mavic Pro", ignoreCase = true) -> R.drawable.dashboard_drone_mavic_pro
+        else -> null
+    }
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 166.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0F1623))
+            .border(BorderStroke(1.dp, Color(0xFF243044)), RoundedCornerShape(12.dp))
+    ) {
+        val imageWidth = (maxWidth * if (maxWidth < 340.dp) 0.32f else 0.43f)
+            .coerceAtMost(180.dp)
+        Image(painter = painterResource(R.drawable.dashboard_mountain), contentDescription = null,
+            contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        Box(Modifier.matchParentSize().background(Color(0xA6000000)))
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(
+            0f to Color(0xFF0B111A), 0.52f to Color(0xE60B111A), 1f to Color(0x44111827)
+        )))
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Status da Aeronave", color = Color(0xFFF1F5F9), fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold)
+                Surface(shape = RoundedCornerShape(5.dp), color = statusColor.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.35f))) {
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Box(Modifier.size(6.dp).background(statusColor, CircleShape))
+                        Text(if (isConnected) "CONECTADO" else "DESCONECTADO", color = statusColor,
+                            fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+                    }
+                }
+                Text(modelName, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                Surface(onClick = { refreshing = true; onRefreshStatusClick() },
+                    shape = RoundedCornerShape(8.dp), color = NeuralColors.DashboardBlue) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        if (refreshing) androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(17.dp), strokeWidth = 2.dp, color = Color.White)
+                        else Icon(Icons.Default.Refresh, contentDescription = "Atualizar conexão da aeronave",
+                            tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            if (illustration != null) {
+                Image(painter = painterResource(illustration), contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.width(imageWidth).aspectRatio(1.8f))
+            } else {
+                Spacer(Modifier.width(imageWidth))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AircraftMetricCell(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    val icon = when (label) {
+        "Estado de Voo" -> Icons.Default.Flight
+        "Satélites GPS" -> Icons.Default.GpsFixed
+        "Altitude" -> Icons.Default.Timeline
+        else -> Icons.Default.Speed
+    }
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = Color.Transparent,
-        border = androidx.compose.foundation.BorderStroke(1.2.dp, statusUi.accent.copy(alpha = 0.32f))
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFF151E2E),
+        border = BorderStroke(1.dp, Color(0xFF1F2937))
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 62.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Box(Modifier.size(30.dp).background(Color(0xFF0B111A), RoundedCornerShape(7.dp)),
+                contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                Text(label, color = Color(0xFF94A3B8), fontSize = 10.sp)
+                Text(value, color = Color(0xFFF1F5F9), fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlightTelemetryCard(
+    isConnected: Boolean,
+    droneState: DroneState,
+    gpsSatellites: Int,
+    altitude: Float,
+    speed: Float
+) {
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    val flightState = when {
+        !isConnected -> "Indisponível"
+        droneState == DroneState.ON_GROUND -> "No solo"
+        droneState == DroneState.IN_AIR -> "Em voo"
+        droneState == DroneState.TAKING_OFF -> "Decolando"
+        droneState == DroneState.LANDING -> "Pousando"
+        droneState == DroneState.GOING_HOME -> "Retornando"
+        droneState == DroneState.EMERGENCY_STOP -> "Parada de emergência"
+        droneState == DroneState.ERROR -> "Erro de sistema"
+        else -> "Pronto para voo"
+    }
+    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF111827),
+        border = BorderStroke(1.dp, Color(0xFF1F2937))) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 32.dp).clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Timeline, contentDescription = null, tint = Color(0xFF94A3B8),
+                    modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(9.dp))
+                Text("Telemetria de Voo", color = Color(0xFFF1F5F9), fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Icon(Icons.Default.ExpandMore, contentDescription = if (expanded) "Recolher telemetria" else "Expandir telemetria",
+                    tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp).rotate(if (expanded) 0f else -90f))
+            }
+            if (expanded) {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val narrow = maxWidth < 280.dp || LocalDensity.current.fontScale >= 1.3f
+                    val gps = if (isConnected && gpsSatellites > 0) "$gpsSatellites" else "--"
+                    val altitudeText = if (isConnected) String.format(Locale.getDefault(), "%.1f m", altitude) else "--"
+                    val speedText = if (isConnected) String.format(Locale.getDefault(), "%.1f m/s", speed) else "--"
+                    if (narrow) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AircraftMetricCell("Estado de Voo", flightState, Modifier.fillMaxWidth())
+                            AircraftMetricCell("Satélites GPS", gps, Modifier.fillMaxWidth())
+                            AircraftMetricCell("Altitude", altitudeText, Modifier.fillMaxWidth())
+                            AircraftMetricCell("Velocidade", speedText, Modifier.fillMaxWidth())
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AircraftMetricCell("Estado de Voo", flightState, Modifier.weight(1f))
+                                AircraftMetricCell("Satélites GPS", gps, Modifier.weight(1f))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                AircraftMetricCell("Altitude", altitudeText, Modifier.weight(1f))
+                                AircraftMetricCell("Velocidade", speedText, Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 3. Seção Últimas Missões: até 3 missões reais cadastradas recentemente */
+@Composable
+private fun RecentMissionsSection(
+    uiState: MissionListUiState,
+    activeMissionId: String?,
+    onViewAllClick: () -> Unit,
+    onRefreshClick: () -> Unit,
+    onMissionClick: (Mission) -> Unit
+) {
+    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF111827),
+        border = BorderStroke(1.dp, Color(0xFF1F2937))) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Últimas missões",
+                color = NeuralColors.TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            TextButton(
+                onClick = onViewAllClick,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "Ver todas",
+                    color = NeuralColors.TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = NeuralColors.TextSecondary,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
+
+        when (uiState) {
+            is MissionListUiState.Loading -> {
+                // Skeleton discreto de carregamento
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(2) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF111827),
+                            border = BorderStroke(1.dp, Color(0xFF1F2937))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = NeuralColors.TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            is MissionListUiState.Error -> {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF111827),
+                    border = BorderStroke(1.dp, Color(0xFF1F2937))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = NeuralColors.Warning, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = "Não foi possível carregar as missões.",
+                                color = NeuralColors.TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        IconButton(onClick = onRefreshClick, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Tentar novamente", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+            is MissionListUiState.Unauthorized -> {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF111827),
+                    border = BorderStroke(1.dp, Color(0xFF1F2937))
+                ) {
+                    Text(
+                        text = "Faça login para sincronizar suas missões de voo.",
+                        color = NeuralColors.TextSecondary,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+            }
+            is MissionListUiState.Idle -> {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF111827),
+                    border = BorderStroke(1.dp, Color(0xFF1F2937))
+                ) {
+                    Text(
+                        text = "Aguardando sincronização de missões.",
+                        color = NeuralColors.TextSecondary,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+            }
+            is MissionListUiState.Success -> {
+                val recentMissions = uiState.missions.sortedByDescending { it.id }.take(3)
+                if (recentMissions.isEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF111827),
+                        border = BorderStroke(1.dp, Color(0xFF1F2937))
+                    ) {
+                        Text(
+                            text = "Nenhuma missão cadastrada.",
+                            color = NeuralColors.TextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(14.dp)
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        recentMissions.forEach { mission ->
+                            val isActive = mission.id.toString() == activeMissionId
+                            RecentMissionItem(
+                                mission = mission,
+                                isActive = isActive,
+                                onClick = { onMissionClick(mission) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+    }
+}
+
+@Composable
+private fun RecentMissionItem(
+    mission: Mission,
+    isActive: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF151E2E),
+        border = BorderStroke(1.dp, if (isActive) Color(0xFF3B82F6) else Color(0xFF26354D))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            NeuralSurface,
-                            if (statusUi.accent == NeuralDanger) Color(0xFF1A0820) else Color(0xFF002040)
-                        )
-                    )
-                )
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = CircleShape,
-                color = statusUi.accent.copy(alpha = 0.12f),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, statusUi.accent.copy(alpha = 0.4f))
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(Color.White.copy(alpha = 0.05f), CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (isRefreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = statusUi.accent,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = statusUi.icon,
-                            contentDescription = null,
-                            tint = statusUi.accent,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Default.Route,
+                    contentDescription = null,
+                    tint = if (isActive) Color(0xFF60A5FA) else Color(0xFF94A3B8),
+                    modifier = Modifier.size(17.dp)
+                )
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
-
             Column(modifier = Modifier.weight(1f)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = mission.name,
+                        color = NeuralColors.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (isActive) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFF3B82F6).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "NA SESSÃO",
+                                color = Color(0xFF60A5FA),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
                 Text(
-                    text = statusUi.title,
-                    color = if (statusUi.accent == NeuralDanger) NeuralDanger else Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = statusUi.subtitle,
-                    color = NeuralMuted,
+                    text = "#${mission.id} • ${mission.waypointCount} waypoints • ${mission.altitude.toInt()}m alt • Cadastrada",
+                    color = NeuralColors.TextSecondary,
                     fontSize = 11.sp
                 )
             }
 
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = NeuralPrimary.copy(alpha = 0.10f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, NeuralPrimary.copy(alpha = 0.28f))
-            ) {
-                IconButton(onClick = onRefreshStatusClick) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Atualizar status",
-                        tint = NeuralPrimary
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(
-    title: String,
-    icon: ImageVector,
-    actionLabel: String? = null,
-    onActionClick: (() -> Unit)? = null
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = NeuralPrimary.copy(alpha = 0.10f)
-        ) {
             Icon(
-                imageVector = icon,
+                imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = NeuralPrimary,
-                modifier = Modifier.padding(6.dp).size(16.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = title,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(NeuralBorderStrong, Color.Transparent)
-                    )
-                )
-        )
-        if (actionLabel != null && onActionClick != null) {
-            TextButton(onClick = onActionClick) {
-                Text(actionLabel, color = NeuralPrimary)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DroneCarousel(
-    drones: List<CompatibleDrone>,
-    onDroneClick: (CompatibleDrone) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        drones.forEachIndexed { index, drone ->
-            DroneStatusCard(
-                modifier = Modifier.width(248.dp),
-                drone = drone,
-                index = index,
-                onClick = { onDroneClick(drone) }
+                tint = Color.White.copy(alpha = 0.35f),
+                modifier = Modifier.size(16.dp)
             )
         }
     }
 }
 
+/** Preview ilustrativo fornecido pelo projeto; métricas e estado continuam reais. */
 @Composable
-internal fun DroneStatusCard(
-    modifier: Modifier = Modifier,
-    drone: CompatibleDrone,
-    index: Int,
-    onClick: () -> Unit
+private fun AiSystemSummaryCard(
+    detectionEnabled: Boolean,
+    activeModelName: String,
+    modelsCount: Int,
+    lastInferenceMs: Long?,
+    onDetailsClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    Surface(
-        modifier = modifier.height(DroneCatalogCardHeight),
-        shape = RoundedCornerShape(20.dp),
-        color = NeuralSurface,
-        border = androidx.compose.foundation.BorderStroke(1.2.dp, drone.accentColor.copy(alpha = 0.25f))
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(156.dp)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                drone.accentColor.copy(alpha = 0.20f),
-                                NeuralCardGlow.copy(alpha = 0.92f)
-                            )
-                        )
-                    )
-            ) {
-                Image(
-                    painter = painterResource(id = drone.imageRes),
-                    contentDescription = drone.name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(156.dp)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = drone.name,
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = drone.description,
-                        color = NeuralMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp
-                    )
+    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF111827),
+        border = BorderStroke(1.dp, Color(0xFF1F2937))) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Memory, contentDescription = null, tint = Color(0xFF94A3B8),
+                    modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(9.dp))
+                Text("Sistema de IA", color = Color(0xFFF1F5F9), fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                val badgeColor = if (detectionEnabled) Color(0xFF34D399) else Color(0xFF94A3B8)
+                Surface(shape = RoundedCornerShape(5.dp), color = badgeColor.copy(alpha = 0.13f),
+                    border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.3f))) {
+                    Text(if (detectionEnabled) "ATIVO" else "INATIVO", color = badgeColor,
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = listOf(
-                                    drone.accentColor.copy(alpha = 0.82f),
-                                    drone.accentColor
-                                )
-                            ),
-                            RoundedCornerShape(12.dp)
-                        )
-                        .clickable {
-                            Log.d(DASHBOARD_TAG, "Mock do site oficial para ${drone.name}: ${drone.officialUrl}")
-                            Toast.makeText(
-                                context,
-                                "Mock do site oficial da DJI para ${drone.name}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            onClick()
-                        }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "IR PARA DJI",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.2.sp
-                    )
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.18f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowForward,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier
-                                .padding(8.dp)
-                                .size(18.dp)
-                        )
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val stacked = maxWidth < 285.dp || LocalDensity.current.fontScale >= 1.3f
+                if (stacked) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Image(painter = painterResource(R.drawable.dashboard_person_detection),
+                            contentDescription = "Imagem ilustrativa de detecção de pessoas",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
+                                .clip(RoundedCornerShape(8.dp)))
+                        AiDetails(activeModelName, modelsCount, lastInferenceMs)
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Image(painter = painterResource(R.drawable.dashboard_person_detection),
+                            contentDescription = "Imagem ilustrativa de detecção de pessoas",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.weight(5f).aspectRatio(4f / 3f)
+                                .clip(RoundedCornerShape(8.dp)))
+                        AiDetails(activeModelName, modelsCount, lastInferenceMs, Modifier.weight(7f))
                     }
                 }
             }
+            Surface(onClick = onDetailsClick, shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF151E2E), border = BorderStroke(1.dp, Color(0xFF243044))) {
+                Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 38.dp)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Text("Ver detalhes e modelos", color = Color(0xFFE2E8F0), fontSize = 12.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null,
+                        tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun DroneCardSpec(
-    icon: ImageVector,
+private fun AiDetails(
+    activeModelName: String,
+    modelsCount: Int,
+    lastInferenceMs: Long?,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Visão Computacional", color = Color(0xFFF1F5F9), fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold)
+        Text("Detecção de pessoas", color = Color(0xFF94A3B8), fontSize = 10.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            AiMiniMetric("Modelo", activeModelName, Modifier.weight(1.25f))
+            AiMiniMetric("Latência", lastInferenceMs?.let { "$it ms" } ?: "--", Modifier.weight(0.9f))
+            AiMiniMetric("Modelos", if (modelsCount > 0) "$modelsCount inst." else "--", Modifier.weight(0.9f))
+        }
+    }
+}
+
+@Composable
+private fun AiMiniMetric(
+    label: String,
     value: String,
-    tint: Color
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint.copy(alpha = 0.82f),
-            modifier = Modifier.size(14.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = value,
-            color = Color.White.copy(alpha = 0.68f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-private fun compatibleDroneFamily(name: String): String {
-    return when {
-        "matrice" in name.lowercase() -> "Linha Matrice"
-        "phantom" in name.lowercase() -> "Linha Phantom"
-        "mini" in name.lowercase() -> "Linha Mini"
-        "air" in name.lowercase() -> "Linha Air"
-        "spark" in name.lowercase() -> "Linha Spark"
-        "enterprise" in name.lowercase() -> "Enterprise"
-        "thermal" in name.lowercase() -> "Thermal"
-        "multispectral" in name.lowercase() -> "Multispectral"
-        else -> "Linha Mavic"
-    }
-}
-
-private fun compatibleDroneModelTag(name: String): String {
-    return compatibleDroneFamily(name)
-        .replace("Linha ", "")
-        .uppercase()
-}
-
-private fun compatibleDroneFamilyLabel(name: String): String {
-    return when {
-        "matrice" in name.lowercase() -> "Matrice"
-        "phantom" in name.lowercase() -> "Phantom"
-        "mini" in name.lowercase() -> "Mini"
-        "air" in name.lowercase() -> "Air"
-        "spark" in name.lowercase() -> "Spark"
-        else -> "Mavic"
-    }
-}
-
-private fun compatibleDroneProfile(name: String): String {
-    val normalized = name.lowercase()
-    return when {
-        "thermal" in normalized -> "Termico"
-        "multispectral" in normalized -> "Mapeamento"
-        "enterprise" in normalized -> "Industrial"
-        "rtk" in normalized -> "Precisao"
-        "mini" in normalized || "air" in normalized || "spark" in normalized -> "Portatil"
-        else -> "Aereo"
-    }
-}
-
-@Composable
-private fun InstitutionalSupportGrid() {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        SupportCard(
-            modifier = Modifier.weight(1f),
-            name = "IFMA",
-            subtitle = "Instituto Federal",
-            imageRes = R.drawable.ifma_logo
-        )
-        SupportCard(
-            modifier = Modifier.weight(1f),
-            name = "FAPEMA",
-            subtitle = "Pesquisa e inovacao",
-            icon = Icons.Default.Science
-        )
-    }
-}
-
-@Composable
-private fun SupportCard(
     modifier: Modifier = Modifier,
-    name: String,
-    subtitle: String,
-    icon: ImageVector? = null,
-    imageRes: Int? = null
+    valueColor: Color = NeuralColors.TextPrimary
 ) {
     Surface(
-        modifier = modifier.height(SupportCardHeight),
-        shape = RoundedCornerShape(16.dp),
-        color = NeuralSurface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, NeuralBorderStrong)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(38.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = NeuralPrimary.copy(alpha = 0.08f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    when {
-                        imageRes != null -> Image(
-                            painter = painterResource(id = imageRes),
-                            contentDescription = name,
-                            modifier = Modifier.padding(6.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                        icon != null -> Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = NeuralPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(subtitle, color = NeuralMuted, fontSize = 10.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProjectDescriptionCard() {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = Color.Transparent,
-        border = androidx.compose.foundation.BorderStroke(1.dp, NeuralBorderStrong)
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFF151E2E),
+        border = BorderStroke(1.dp, Color(0xFF1F2937))
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            NeuralSurface,
-                            NeuralSurfaceAlt
-                        )
-                    )
-                )
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            Text(label, color = NeuralColors.TextSecondary, fontSize = 9.sp)
             Text(
-                text = "Vantly Neural e uma plataforma avancada de gerenciamento de drones autonomos com processamento de imagem em tempo real via inteligencia artificial embarcada.",
-                color = Color(0xFF8AB4CE),
-                fontSize = 13.sp,
-                lineHeight = 21.sp
+                text = value,
+                color = valueColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                ProjectStat(value = "98.7%", label = "Precisao IA")
-                VerticalDivider()
-                ProjectStat(value = "< 20ms", label = "Latencia")
-                VerticalDivider()
-                ProjectStat(value = "50km2", label = "Cobertura")
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TechTag("IA Embarcada")
-                TechTag("Tempo Real")
-                TechTag("5G Ready")
-            }
         }
-    }
-}
-
-@Composable
-private fun ProjectStat(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = TextStyle(
-                brush = Brush.linearGradient(listOf(NeuralPrimary, NeuralSecondary)),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-        )
-        Text(
-            text = label,
-            color = NeuralMuted,
-            fontSize = 10.sp
-        )
-    }
-}
-
-@Composable
-private fun VerticalDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(36.dp)
-            .background(NeuralBorderStrong)
-    )
-}
-
-@Composable
-private fun TechTag(label: String) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = NeuralPrimary.copy(alpha = 0.08f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, NeuralPrimary.copy(alpha = 0.2f))
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            color = NeuralPrimary,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-private fun DashboardGridBackground() {
-    val transition = rememberInfiniteTransition(label = "dashboard_grid")
-    val offset by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 40f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing)
-        ),
-        label = "dashboard_grid_offset"
-    )
-    val glow by transition.animateFloat(
-        initialValue = 0.05f,
-        targetValue = 0.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dashboard_grid_glow"
-    )
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val step = 40.dp.toPx()
-        var x = -step + offset
-        while (x < size.width + step) {
-            drawLine(
-                color = NeuralPrimary.copy(alpha = 0.04f),
-                start = androidx.compose.ui.geometry.Offset(x, 0f),
-                end = androidx.compose.ui.geometry.Offset(x, size.height),
-                strokeWidth = 1f
-            )
-            x += step
-        }
-        var y = 0f
-        while (y < size.height) {
-            drawLine(
-                color = NeuralPrimary.copy(alpha = 0.035f),
-                start = androidx.compose.ui.geometry.Offset(0f, y),
-                end = androidx.compose.ui.geometry.Offset(size.width, y),
-                strokeWidth = 1f
-            )
-            y += step
-        }
-        drawCircle(
-            color = NeuralPrimary.copy(alpha = glow),
-            radius = size.minDimension * 0.18f,
-            center = androidx.compose.ui.geometry.Offset(size.width * 0.82f, size.height * 0.18f)
-        )
-    }
-}
-
-fun featuredCompatibleDrones(): List<CompatibleDrone> = listOf(
-    compatibleDrone(
-        name = "DJI Mavic Air",
-        description = "Drone compacto da linha Air, focado em mobilidade e captura aérea leve.",
-        accentColor = NeuralPrimary
-    ),
-    compatibleDrone(
-        name = "DJI Mavic Air 2",
-        description = "Modelo Air com foco em autonomia, estabilidade e uso geral de campo.",
-        accentColor = NeuralSecondary
-    ),
-    compatibleDrone(
-        name = "DJI Mavic Air 2S",
-        description = "Versão Air com sensor superior e perfil mais forte para imagem aérea.",
-        accentColor = NeuralSuccess
-    ),
-    compatibleDrone(
-        name = "DJI Air 3",
-        description = "Air de nova geração com câmera dupla e operação mais versátil.",
-        accentColor = NeuralWarning
-    ),
-    compatibleDrone(
-        name = "DJI Mavic Mini",
-        description = "Mini ultraleve para voo recreativo e missões visuais simples.",
-        accentColor = NeuralPrimary
-    )
-)
-
-fun defaultCompatibleDrones(): List<CompatibleDrone> = listOf(
-    compatibleDrone(
-        name = "DJI Mavic Air",
-        description = "Drone compacto da linha Air, focado em mobilidade e captura aérea leve.",
-        accentColor = NeuralPrimary
-    ),
-    compatibleDrone(
-        name = "DJI Mavic Air 2",
-        description = "Modelo Air com foco em autonomia, estabilidade e uso geral de campo.",
-        accentColor = NeuralSecondary
-    ),
-    compatibleDrone(
-        name = "DJI Mavic Air 2S",
-        description = "Versão Air com sensor superior e perfil mais forte para imagem aérea.",
-        accentColor = NeuralSuccess
-    ),
-    compatibleDrone("DJI Air 3", "Air de nova geração com câmera dupla e operação mais versátil.", NeuralPrimary),
-    compatibleDrone("DJI Mavic Mini", "Mini ultraleve para voo recreativo e missões visuais simples.", NeuralSecondary),
-    compatibleDrone("DJI Mini 2", "Mini portátil com melhor estabilidade e alcance para uso leve.", NeuralSuccess),
-    compatibleDrone("DJI Mini 3", "Mini com câmera otimizada e foco em operação portátil.", NeuralPrimary),
-    compatibleDrone("DJI Mini 3 Pro", "Mini avançado com recursos premium de imagem e segurança.", NeuralSecondary),
-    compatibleDrone("DJI Mini 4 Pro", "Mini topo de linha para operação compacta com mais sensores.", NeuralSuccess),
-    compatibleDrone("DJI MAPIR", "Plataforma voltada para mapeamento e captura especializada.", NeuralPrimary),
-    compatibleDrone("DJI Mavic Pro", "Clássico dobrável da linha Mavic para operação geral.", NeuralSecondary),
-    compatibleDrone("DJI Mavic 2 Pro", "Mavic com foco em imagem de maior qualidade e uso profissional.", NeuralSuccess),
-    compatibleDrone("DJI Mavic 2 Zoom", "Versão com câmera zoom para inspeção e observação.", NeuralPrimary),
-    compatibleDrone("DJI Mavic 2 Enterprise Dual", "Enterprise com câmera dual para operação técnica.", NeuralSecondary),
-    compatibleDrone("DJI Mavic 2 Enterprise Advanced", "Enterprise avançado com foco em inspeção e resposta.", NeuralSuccess),
-    compatibleDrone("DJI Mavic 3 / DJI Mavic 3 Pro", "Linha Mavic 3 para captura avançada e missões premium.", NeuralPrimary),
-    compatibleDrone("DJI Mavic 3 Multispectral", "Modelo voltado para agricultura e análise multiespectral.", NeuralSecondary),
-    compatibleDrone("DJI Mavic 3 Enterprise - 3E", "Enterprise com foco em mapeamento e inspeção corporativa.", NeuralSuccess),
-    compatibleDrone("DJI Mavic 3 Thermal - 3T", "Versão térmica para segurança, busca e inspeção.", NeuralPrimary),
-    compatibleDrone("DJI Phantom 3", "Plataforma clássica Phantom para captura aérea e treino.", NeuralSecondary),
-    compatibleDrone("DJI Phantom 3 Advanced", "Phantom 3 com pacote avançado para operação estável.", NeuralSuccess),
-    compatibleDrone("DJI Phantom 3 Pro", "Versão Pro da linha Phantom 3 com perfil mais robusto.", NeuralPrimary),
-    compatibleDrone("DJI Phantom 4", "Plataforma amplamente usada em mapeamento e inspeção.", NeuralSecondary),
-    compatibleDrone("DJI Phantom 4 Pro", "Phantom 4 com câmera melhorada para uso profissional.", NeuralSuccess),
-    compatibleDrone("DJI Phantom 4 Pro V2", "Refinamento da linha Phantom 4 Pro para uso técnico.", NeuralPrimary),
-    compatibleDrone("DJI Phantom 4 RTK", "Modelo RTK para mapeamento preciso e georreferenciamento.", NeuralSecondary),
-    compatibleDrone("DJI Phantom 4 Multispectral", "Plataforma Phantom voltada para agricultura de precisão.", NeuralSuccess),
-    compatibleDrone("DJI Spark", "Drone compacto e leve para captura rápida e uso recreativo.", NeuralPrimary),
-    compatibleDrone("DJI Matrice 100", "Plataforma Matrice modular para pesquisa e desenvolvimento.", NeuralSecondary),
-    compatibleDrone("DJI Matrice 200", "Matrice industrial para inspeção e missões corporativas.", NeuralSuccess),
-    compatibleDrone("DJI Matrice 200 V2", "Revisão V2 com foco em confiabilidade operacional.", NeuralPrimary),
-    compatibleDrone("DJI Matrice 210", "Versão com suporte ampliado a cargas e sensores.", NeuralSecondary),
-    compatibleDrone("DJI Matrice 210 RTK", "Matrice com RTK para missões que exigem precisão.", NeuralSuccess),
-    compatibleDrone("DJI Matrice 210 V2", "Atualização da linha 210 com foco em estabilidade industrial.", NeuralPrimary),
-    compatibleDrone("DJI Matrice 210 V2 RTK", "Variação RTK da linha 210 V2 para mapeamento técnico.", NeuralSecondary),
-    compatibleDrone("DJI Matrice 300 RTK", "Plataforma enterprise robusta para inspeção avançada.", NeuralSuccess),
-    compatibleDrone("DJI Matrice 30T", "Drone compacto enterprise com sensor térmico integrado.", NeuralPrimary),
-    compatibleDrone("DJI Matrice 600", "Hexacóptero para cargas maiores e aplicações especializadas.", NeuralSecondary),
-    compatibleDrone("DJI Matrice 4 / 4T", "Linha enterprise recente para inspeção e operações técnicas.", NeuralSuccess)
-)
-
-private fun compatibleDrone(
-    name: String,
-    description: String,
-    accentColor: Color
-): CompatibleDrone {
-    return CompatibleDrone(
-        name = name,
-        description = description,
-        imageRes = compatibleDroneImageRes(name),
-        officialUrl = "https://www.dji.com/br",
-        accentColor = accentColor
-    )
-}
-
-private fun compatibleDroneImageRes(name: String): Int {
-    val normalized = name.lowercase()
-    return when {
-        normalized == "dji air 3" -> R.drawable.drone_dji_air_3
-        normalized == "dji mavic air" -> R.drawable.drone_dji_mavic_air
-        normalized == "dji mavic air 2" -> R.drawable.drone_dji_mavic_air_2
-        normalized == "dji mavic air 2s" -> R.drawable.drone_dji_mavic_air_2s
-        normalized == "dji mavic mini" -> R.drawable.drone_dji_mavic_mini
-        "matrice" in normalized -> R.drawable.ic_catalog_drone_matrice
-        "phantom" in normalized -> R.drawable.ic_catalog_drone_phantom
-        "air" in normalized || "mini" in normalized || "spark" in normalized -> R.drawable.ic_catalog_drone_air
-        else -> R.drawable.ic_catalog_drone_mavic
     }
 }

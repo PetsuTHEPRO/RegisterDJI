@@ -26,6 +26,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
@@ -33,77 +34,132 @@ import kotlin.math.max
 object MissionPreviewStorage {
     private const val PREVIEW_DIR = "mission-previews"
     private const val WIDTH = 420
-    private const val HEIGHT = 240
+    private const val HEIGHT = 180
     private const val SNAPSHOT_TIMEOUT_MS = 4_000L
 
+    private val generationLocks = java.util.concurrent.ConcurrentHashMap<Int, kotlinx.coroutines.sync.Mutex>()
+    private val retryAfter = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+    private const val RETRY_DELAY_MS = 5 * 60 * 1000L
+
+    /** A preview is a private, persistent artifact keyed by the mission ID and route signature. */
     suspend fun savePreview(context: Context, mission: ServerMissionDto): File? {
-        return runCatching {
+        val file = fileFor(context, mission.id) ?: return null
+        val signature = routeSignature(mission)
+        if (isValid(file) && signatureFile(file).readTextOrNull() == signature) return file
+        if (System.currentTimeMillis() < (retryAfter[mission.id] ?: 0L)) return file.takeIf(::isValid)
+        val lock = generationLocks.getOrPut(mission.id) { kotlinx.coroutines.sync.Mutex() }
+        return lock.withLock {
+            if (isValid(file) && signatureFile(file).readTextOrNull() == signature) return@withLock file
             val bitmap = createPreviewBitmap(context, mission)
-            val file = fileFor(context, mission.id) ?: return null
+            if (bitmap == null || !hasRenderedMapContent(bitmap)) {
+                bitmap?.recycle()
+                retryAfter[mission.id] = System.currentTimeMillis() + RETRY_DELAY_MS
+                return@withLock file.takeIf(::isValid)
+            }
             try {
-                file.outputStream().use { output ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+                withContext(Dispatchers.IO) {
+                    val temp = File(file.parentFile, "${file.name}.tmp")
+                    val written = temp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    if (!written || !isValid(temp)) {
+                        temp.delete()
+                        return@withContext
+                    }
+                    if (!temp.renameTo(file)) {
+                        temp.delete()
+                        return@withContext
+                    }
+                    signatureFile(file).writeText(signature)
                 }
+                retryAfter.remove(mission.id)
             } finally {
                 bitmap.recycle()
             }
-            file
-        }.getOrNull()
+            file.takeIf(::isValid)
+        }
     }
 
-    fun loadPreview(context: Context, missionId: Int): Bitmap? {
-        val file = fileFor(context, missionId) ?: return null
-        if (!file.exists()) return null
-        return BitmapFactory.decodeFile(file.absolutePath)
+    suspend fun loadPreview(context: Context, missionId: Int): Bitmap? = withContext(Dispatchers.IO) {
+        val file = fileFor(context, missionId) ?: return@withContext null
+        if (!isValid(file)) return@withContext null
+        BitmapFactory.decodeFile(file.absolutePath)
     }
 
     fun renamePreview(context: Context, fromMissionId: Int, toMissionId: Int) {
         if (fromMissionId == toMissionId) return
         val source = fileFor(context, fromMissionId) ?: return
-        if (!source.exists()) return
         val target = fileFor(context, toMissionId) ?: return
-        source.copyTo(target, overwrite = true)
-        source.delete()
+        if (!source.exists()) return
+        source.renameTo(target)
+        signatureFile(source).renameTo(signatureFile(target))
     }
 
     fun deletePreview(context: Context, missionId: Int) {
-        fileFor(context, missionId)?.takeIf(File::exists)?.delete()
+        fileFor(context, missionId)?.let { file ->
+            file.delete()
+            signatureFile(file).delete()
+        }
+        retryAfter.remove(missionId)
+        generationLocks.remove(missionId)
     }
 
     private fun fileFor(context: Context, missionId: Int): File? {
-        val baseDirectory = context.getExternalFilesDir(null) ?: context.filesDir
-        val directory = File(baseDirectory, PREVIEW_DIR)
-        if (!directory.exists() && !directory.mkdirs()) {
-            return null
+        val directory = File(context.filesDir, PREVIEW_DIR)
+        if (!directory.exists() && !directory.mkdirs()) return null
+        val file = File(directory, "mission_$missionId.png")
+        // One-time migration from the former app-specific external directory.
+        if (!file.exists()) {
+            context.getExternalFilesDir(null)?.let { external ->
+                val legacy = File(File(external, PREVIEW_DIR), file.name)
+                if (legacy.exists()) legacy.copyTo(file, overwrite = false)
+            }
         }
-        return File(directory, "mission_$missionId.png")
+        return file
     }
 
-    private suspend fun createPreviewBitmap(context: Context, mission: ServerMissionDto): Bitmap {
-        if (BuildConfig.MAPBOX_ACCESS_TOKEN.isBlank()) {
-            return createFallbackPreviewBitmap(context, mission)
-        }
+    private fun signatureFile(file: File) = File(file.parentFile, "${file.name}.route")
+    private fun File.readTextOrNull(): String? = runCatching { readText() }.getOrNull()
+    private fun isValid(file: File): Boolean {
+        if (!file.isFile || file.length() < 1024L) return false
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        return bounds.outWidth > 0 && bounds.outHeight > 0
+    }
 
+    private fun hasRenderedMapContent(bitmap: Bitmap): Boolean {
+        if (bitmap.width < WIDTH || bitmap.height < HEIGHT) return false
+        val colors = mutableSetOf<Int>()
+        // Sample away from the attribution and most route markers. A blank tile surface
+        // stays nearly uniform even when the route overlay itself was rendered.
+        for (row in 1..7) for (column in 1..15) {
+            val x = bitmap.width * column / 16
+            val y = bitmap.height * row / 9
+            val pixel = bitmap.getPixel(x, y)
+            if (Color.alpha(pixel) < 240) continue
+            colors += (Color.red(pixel) / 16 shl 8) or
+                (Color.green(pixel) / 16 shl 4) or (Color.blue(pixel) / 16)
+        }
+        return colors.size >= 12
+    }
+
+    private fun routeSignature(mission: ServerMissionDto): String {
+        val route = mission.waypoints.inDisplayOrder().joinToString(";") {
+            "${it.latitude},${it.longitude},${it.altitude}"
+        } + ";${mission.poi_latitude},${mission.poi_longitude}"
+        return java.security.MessageDigest.getInstance("SHA-256")
+            .digest(("v2:" + route).toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    private suspend fun createPreviewBitmap(context: Context, mission: ServerMissionDto): Bitmap? {
+        if (BuildConfig.MAPBOX_ACCESS_TOKEN.isBlank()) return null
         return withContext(Dispatchers.Main.immediate) {
             withTimeoutOrNull(SNAPSHOT_TIMEOUT_MS) {
-                runCatching {
-                    createMapSnapshotBitmap(context, mission)
-                }.getOrNull()
-            } ?: createFallbackPreviewBitmap(context, mission)
+                runCatching { createMapSnapshotBitmapInternal(context, mission) }.getOrNull()
+            }
         }
     }
 
-    private suspend fun createMapSnapshotBitmap(context: Context, mission: ServerMissionDto): Bitmap {
-        return runCatching {
-            createMapSnapshotBitmapInternal(context, mission)
-        }.getOrElse {
-            createFallbackPreviewBitmap(context, mission)
-        }
-    }
-
-    private suspend fun createMapSnapshotBitmapInternal(context: Context, mission: ServerMissionDto): Bitmap {
+    private suspend fun createMapSnapshotBitmapInternal(context: Context, mission: ServerMissionDto): Bitmap? {
         MapboxOptions.accessToken = BuildConfig.MAPBOX_ACCESS_TOKEN
-
         val points = mission.snapshotPoints()
         val snapshotter = Snapshotter(
             context,
@@ -111,31 +167,19 @@ object MissionPreviewStorage {
                 .size(Size(WIDTH.toFloat(), HEIGHT.toFloat()))
                 .pixelRatio(context.resources.displayMetrics.density)
                 .build(),
-            SnapshotOverlayOptions(
-                showLogo = false,
-                showAttributes = false
-            )
+            SnapshotOverlayOptions(showLogo = false, showAttributes = false)
         )
-
         snapshotter.setStyleUri(Style.SATELLITE_STREETS)
-        snapshotter.setCamera(
-            snapshotter.cameraForCoordinates(
-                points,
-                EdgeInsets(40.0, 40.0, 40.0, 40.0),
-                null,
-                null
-            )
-        )
-
-        return suspendCoroutine { continuation ->
+        snapshotter.setCamera(snapshotter.cameraForCoordinates(
+            points, EdgeInsets(40.0, 40.0, 40.0, 40.0), null, null
+        ))
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation { snapshotter.destroy() }
             snapshotter.start(
-                overlayCallback = { overlay ->
-                    drawMissionOverlay(overlay.canvas, overlay, mission)
-                },
+                overlayCallback = { overlay -> drawMissionOverlay(overlay.canvas, overlay, mission) },
                 resultCallback = { snapshot, errorMessage ->
-                    val result = snapshot ?: createFallbackPreviewBitmap(context, mission)
+                    if (continuation.isActive) continuation.resume(snapshot)
                     snapshotter.destroy()
-                    continuation.resume(result)
                 }
             )
         }
@@ -211,12 +255,14 @@ object MissionPreviewStorage {
             canvas.drawText((index + 1).toString(), x, labelY, textPaint)
         }
 
-        val poiPoint = Point.fromLngLat(mission.poi_longitude, mission.poi_latitude)
-        val poiScreen = overlay.screenCoordinate(poiPoint)
-        val poiX = poiScreen.x.toFloat()
-        val poiY = poiScreen.y.toFloat()
-        canvas.drawCircle(poiX, poiY, 8.5f, poiOuterPaint)
-        canvas.drawCircle(poiX, poiY, 5.5f, poiInnerPaint)
+        if (mission.poi_latitude != 0.0 || mission.poi_longitude != 0.0) {
+            val poiPoint = Point.fromLngLat(mission.poi_longitude, mission.poi_latitude)
+            val poiScreen = overlay.screenCoordinate(poiPoint)
+            val poiX = poiScreen.x.toFloat()
+            val poiY = poiScreen.y.toFloat()
+            canvas.drawCircle(poiX, poiY, 8.5f, poiOuterPaint)
+            canvas.drawCircle(poiX, poiY, 5.5f, poiInnerPaint)
+        }
 
         drawCompactAttribution(canvas, overlay.attributions)
     }
@@ -388,6 +434,8 @@ object MissionPreviewStorage {
             Point.fromLngLat(waypoint.longitude, waypoint.latitude)
         }
         val poiPoint = Point.fromLngLat(poi_longitude, poi_latitude)
-        return (routePoints + poiPoint).ifEmpty { listOf(poiPoint) }
+        val validPoi = poi_latitude != 0.0 || poi_longitude != 0.0
+        return (routePoints + if (validPoi) listOf(poiPoint) else emptyList())
+            .ifEmpty { listOf(poiPoint) }
     }
 }

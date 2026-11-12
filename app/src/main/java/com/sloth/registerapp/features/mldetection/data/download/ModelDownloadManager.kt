@@ -3,6 +3,7 @@ package com.sloth.registerapp.features.mldetection.data.download
 import android.util.Log
 import com.sloth.registerapp.core.observability.AppObservability
 import com.sloth.registerapp.features.mldetection.data.registry.ModelRegistry
+import com.sloth.registerapp.features.mldetection.data.registry.ModelCompatibilityValidator
 import io.sentry.SentryLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -105,17 +106,21 @@ class ModelDownloadManager(
                     }
                 }
 
-                // Write class labels if provided
+                ModelCompatibilityValidator.validate(tempFile)
                 if (classes.isNotEmpty()) {
                     File(registry.modelsDir, "$fileName.txt").writeText(classes.joinToString("\n"))
                 }
-
-                tempFile.renameTo(destFile)
+                runCatching { File(registry.modelsDir, "$fileName.origin").writeText("downloaded") }
+                check(tempFile.renameTo(destFile)) { "Não foi possível instalar o modelo validado" }
                 Log.d(TAG, "Model downloaded: ${destFile.name}")
                 DownloadResult.Success(destFile)
             }
         }.getOrElse { e ->
             tempFile.delete()
+            if (!destFile.exists()) {
+                File(registry.modelsDir, "$fileName.origin").delete()
+                File(registry.modelsDir, "$fileName.txt").delete()
+            }
             Log.e(TAG, "Download failed: ${e.message}", e)
             AppObservability.captureException(
                 throwable = e,

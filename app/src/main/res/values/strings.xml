@@ -8,7 +8,10 @@
     <string name="bottom_nav_home">Início</string>
     <string name="bottom_nav_live">Ao vivo</string>
     <string name="bottom_nav_missions">Missões</string>
-    <string name="bottom_nav_reports">Relatório</string>
+    <string name="bottom_nav_camera">Câmera</string>
+    <string name="bottom_nav_ai">IA</string>
+    <string name="bottom_nav_reports">Relatórios</string>
+    <string name="bottom_nav_settings">Ajustes</string>
     <string name="dashboard_open_link_error">Não foi possível abrir o link do drone.</string>
     <string name="mission_preview_route_label">Preview da rota</string>
 

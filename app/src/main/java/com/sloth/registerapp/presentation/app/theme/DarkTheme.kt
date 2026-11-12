@@ -4,54 +4,62 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Esquema de cores escuro alinhado com a paleta Neural.
- * Agora o MaterialTheme.colorScheme reflete as mesmas cores usadas nos screens.
+ * Esquema escuro principal do Vantly Neural (estilo DJI).
+ * Preto/cinza/branco como base; verde, âmbar e vermelho somente para estados.
  */
 val DarkColorScheme = darkColorScheme(
     // Base
     background        = NeuralColors.Bg,
     onBackground      = NeuralColors.TextPrimary,
 
-    // Primária (ciano neural)
+    // Primária neutra (branco) — ações principais com alto contraste
     primary           = NeuralColors.Primary,
-    onPrimary         = Color.White,
-    primaryContainer  = Color(0xFF003A50),
+    onPrimary         = NeuralColors.OnPrimary,
+    primaryContainer  = NeuralColors.SurfaceElevated,
     onPrimaryContainer = NeuralColors.TextPrimary,
 
-    // Secundária (verde — sucesso)
+    // Secundária — verde semântico (pronto / conectado). Container neutro
+    // para que botões tonais permaneçam cinza.
     secondary         = NeuralColors.Success,
-    onSecondary       = NeuralColors.Bg,
-    secondaryContainer = Color(0xFF003D28),
-    onSecondaryContainer = Color(0xFFDCFCE7),
+    onSecondary       = Color(0xFF00210A),
+    secondaryContainer = NeuralColors.SurfaceElevated,
+    onSecondaryContainer = NeuralColors.TextPrimary,
 
-    // Terciária (âmbar — aviso)
+    // Terciária — âmbar (atenção)
     tertiary          = NeuralColors.Warning,
-    onTertiary        = NeuralColors.Bg,
-    tertiaryContainer = Color(0xFF4A3000),
-    onTertiaryContainer = Color(0xFFFFEDD5),
+    onTertiary        = Color(0xFF2B1A00),
+    tertiaryContainer = Color(0xFF3A2A0A),
+    onTertiaryContainer = Color(0xFFFFE2A8),
 
-    // Erro / Perigo
+    // Erro / ações críticas
     error             = NeuralColors.Danger,
     onError           = Color.White,
-    errorContainer    = Color(0xFF4A001A),
-    onErrorContainer  = Color(0xFFFFCDD8),
+    errorContainer    = Color(0xFF3B1512),
+    onErrorContainer  = Color(0xFFFFD6D2),
 
     // Superfícies
     surface           = NeuralColors.Surface,
-    surfaceVariant    = NeuralColors.SurfaceAlt,
     onSurface         = NeuralColors.TextPrimary,
-    onSurfaceVariant  = NeuralColors.Muted,
+    surfaceVariant    = NeuralColors.SurfaceAlt,
+    onSurfaceVariant  = NeuralColors.TextSecondary,
+    surfaceContainerLowest = NeuralColors.Bg,
+    surfaceContainerLow    = NeuralColors.BgSoft,
+    surfaceContainer       = NeuralColors.Surface,
+    surfaceContainerHigh   = NeuralColors.SurfaceAlt,
+    surfaceContainerHighest= NeuralColors.SurfaceElevated,
+    surfaceBright     = NeuralColors.SurfaceElevated,
+    surfaceDim        = NeuralColors.BgSoft,
 
-    // Bordas e contornos
-    outline           = NeuralColors.Border,
-    outlineVariant    = NeuralColors.BorderStrong,
+    // Contornos
+    outline           = NeuralColors.BorderStrong,
+    outlineVariant    = NeuralColors.Border,
 
-    // Inversas (usadas em tooltips/snackbars claros)
-    inverseSurface    = Color(0xFFE5E7EB),
-    inverseOnSurface  = NeuralColors.Bg,
-    inversePrimary    = NeuralColors.Secondary,
+    // Inversas (snackbars / tooltips)
+    inverseSurface    = Color(0xFFF2F2F2),
+    inverseOnSurface  = Color(0xFF111111),
+    inversePrimary    = Color(0xFF111111),
 
-    // Extras
-    surfaceTint       = NeuralColors.Primary,
-    scrim             = Color(0x99000000),
+    // Sem tinta colorida nas superfícies elevadas
+    surfaceTint       = Color.Transparent,
+    scrim             = Color(0xB3000000),
 )

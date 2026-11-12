@@ -32,7 +32,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.scale
@@ -2931,14 +2935,36 @@ private fun MissionControlPanel(
     val active = missionStatus == ActiveMissionStatus.EXECUTING || missionStatus == ActiveMissionStatus.PAUSED
     val (statusIcon, statusLabel, statusColor) = when {
         !isDroneConnected -> Triple(Icons.Default.LinkOff, "Aeronave desconectada", NeuralColors.Warning)
-        isUploading || missionStatus == ActiveMissionStatus.UPLOADING -> Triple(Icons.Default.CloudUpload, "Enviando missão", NeuralColors.Warning)
-        missionStatus == ActiveMissionStatus.EXECUTING -> Triple(Icons.Default.PlayArrow, "Missão em execução", NeuralColors.Success)
-        missionStatus == ActiveMissionStatus.PAUSED -> Triple(Icons.Default.Pause, "Missão pausada", NeuralColors.Warning)
-        missionStatus == ActiveMissionStatus.ERROR -> Triple(Icons.Default.ErrorOutline, "Erro na missão", NeuralColors.Danger)
-        missionStatus == ActiveMissionStatus.READY -> Triple(Icons.Default.CheckCircle, "Missão enviada e pronta", NeuralColors.Success)
-        missionStatus == ActiveMissionStatus.COMPLETED -> Triple(Icons.Default.CheckCircle, "Missão concluída", NeuralColors.Success)
-        else -> Triple(Icons.Default.CheckCircle, "Aeronave conectada; missão aguardando envio", NeuralColors.DashboardBlueLight)
+        isUploading || missionStatus == ActiveMissionStatus.UPLOADING ->
+            Triple(Icons.Default.CloudUpload, "Enviando missão", NeuralColors.Warning)
+        missionStatus == ActiveMissionStatus.EXECUTING ->
+            Triple(Icons.Default.PlayArrow, "Missão em execução", NeuralColors.Success)
+        missionStatus == ActiveMissionStatus.PAUSED ->
+            Triple(Icons.Default.Pause, "Missão pausada", NeuralColors.Warning)
+        missionStatus == ActiveMissionStatus.ERROR ->
+            Triple(Icons.Default.ErrorOutline, "Erro na missão", NeuralColors.Danger)
+        missionStatus == ActiveMissionStatus.READY ->
+            Triple(Icons.Default.CheckCircle, "Missão enviada e pronta", NeuralColors.Success)
+        missionStatus == ActiveMissionStatus.COMPLETED ->
+            Triple(Icons.Default.CheckCircle, "Missão concluída", NeuralColors.Success)
+        else -> Triple(
+            Icons.Default.CheckCircle,
+            "Aeronave conectada; missão aguardando envio",
+            NeuralColors.DashboardBlueLight
+        )
     }
+    val isUploadingNow = isDroneConnected &&
+        (isUploading || missionStatus == ActiveMissionStatus.UPLOADING)
+    // Conectado e sem estado operacional relevante: a topbar já informa a conexão,
+    // então a barra mostra apenas o ícone da missão. Avisos e estados de execução
+    // continuam visíveis.
+    val showStatusIcon = !isDroneConnected || isUploadingNow ||
+        missionStatus in listOf(
+            ActiveMissionStatus.EXECUTING,
+            ActiveMissionStatus.PAUSED,
+            ActiveMissionStatus.ERROR
+        )
+    val hasLoadedMission = hasMission && !missionName.isNullOrBlank()
     val canUpload = isDroneConnected && hasMission && !isUploading &&
         missionStatus in listOf(ActiveMissionStatus.LOADED, ActiveMissionStatus.STOPPED, ActiveMissionStatus.ERROR)
     val canPlay = isDroneConnected && hasMission && !isUploading &&
@@ -2949,161 +2975,111 @@ private fun MissionControlPanel(
     val canStop = isDroneConnected && hasMission && !isUploading && active &&
         sdkMissionState in listOf(MissionState.EXECUTING, MissionState.EXECUTION_PAUSED)
 
+    // A faixa expandida usa exatamente a largura da barra recolhida. Assim a
+    // expansão acrescenta somente altura e nunca altera a posição dos controles.
+    var barWidthPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val expandedWidth = if (barWidthPx > 0) {
+        with(density) { barWidthPx.toDp() }
+    } else if (compact) {
+        220.dp
+    } else {
+        236.dp
+    }
+
     Column(
         modifier = modifier.wrapContentSize(),
         horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Expansão compacta (aparece acima da barra horizontal)
+        // Única área adicional da expansão: nome da missão + botão Enviar na mesma linha.
         AnimatedVisibility(
             visible = expanded,
-            enter = fadeIn(tween(150)) + expandVertically(animationSpec = tween(150), expandFrom = Alignment.Bottom),
-            exit = fadeOut(tween(120)) + shrinkVertically(animationSpec = tween(120), shrinkTowards = Alignment.Bottom)
+            enter = fadeIn(tween(120)) + expandVertically(animationSpec = tween(140), expandFrom = Alignment.Bottom),
+            exit = fadeOut(tween(90)) + shrinkVertically(animationSpec = tween(110), shrinkTowards = Alignment.Bottom)
         ) {
             Surface(
-                modifier = Modifier.width(if (compact) 210.dp else 236.dp),
+                modifier = Modifier.width(expandedWidth),
                 shape = RoundedCornerShape(10.dp),
                 color = NeuralColors.DashboardOverlay,
                 border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                Row(
+                    modifier = Modifier
+                        .height(44.dp)
+                        .padding(start = 10.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Nome real da missão carregada (no máximo uma linha, com reticências)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Route,
-                            contentDescription = null,
-                            tint = if (hasMission && !missionName.isNullOrBlank()) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = missionName?.takeIf { hasMission && it.isNotBlank() } ?: "Nenhuma missão",
-                            color = if (hasMission && !missionName.isNullOrBlank()) NeuralColors.TextPrimary else NeuralColors.DashboardTextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Botão "Enviar Missão"
-                    Surface(
-                        onClick = onUploadClick,
+                    Text(
+                        text = missionName?.takeIf { hasLoadedMission } ?: "Nenhuma missão",
+                        color = if (hasLoadedMission) NeuralColors.TextPrimary else NeuralColors.DashboardTextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    MissionUploadButton(
                         enabled = canUpload,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (canUpload) NeuralColors.DashboardBlue.copy(alpha = 0.20f) else NeuralColors.DashboardInner,
-                        border = BorderStroke(
-                            1.dp,
-                            if (canUpload) NeuralColors.DashboardBlue.copy(alpha = 0.50f) else NeuralColors.DashboardBorder
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .height(32.dp)
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            if (isDroneConnected && (isUploading || missionStatus == ActiveMissionStatus.UPLOADING)) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(13.dp),
-                                    strokeWidth = 2.dp,
-                                    color = NeuralColors.Warning
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = "Enviando...",
-                                    color = NeuralColors.Warning,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.CloudUpload,
-                                    contentDescription = null,
-                                    tint = if (canUpload) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = "Enviar Missão",
-                                    color = if (canUpload) NeuralColors.TextPrimary else NeuralColors.TextDisabled,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
+                        uploading = isUploadingNow,
+                        onClick = onUploadClick
+                    )
                 }
             }
         }
 
-        // Barra horizontal de UMA ÚNICA LINHA (Controle de Missão compacto)
+        // Barra principal: uma única linha, somente ícones, sem cards individuais.
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+                .wrapContentSize()
+                .onSizeChanged { barWidthPx = it.width },
+            shape = RoundedCornerShape(12.dp),
             color = NeuralColors.DashboardOverlay,
-            border = BorderStroke(1.dp, NeuralColors.DashboardBorder),
-            modifier = Modifier.wrapContentSize()
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Row(
                 modifier = Modifier
                     .height(46.dp)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    .padding(start = 7.dp, end = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Ícone pequeno de missão
-                Box(
-                    modifier = Modifier.size(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Route,
-                        contentDescription = "Missão",
-                        tint = NeuralColors.DashboardBlueLight,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                // Ícone compacto de estado
-                Box(
-                    modifier = Modifier.size(28.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isDroneConnected && (isUploading || missionStatus == ActiveMissionStatus.UPLOADING)) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp).semantics { contentDescription = statusLabel },
-                            strokeWidth = 2.dp,
-                            color = statusColor
-                        )
-                    } else {
-                        Icon(
-                            imageVector = statusIcon,
-                            contentDescription = statusLabel,
-                            tint = statusColor,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                // Divisor vertical
-                Box(
+                Icon(
+                    imageVector = Icons.Default.Route,
+                    contentDescription = if (hasMission) "Missão carregada" else "Nenhuma missão carregada",
+                    tint = if (hasMission) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled,
                     modifier = Modifier
-                        .width(1.dp)
-                        .height(18.dp)
-                        .background(NeuralColors.DashboardBorder)
+                        .padding(horizontal = 3.dp)
+                        .size(16.dp)
                 )
 
-                // Botão Iniciar (Play)
-                MissionExecutionIconButton(
+                if (showStatusIcon) {
+                    Box(
+                        modifier = Modifier.size(22.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isUploadingNow) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .semantics { contentDescription = statusLabel },
+                                strokeWidth = 2.dp,
+                                color = statusColor
+                            )
+                        } else {
+                            Icon(
+                                imageVector = statusIcon,
+                                contentDescription = statusLabel,
+                                tint = statusColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(3.dp))
+                }
+
+                MissionBarActionButton(
                     icon = Icons.Default.PlayArrow,
                     description = if (missionStatus == ActiveMissionStatus.PAUSED) "Retomar missão" else "Iniciar missão",
                     enabled = canPlay,
@@ -3111,8 +3087,7 @@ private fun MissionControlPanel(
                     onClick = onPlayClick
                 )
 
-                // Botão Pausar (Pause)
-                MissionExecutionIconButton(
+                MissionBarActionButton(
                     icon = Icons.Default.Pause,
                     description = "Pausar missão",
                     enabled = canPause,
@@ -3120,8 +3095,7 @@ private fun MissionControlPanel(
                     onClick = onPauseClick
                 )
 
-                // Botão Parar (Stop)
-                MissionExecutionIconButton(
+                MissionBarActionButton(
                     icon = Icons.Default.Stop,
                     description = "Parar missão",
                     enabled = canStop,
@@ -3129,62 +3103,109 @@ private fun MissionControlPanel(
                     onClick = onStopClick
                 )
 
-                // Divisor vertical
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(18.dp)
-                        .background(NeuralColors.DashboardBorder)
-                )
+                Spacer(Modifier.width(3.dp))
 
-                // Botão de expandir
-                Surface(
-                    onClick = { onExpandedChange(!expanded) },
-                    shape = RoundedCornerShape(6.dp),
-                    color = NeuralColors.DashboardInner,
-                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder),
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                            contentDescription = if (expanded) "Recolher opções da missão" else "Expandir opções da missão",
-                            tint = NeuralColors.TextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+                MissionBarActionButton(
+                    icon = if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                    description = if (expanded) "Recolher opções da missão" else "Expandir opções da missão",
+                    enabled = true,
+                    activeColor = NeuralColors.TextSecondary,
+                    onClick = { onExpandedChange(!expanded) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MissionExecutionIconButton(
+private fun MissionBarActionButton(
     icon: ImageVector,
     description: String,
     enabled: Boolean,
     activeColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.size(34.dp),
-        shape = RoundedCornerShape(6.dp),
-        color = if (enabled) activeColor.copy(alpha = 0.15f) else NeuralColors.DashboardInner,
-        border = BorderStroke(
-            1.dp,
-            if (enabled) activeColor.copy(alpha = 0.45f) else NeuralColors.DashboardBorder
-        )
+    // 44 dp de área tocável (WCAG 2.5.5) com um chip visual de apenas 30 dp.
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .background(
+                    color = if (enabled) activeColor.copy(alpha = 0.12f) else Color.Transparent,
+                    shape = RoundedCornerShape(8.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = description,
                 tint = if (enabled) activeColor else NeuralColors.TextDisabled,
                 modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MissionUploadButton(
+    enabled: Boolean,
+    uploading: Boolean,
+    onClick: () -> Unit
+) {
+    val contentColor = when {
+        uploading -> NeuralColors.Warning
+        enabled -> NeuralColors.TextPrimary
+        else -> NeuralColors.TextDisabled
+    }
+    Box(
+        modifier = Modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .height(30.dp)
+                .background(
+                    color = if (enabled) NeuralColors.DashboardBlue.copy(alpha = 0.22f) else NeuralColors.DashboardInner,
+                    shape = RoundedCornerShape(7.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (enabled) NeuralColors.DashboardBlue.copy(alpha = 0.55f) else NeuralColors.DashboardBorder,
+                    shape = RoundedCornerShape(7.dp)
+                )
+                .padding(horizontal = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (uploading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.8.dp,
+                    color = NeuralColors.Warning
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.CloudUpload,
+                    contentDescription = null,
+                    tint = if (enabled) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Text(
+                text = if (uploading) "Enviando" else "Enviar Missão",
+                color = contentColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
             )
         }
     }

@@ -1,7 +1,5 @@
 package com.sloth.registerapp.presentation.app.dashboard.screens
 
-import android.app.Application
-import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -81,6 +79,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
@@ -89,24 +90,24 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sloth.registerapp.R
 import com.sloth.registerapp.core.dji.DJIConnectionHelper
-import com.sloth.registerapp.core.mission.ActiveMissionSessionManager
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.domain.model.DroneState
-import com.sloth.registerapp.features.mission.domain.model.Mission
+import com.sloth.registerapp.features.mission.domain.model.MissionOutcomeStatus
+import com.sloth.registerapp.features.mission.domain.model.MissionExecutionMode
+import com.sloth.registerapp.features.report.data.manager.FlightReportManager
+import com.sloth.registerapp.features.report.domain.model.FlightReport
 import com.sloth.registerapp.features.mldetection.presentation.MLDetectionViewModel
 import com.sloth.registerapp.features.objectdetection.data.repository.ObjectDetectionPreferencesRepository
 import com.sloth.registerapp.presentation.app.theme.NeuralColors
 import com.sloth.registerapp.presentation.app.theme.VantlyMotion
-import com.sloth.registerapp.presentation.mission.activities.MissionControlActivity
-import com.sloth.registerapp.presentation.mission.viewmodels.MissionListUiState
-import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModel
-import com.sloth.registerapp.presentation.mission.viewmodels.MissionListViewModelFactory
 import com.sloth.registerapp.presentation.shared.components.AviationCard
 import com.sloth.registerapp.presentation.shared.components.StatusDot
 import com.sloth.registerapp.presentation.shared.components.TelemetryBadge
 import com.sloth.registerapp.presentation.shared.components.TelemetryStatusTone
 import com.sloth.registerapp.presentation.shared.components.VantlyDivider
 import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * Dashboard principal do Vantly Neural.
@@ -115,7 +116,7 @@ import java.util.Locale
  * Estrutura vertical estrita:
  * 1. Cabeçalho Vantly Neural (Central de Operações)
  * 2. Card principal da aeronave (destaque operacional com telemetria real)
- * 3. Seção Últimas Missões (até 3 missões recentes cadastradas)
+ * 3. Seção Últimas Missões (execuções encerradas e persistidas)
  * 4. Resumo do Sistema de IA (resumo operacional e acesso à Central de IA)
  */
 @Composable
@@ -130,7 +131,8 @@ fun DashboardScreen(
     onShowAllDronesClick: () -> Unit = {},
     onWeatherClick: () -> Unit = {},
     onCameraClick: () -> Unit = {},
-    onReportsClick: () -> Unit = {}
+    onReportsClick: () -> Unit = {},
+    onReportClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
@@ -149,12 +151,16 @@ fun DashboardScreen(
         "Nenhuma aeronave conectada"
     }
 
-    // Missões Reais
-    val missionListViewModel: MissionListViewModel = viewModel(
-        factory = MissionListViewModelFactory(context.applicationContext as Application)
-    )
-    val missionListUiState by missionListViewModel.uiState.collectAsStateWithLifecycle()
-    val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
+    val reportManager = remember { FlightReportManager(context) }
+    val reports by reportManager.reports.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, reportManager) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) reportManager.refreshReports()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Sistema de IA
     val objectDetectionRepo = remember { ObjectDetectionPreferencesRepository.getInstance(context) }
@@ -170,7 +176,6 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) {
         visible = true
-        missionListViewModel.fetchMissions()
     }
 
     DisposableEffect(Unit) {
@@ -227,16 +232,9 @@ fun DashboardScreen(
                     )
 
                     RecentMissionsSection(
-                        uiState = missionListUiState,
-                        activeMissionId = activeMissionId,
-                        onViewAllClick = onMissionsClick,
-                        onRefreshClick = { missionListViewModel.fetchMissions() },
-                        onMissionClick = { mission ->
-                            val intent = Intent(context, MissionControlActivity::class.java).apply {
-                                putExtra("MISSION_ID", mission.id)
-                            }
-                            context.startActivity(intent)
-                        }
+                        reports = reports,
+                        onViewAllClick = onReportsClick,
+                        onReportClick = onReportClick
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -307,20 +305,20 @@ private fun AircraftPrimaryCard(
         else -> null
     }
     BoxWithConstraints(
-        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 166.dp)
+        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 174.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF0F1623))
             .border(BorderStroke(1.dp, Color(0xFF243044)), RoundedCornerShape(12.dp))
     ) {
-        val imageWidth = (maxWidth * if (maxWidth < 340.dp) 0.32f else 0.43f)
-            .coerceAtMost(180.dp)
+        val imageWidth = (maxWidth * if (maxWidth < 340.dp) 0.38f else 0.48f)
+            .coerceAtMost(196.dp)
         Image(painter = painterResource(R.drawable.dashboard_mountain), contentDescription = null,
             contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         Box(Modifier.matchParentSize().background(Color(0xA6000000)))
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(
             0f to Color(0xFF0B111A), 0.52f to Color(0xE60B111A), 1f to Color(0x44111827)
         )))
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Status da Aeronave", color = Color(0xFFF1F5F9), fontSize = 15.sp,
@@ -336,23 +334,27 @@ private fun AircraftPrimaryCard(
                     }
                 }
                 Text(modelName, color = Color(0xFF94A3B8), fontSize = 12.sp)
-                Surface(onClick = { refreshing = true; onRefreshStatusClick() },
-                    shape = RoundedCornerShape(8.dp), color = NeuralColors.DashboardBlue) {
-                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                        if (refreshing) androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(17.dp), strokeWidth = 2.dp, color = Color.White)
-                        else Icon(Icons.Default.Refresh, contentDescription = "Atualizar conexão da aeronave",
-                            tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
-                }
             }
             if (illustration != null) {
                 Image(painter = painterResource(illustration), contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.width(imageWidth).aspectRatio(1.8f))
+                    modifier = Modifier.width(imageWidth).aspectRatio(if (isConnected) 1.8f else 1.21f))
             } else {
                 Spacer(Modifier.width(imageWidth))
             }
+        }
+        Box(
+            modifier = Modifier.align(Alignment.TopEnd).size(48.dp)
+                .clickable(enabled = !refreshing, onClick = {
+                    refreshing = true
+                    onRefreshStatusClick()
+                }),
+            contentAlignment = Alignment.Center
+        ) {
+            if (refreshing) CircularProgressIndicator(
+                modifier = Modifier.size(17.dp), strokeWidth = 2.dp, color = NeuralColors.DashboardBlueLight
+            ) else Icon(Icons.Default.Refresh, contentDescription = "Atualizar conexão da aeronave",
+                tint = NeuralColors.DashboardBlueLight, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -454,234 +456,76 @@ private fun FlightTelemetryCard(
     }
 }
 
-/** 3. Seção Últimas Missões: até 3 missões reais cadastradas recentemente */
+/** Histórico local de execuções encerradas; planos cadastrados não entram nesta seção. */
 @Composable
 private fun RecentMissionsSection(
-    uiState: MissionListUiState,
-    activeMissionId: String?,
+    reports: List<FlightReport>,
     onViewAllClick: () -> Unit,
-    onRefreshClick: () -> Unit,
-    onMissionClick: (Mission) -> Unit
+    onReportClick: (String) -> Unit
 ) {
-    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF111827),
-        border = BorderStroke(1.dp, Color(0xFF1F2937))) {
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Últimas missões",
-                color = NeuralColors.TextPrimary,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            TextButton(
-                onClick = onViewAllClick,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "Ver todas",
-                    color = NeuralColors.TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = NeuralColors.TextSecondary,
-                    modifier = Modifier.size(13.dp)
-                )
-            }
-        }
-
-        when (uiState) {
-            is MissionListUiState.Loading -> {
-                // Skeleton discreto de carregamento
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    repeat(2) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(64.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF111827),
-                            border = BorderStroke(1.dp, Color(0xFF1F2937))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = NeuralColors.TextSecondary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            is MissionListUiState.Error -> {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF111827),
-                    border = BorderStroke(1.dp, Color(0xFF1F2937))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = NeuralColors.Warning, modifier = Modifier.size(16.dp))
-                            Text(
-                                text = "Não foi possível carregar as missões.",
-                                color = NeuralColors.TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
-                        IconButton(onClick = onRefreshClick, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Tentar novamente", tint = Color.White, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-            is MissionListUiState.Unauthorized -> {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF111827),
-                    border = BorderStroke(1.dp, Color(0xFF1F2937))
-                ) {
-                    Text(
-                        text = "Faça login para sincronizar suas missões de voo.",
-                        color = NeuralColors.TextSecondary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(14.dp)
-                    )
-                }
-            }
-            is MissionListUiState.Idle -> {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF111827),
-                    border = BorderStroke(1.dp, Color(0xFF1F2937))
-                ) {
-                    Text(
-                        text = "Aguardando sincronização de missões.",
-                        color = NeuralColors.TextSecondary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(14.dp)
-                    )
-                }
-            }
-            is MissionListUiState.Success -> {
-                val recentMissions = uiState.missions.sortedByDescending { it.id }.take(3)
-                if (recentMissions.isEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF111827),
-                        border = BorderStroke(1.dp, Color(0xFF1F2937))
-                    ) {
-                        Text(
-                            text = "Nenhuma missão cadastrada.",
-                            color = NeuralColors.TextSecondary,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(14.dp)
-                        )
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        recentMissions.forEach { mission ->
-                            val isActive = mission.id.toString() == activeMissionId
-                            RecentMissionItem(
-                                mission = mission,
-                                isActive = isActive,
-                                onClick = { onMissionClick(mission) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
+    val recent = remember(reports) {
+        reports.filter { report ->
+            report.endedAtMs > 0L &&
+                report.extraData["missionId"] != "demo-report-001" &&
+                report.extraData["executionMode"] == MissionExecutionMode.REAL.name &&
+                report.extraData["status"] in setOf("COMPLETED", "ABORTED", "FAILED")
+        }.sortedByDescending { it.endedAtMs }.take(3)
     }
+    Surface(shape = RoundedCornerShape(12.dp), color = NeuralColors.DashboardCard,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Últimas Missões", color = NeuralColors.TextPrimary,
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                TextButton(onClick = onViewAllClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                    Text("Ver todas", color = NeuralColors.DashboardTextSecondary, fontSize = 12.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null,
+                        tint = NeuralColors.DashboardTextSecondary, modifier = Modifier.size(13.dp))
+                }
+            }
+            if (recent.isEmpty()) {
+                Text("Nenhuma missão realizada ainda.", color = NeuralColors.DashboardTextSecondary,
+                    fontSize = 12.sp, modifier = Modifier.padding(vertical = 10.dp))
+            } else recent.forEach { report ->
+                RecentExecutionItem(report = report, onClick = { onReportClick(report.id) })
+            }
+        }
     }
 }
 
 @Composable
-private fun RecentMissionItem(
-    mission: Mission,
-    isActive: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF151E2E),
-        border = BorderStroke(1.dp, if (isActive) Color(0xFF3B82F6) else Color(0xFF26354D))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+private fun RecentExecutionItem(report: FlightReport, onClick: () -> Unit) {
+    val status = when (report.extraData["status"]) {
+        MissionOutcomeStatus.COMPLETED.name -> "Concluída"
+        MissionOutcomeStatus.ABORTED.name -> "Interrompida"
+        else -> "Falha"
+    }
+    val statusColor = when (report.extraData["status"]) {
+        MissionOutcomeStatus.COMPLETED.name -> NeuralColors.Success
+        MissionOutcomeStatus.ABORTED.name -> NeuralColors.Warning
+        else -> NeuralColors.Danger
+    }
+    val date = remember(report.endedAtMs) {
+        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(report.endedAtMs))
+    }
+    Surface(onClick = onClick, shape = RoundedCornerShape(10.dp),
+        color = NeuralColors.DashboardInner,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(Color.White.copy(alpha = 0.05f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Route,
-                    contentDescription = null,
-                    tint = if (isActive) Color(0xFF60A5FA) else Color(0xFF94A3B8),
-                    modifier = Modifier.size(17.dp)
-                )
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Default.Route, contentDescription = null,
+                tint = NeuralColors.DashboardBlueLight, modifier = Modifier.size(17.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(report.missionName, color = NeuralColors.TextPrimary,
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("$date • $status", color = statusColor, fontSize = 11.sp)
             }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = mission.name,
-                        color = NeuralColors.TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    if (isActive) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color(0xFF3B82F6).copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = "NA SESSÃO",
-                                color = Color(0xFF60A5FA),
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = "#${mission.id} • ${mission.waypointCount} waypoints • ${mission.altitude.toInt()}m alt • Cadastrada",
-                    color = NeuralColors.TextSecondary,
-                    fontSize = 11.sp
-                )
-            }
-
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.35f),
-                modifier = Modifier.size(16.dp)
-            )
+            Icon(Icons.Default.ChevronRight, contentDescription = "Abrir relatório de execução",
+                tint = NeuralColors.DashboardTextSecondary, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -713,25 +557,17 @@ private fun AiSystemSummaryCard(
                 }
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val stacked = maxWidth < 285.dp || LocalDensity.current.fontScale >= 1.3f
+                val stacked = maxWidth < 310.dp || LocalDensity.current.fontScale >= 1.4f
                 if (stacked) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Image(painter = painterResource(R.drawable.dashboard_person_detection),
-                            contentDescription = "Imagem ilustrativa de detecção de pessoas",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)
-                                .clip(RoundedCornerShape(8.dp)))
+                        AiDetectionPreview(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
                         AiDetails(activeModelName, modelsCount, lastInferenceMs)
                     }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically,
+                    Row(verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Image(painter = painterResource(R.drawable.dashboard_person_detection),
-                            contentDescription = "Imagem ilustrativa de detecção de pessoas",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.weight(5f).aspectRatio(4f / 3f)
-                                .clip(RoundedCornerShape(8.dp)))
-                        AiDetails(activeModelName, modelsCount, lastInferenceMs, Modifier.weight(7f))
+                        AiDetectionPreview(Modifier.weight(0.42f).aspectRatio(4f / 3f))
+                        AiDetails(activeModelName, modelsCount, lastInferenceMs, Modifier.weight(0.58f))
                     }
                 }
             }
@@ -751,6 +587,18 @@ private fun AiSystemSummaryCard(
 }
 
 @Composable
+private fun AiDetectionPreview(modifier: Modifier) {
+    Box(modifier.clip(RoundedCornerShape(8.dp))) {
+        Image(
+            painter = painterResource(R.drawable.dashboard_person_detection),
+            contentDescription = "Imagem ilustrativa de detecção de pessoas",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
 private fun AiDetails(
     activeModelName: String,
     modelsCount: Int,
@@ -761,10 +609,10 @@ private fun AiDetails(
         Text("Visão Computacional", color = Color(0xFFF1F5F9), fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold)
         Text("Detecção de pessoas", color = Color(0xFF94A3B8), fontSize = 10.sp)
+        AiMiniMetric("Modelo", activeModelName, Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AiMiniMetric("Modelo", activeModelName, Modifier.weight(1.25f))
-            AiMiniMetric("Latência", lastInferenceMs?.let { "$it ms" } ?: "--", Modifier.weight(0.9f))
-            AiMiniMetric("Modelos", if (modelsCount > 0) "$modelsCount inst." else "--", Modifier.weight(0.9f))
+            AiMiniMetric("Latência", lastInferenceMs?.let { "$it ms" } ?: "--", Modifier.weight(1f))
+            AiMiniMetric("Modelos", if (modelsCount > 0) "$modelsCount inst." else "--", Modifier.weight(1f))
         }
     }
 }

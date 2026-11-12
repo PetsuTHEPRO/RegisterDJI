@@ -81,6 +81,7 @@
             android:name="com.sloth.registerapp.presentation.mission.activities.MissionControlActivity"
             android:exported="false"
             android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity" />
 
@@ -89,6 +90,7 @@
             android:name="com.sloth.registerapp.presentation.video.activities.DroneCameraActivity"
             android:exported="false"
             android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:theme="@style/Theme.RegisterApp"
             tools:ignore="LockedOrientationActivity" />
 

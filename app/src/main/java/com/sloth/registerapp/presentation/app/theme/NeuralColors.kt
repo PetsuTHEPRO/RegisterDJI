@@ -17,8 +17,10 @@ object NeuralColors {
     val DashboardBg = Color(0xFF0B111A)
     val DashboardCard = Color(0xFF111827)
     val DashboardInner = Color(0xFF151E2E)
+    val DashboardOverlay = Color(0xF2111827)
     val DashboardBorder = Color(0xFF1F2937)
     val DashboardBlue = Color(0xFF1D4ED8)
+    val DashboardBlueLight = Color(0xFF60A5FA)
     val DashboardTextSecondary = Color(0xFF94A3B8)
     // Fundos
     val Bg              = Color(0xFF000000)   // fundo principal

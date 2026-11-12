@@ -11,6 +11,7 @@ fun VideoFeedView(
     modifier: Modifier = Modifier,
     onTextureViewReady: (TextureView) -> Unit = {},
     onSurfaceTextureAvailable: (SurfaceTexture, Int, Int) -> Unit,
+    onSurfaceTextureSizeChanged: (SurfaceTexture, Int, Int) -> Unit = { _, _, _ -> },
     onSurfaceTextureDestroyed: () -> Boolean
 ) {
     AndroidView(
@@ -22,7 +23,9 @@ fun VideoFeedView(
                         onSurfaceTextureAvailable(surface, width, height)
                     }
 
-                    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+                    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+                        onSurfaceTextureSizeChanged(surface, width, height)
+                    }
 
                     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                         return onSurfaceTextureDestroyed()
@@ -34,6 +37,9 @@ fun VideoFeedView(
         },
         update = { textureView ->
             onTextureViewReady(textureView)
+            if (textureView.isAvailable && textureView.surfaceTexture != null && textureView.width > 0 && textureView.height > 0) {
+                onSurfaceTextureAvailable(textureView.surfaceTexture!!, textureView.width, textureView.height)
+            }
         },
         modifier = modifier
     )

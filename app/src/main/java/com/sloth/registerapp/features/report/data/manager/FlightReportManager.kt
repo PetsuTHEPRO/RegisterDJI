@@ -47,10 +47,13 @@ class FlightReportManager(
     val reports: StateFlow<List<FlightReport>> = _reports.asStateFlow()
 
     init {
-        if (flightReportDao != null) {
-            scope.launch {
-                _reports.value = flightReportDao.getAll(resolveOwnerUserId()).map { it.toDomain() }
-            }
+        refreshReports()
+    }
+
+    fun refreshReports() {
+        val dao = flightReportDao ?: return
+        scope.launch {
+            _reports.value = dao.getAll(resolveOwnerUserId()).map { it.toDomain() }
         }
     }
 

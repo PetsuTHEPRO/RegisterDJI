@@ -189,8 +189,7 @@ fun ReportScreen(
     val reports by flightReportManager.reports.collectAsStateWithLifecycle(initialValue = emptyList())
     var query by rememberSaveable { mutableStateOf("") }
     var selectedStatus by rememberSaveable { mutableStateOf<MissionOutcomeStatus?>(null) }
-    var seededMockReport by rememberSaveable { mutableStateOf(false) }
-    val missions = remember(reports) { reports.map { it.toUiModel() } }
+    val missions = remember(reports) { reports.filterNot { it.extraData["missionId"] == "demo-report-001" }.map { it.toUiModel() } }
     val normalizedQuery = query.trim().lowercase()
     val filteredMissions = missions.filter { mission ->
         val matchesQuery = normalizedQuery.isBlank() ||
@@ -200,13 +199,6 @@ fun ReportScreen(
             mission.subtitle.lowercase().contains(normalizedQuery)
         val matchesStatus = selectedStatus == null || mission.status == selectedStatus
         matchesQuery && matchesStatus
-    }
-
-    LaunchedEffect(reports.isEmpty(), seededMockReport) {
-        if (reports.isEmpty() && !seededMockReport) {
-            createMockReport(flightReportManager)
-            seededMockReport = true
-        }
     }
 
     Box(
@@ -1437,88 +1429,6 @@ private fun FlightReport.toUiModel(): MissionReport {
         duration = durationMs.toDurationLabel(),
         modelName = extraData["droneModel"] ?: aircraftName,
         subtitle = subtitle
-    )
-}
-
-private fun createMockReport(reportManager: FlightReportManager) {
-    val now = System.currentTimeMillis()
-    val startedAt = now - (27 * 60 * 1000L)
-    val endedAt = now - (9 * 60 * 1000L)
-
-    reportManager.startReport(
-        missionName = "Inspeção Demo - Linha de Transmissão",
-        aircraftName = "DJI Matrice 300 RTK",
-        startedAtMs = startedAt,
-        extraData = mapOf(
-            "missionId" to "demo-report-001",
-            "missionDate" to SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(startedAt)),
-            "status" to MissionOutcomeStatus.COMPLETED.name,
-            "executionMode" to MissionExecutionMode.REAL.name,
-            "missionLocation" to "São Luís - MA",
-            "missionObjective" to "Verificar estruturas, vegetação de risco e pontos de aquecimento.",
-            "droneModel" to "DJI Matrice 300 RTK",
-            "pilotName" to "Operador Demo",
-            "weather_start_temperature_c" to "29.4",
-            "weather_end_temperature_c" to "30.1",
-            "weather_start_wind_ms" to "3.8",
-            "weather_end_wind_ms" to "4.5",
-            "windDirection" to "Nordeste",
-            "weather_summary_message" to "Céu parcialmente nublado, vento moderado e boa visibilidade.",
-            "weather_provider" to "WeatherAPI",
-            "missionType" to "Inspeção visual automatizada",
-            "waypointCount" to "4",
-            "coveredArea" to "1.8 km²",
-            "flightDistance" to "2.9 km",
-            "avgSpeed" to "6.2 m/s",
-            "maxSpeed" to "11.4 m/s",
-            "maxAltitude" to "78 m",
-            "altitudeAtEnd" to "62 m",
-            "batteryInitial" to "98",
-            "batteryFinal" to "62",
-            "batteryConsumed" to "36",
-            "consumptionPerMinute" to "1.9%/min",
-            "alerts" to "Sem alertas críticos. Sinal estável durante toda a missão.",
-            "gpsSatellites" to "18",
-            "aiModel" to "Vantly Vision v2",
-            "aiType" to "Detecção e classificação",
-            "aiObjectsDetected" to "26",
-            "aiPeopleDetected" to "3",
-            "aiVehiclesDetected" to "5",
-            "aiStructuresDetected" to "18",
-            "aiAverageConfidence" to "92%",
-            "aiFalsePositives" to "1",
-            "aiFalseNegatives" to "0",
-            "aiProcessingTime" to "14.2 s",
-            "occurrences" to "Missão concluída com sucesso. Um waypoint exigiu ajuste manual de heading por rajada lateral.",
-            "waypoint_1_lat" to "-2.5301",
-            "waypoint_1_lon" to "-44.2981",
-            "waypoint_1_alt" to "65 m",
-            "waypoint_1_speed" to "5.0 m/s",
-            "waypoint_1_action" to "START_TAKE_PHOTO",
-            "waypoint_1_dwell" to "2 s",
-            "waypoint_2_lat" to "-2.5310",
-            "waypoint_2_lon" to "-44.2966",
-            "waypoint_2_alt" to "72 m",
-            "waypoint_2_speed" to "6.0 m/s",
-            "waypoint_2_action" to "START_RECORD",
-            "waypoint_2_dwell" to "3 s",
-            "waypoint_3_lat" to "-2.5323",
-            "waypoint_3_lon" to "-44.2951",
-            "waypoint_3_alt" to "78 m",
-            "waypoint_3_speed" to "6.5 m/s",
-            "waypoint_3_action" to "ROTATE_AIRCRAFT",
-            "waypoint_3_dwell" to "2 s",
-            "waypoint_4_lat" to "-2.5334",
-            "waypoint_4_lon" to "-44.2937",
-            "waypoint_4_alt" to "70 m",
-            "waypoint_4_speed" to "5.8 m/s",
-            "waypoint_4_action" to "STOP_RECORD",
-            "waypoint_4_dwell" to "2 s"
-        )
-    )
-    reportManager.finishReport(
-        finalObservation = "Relatório demo para validar o design da tela e a exportação em PDF.",
-        endedAtMs = endedAt
     )
 }
 

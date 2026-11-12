@@ -26,16 +26,15 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,208 +46,197 @@ import com.sloth.registerapp.presentation.app.theme.NeuralColors
 fun AboutScreen(
     onBackClick: () -> Unit = {}
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(NeuralColors.Bg)
+            .background(NeuralColors.DashboardBg)
     ) {
-        Box(
+        // Header padrão do sistema
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(NeuralColors.Bg, Color(0xFF091836), NeuralColors.Bg)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .background(NeuralColors.DashboardBg)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                onClick = onBackClick,
+                shape = RoundedCornerShape(8.dp),
+                color = NeuralColors.DashboardCard,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
+            ) {
+                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Voltar",
+                        tint = Color(0xFFCBD5E1),
+                        modifier = Modifier.size(18.dp)
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Sobre o Aplicativo",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NeuralColors.TextPrimary
                 )
-        )
+                Text(
+                    text = "Versão ${BuildConfig.VERSION_NAME}",
+                    fontSize = 11.sp,
+                    color = NeuralColors.DashboardTextSecondary
+                )
+            }
+        }
+
+        HorizontalDivider(color = NeuralColors.DashboardBorder)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // App Identity Card
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = NeuralColors.DashboardCard,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
-                Surface(
-                    onClick = onBackClick,
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = NeuralColors.Surface,
-                    border = BorderStroke(1.dp, NeuralColors.Border)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = NeuralColors.Primary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    Surface(
+                        modifier = Modifier.size(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = NeuralColors.DashboardInner,
+                        border = BorderStroke(1.dp, NeuralColors.DashboardBlueLight.copy(alpha = 0.35f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Hub,
+                                contentDescription = null,
+                                tint = NeuralColors.DashboardBlueLight,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text("Sobre o Aplicativo", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("Versão ${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = NeuralColors.Muted)
+
+                    Text(
+                        text = "Vantly Neural",
+                        color = NeuralColors.TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "v${BuildConfig.VERSION_NAME}",
+                        color = NeuralColors.DashboardTextSecondary,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = NeuralColors.Success.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.30f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(NeuralColors.Success, CircleShape)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Plataforma Operacional de Drones",
+                                color = NeuralColors.Success,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color.Transparent, NeuralColors.BorderStrong, Color.Transparent)
-                        )
-                    )
+            // Description Cards
+            AboutInfoCard(
+                icon = Icons.Default.Info,
+                title = "O Projeto",
+                body = "O Vantly Neural é uma plataforma avançada para planejamento, execução e análise de missões com drones. Integra telemetria em tempo real, visão computacional com IA embarcada e relatórios operacionais completos."
             )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            AboutInfoCard(
+                icon = Icons.Default.AirplanemodeActive,
+                title = "Funcionalidades",
+                body = "Controle de drones DJI via SDK, planejamento de rotas com waypoints no mapa, detecção de pessoas via IA, transmissão de vídeo ao vivo (RTMP), monitoramento climático e geração de relatórios em PDF."
+            )
+
+            AboutInfoCard(
+                icon = Icons.Default.Science,
+                title = "Contexto Acadêmico",
+                body = "Desenvolvido no contexto acadêmico com apoio institucional do IFMA e FAPEMA, com foco em pesquisa aplicada, inovação tecnológica e desenvolvimento de sistemas críticos de missão."
+            )
+
+            AboutInfoCard(
+                icon = Icons.Default.Business,
+                title = "Apoio Institucional",
+                body = "Instituto Federal do Maranhão (IFMA) e Fundação de Amparo à Pesquisa e ao Desenvolvimento Científico e Tecnológico do Maranhão (FAPEMA)."
+            )
+
+            // Tech tags
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = NeuralColors.DashboardCard,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
-                // App Identity Card
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = NeuralColors.Surface,
-                    border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.25f))
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(NeuralColors.Primary.copy(alpha = 0.08f), NeuralColors.Surface)
-                                )
-                            )
-                            .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Text(
+                        text = "Tecnologias",
+                        color = NeuralColors.DashboardTextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.size(72.dp),
-                            shape = RoundedCornerShape(20.dp),
-                            color = NeuralColors.Primary.copy(alpha = 0.12f),
-                            border = BorderStroke(1.5.dp, NeuralColors.Primary.copy(alpha = 0.40f))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Hub,
-                                    contentDescription = null,
-                                    tint = NeuralColors.Primary,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = "Vently Neural",
-                            style = TextStyle(
-                                brush = Brush.horizontalGradient(
-                                    listOf(NeuralColors.Primary, NeuralColors.Secondary)
-                                ),
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        )
-                        Text(
-                            text = "v${BuildConfig.VERSION_NAME}",
-                            color = NeuralColors.Muted,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = NeuralColors.Success.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.30f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        listOf("Jetpack Compose", "DJI SDK", "Mapbox", "Kotlin").forEach { tech ->
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = NeuralColors.DashboardInner,
+                                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .background(NeuralColors.Success, CircleShape)
-                                )
-                                Spacer(Modifier.width(6.dp))
                                 Text(
-                                    text = "Plataforma Operacional de Drones",
-                                    color = NeuralColors.Success,
+                                    text = tech,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    color = NeuralColors.DashboardBlueLight,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
                     }
                 }
-
-                // Description Card
-                AboutInfoCard(
-                    icon = Icons.Default.Info,
-                    title = "O Projeto",
-                    body = "O Vently Neural é uma plataforma avançada para planejamento, execução e análise de missões com drones. Integra telemetria em tempo real, visão computacional com IA embarcada e relatórios operacionais completos."
-                )
-
-                AboutInfoCard(
-                    icon = Icons.Default.AirplanemodeActive,
-                    title = "Funcionalidades",
-                    body = "Controle de drones DJI via SDK, planejamento de rotas com waypoints no mapa, detecção de pessoas via IA, transmissão de vídeo ao vivo (RTMP), monitoramento climático e geração de relatórios em PDF."
-                )
-
-                AboutInfoCard(
-                    icon = Icons.Default.Science,
-                    title = "Contexto Acadêmico",
-                    body = "Desenvolvido no contexto acadêmico com apoio institucional do IFMA e FAPEMA, com foco em pesquisa aplicada, inovação tecnológica e desenvolvimento de sistemas críticos de missão."
-                )
-
-                AboutInfoCard(
-                    icon = Icons.Default.Business,
-                    title = "Apoio Institucional",
-                    body = "Instituto Federal do Maranhão (IFMA) e Fundação de Amparo à Pesquisa e ao Desenvolvimento Científico e Tecnológico do Maranhão (FAPEMA)."
-                )
-
-                // Tech tags
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = NeuralColors.Surface,
-                    border = BorderStroke(1.dp, NeuralColors.Border)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Tecnologias", color = NeuralColors.Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("Jetpack Compose", "DJI SDK", "Mapbox", "Kotlin").forEach { tech ->
-                                Surface(
-                                    shape = RoundedCornerShape(999.dp),
-                                    color = NeuralColors.Primary.copy(alpha = 0.08f),
-                                    border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.22f))
-                                ) {
-                                    Text(
-                                        text = tech,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                        color = NeuralColors.Primary,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
             }
+
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -257,25 +245,44 @@ fun AboutScreen(
 private fun AboutInfoCard(icon: ImageVector, title: String, body: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = NeuralColors.Surface,
-        border = BorderStroke(1.dp, NeuralColors.Border)
+        shape = RoundedCornerShape(12.dp),
+        color = NeuralColors.DashboardCard,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     modifier = Modifier.size(32.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    color = NeuralColors.Primary.copy(alpha = 0.10f)
+                    shape = RoundedCornerShape(8.dp),
+                    color = NeuralColors.DashboardInner,
+                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(icon, contentDescription = null, tint = NeuralColors.Primary, modifier = Modifier.size(16.dp))
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = NeuralColors.DashboardBlueLight,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
                 Spacer(Modifier.width(10.dp))
-                Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = title,
+                    color = NeuralColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
-            Text(body, color = NeuralColors.Muted, fontSize = 13.sp, lineHeight = 20.sp)
+            Text(
+                text = body,
+                color = NeuralColors.DashboardTextSecondary,
+                fontSize = 13.sp,
+                lineHeight = 20.sp
+            )
         }
     }
 }

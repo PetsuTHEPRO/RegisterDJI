@@ -29,6 +29,8 @@ import com.mapbox.maps.plugin.annotation.annotations
 import com.mapbox.maps.plugin.annotation.generated.*
 import com.mapbox.maps.plugin.gestures.addOnMapClickListener
 import com.mapbox.maps.plugin.gestures.gestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.sloth.registerapp.BuildConfig
 import com.sloth.registerapp.presentation.mission.model.Waypoint
 import androidx.compose.material3.Surface
@@ -213,6 +215,8 @@ fun MapboxMiniMapView(
     frameRevision: Boolean = false,
     operatorAccuracyMeters: Float? = null,
     operatorIsStationary: Boolean = false,
+    userManuallyPanned: Boolean = false,
+    onUserPanned: () -> Unit = {},
     zoom: Double = 16.5,
     styleUri: String = Style.DARK
 ) {
@@ -254,6 +258,7 @@ fun MapboxMiniMapView(
         frameRevision,
         operatorAccuracyMeters,
         operatorIsStationary,
+        userManuallyPanned,
         pointAnnotationManager,
         circleAnnotationManager,
         polylineAnnotationManager,
@@ -263,35 +268,38 @@ fun MapboxMiniMapView(
         circleAnnotationManager?.deleteAll()
         polylineAnnotationManager?.deleteAll()
 
+        // Linha da rota monocromática em branco/prata de alto contraste
         if (routePoints.size > 1) {
             polylineAnnotationManager?.create(PolylineAnnotationOptions()
                 .withPoints(routePoints)
-                .withLineColor("#60A5FA")
-                .withLineWidth(3.0))
+                .withLineColor("#FFFFFF")
+                .withLineWidth(2.5))
         }
+
+        // Marcadores de waypoints discretos e elegantes
         routePoints.forEachIndexed { index, point ->
             pointAnnotationManager?.create(PointAnnotationOptions()
                 .withPoint(point)
                 .withTextField((index + 1).toString())
-                .withTextSize(13.0)
+                .withTextSize(11.0)
                 .withTextColor(android.graphics.Color.WHITE))
             circleAnnotationManager?.create(CircleAnnotationOptions()
                 .withPoint(point)
-                .withCircleRadius(6.0)
-                .withCircleColor("#1D4ED8")
+                .withCircleRadius(5.0)
+                .withCircleColor("#262626")
                 .withCircleStrokeColor("#FFFFFF")
-                .withCircleStrokeWidth(1.0))
+                .withCircleStrokeWidth(1.5))
         }
 
-        // 1. Marcador e anel de precisão do operador (quando houver coordenadas)
+        // 1. Marcador do operador (discreto, tonalidade clara)
         if (operatorLocation != null) {
             val pointAnnotationOptions = PointAnnotationOptions()
                 .withPoint(operatorLocation)
                 .withIconImage("marker-15")
-                .withIconSize(1.3)
+                .withIconSize(1.2)
                 .withTextField("OPERADOR")
-                .withTextSize(10.0)
-                .withTextColor(colorScheme.onSurface.toArgb())
+                .withTextSize(9.0)
+                .withTextColor(android.graphics.Color.WHITE)
 
             pointAnnotationManager?.create(pointAnnotationOptions)
 
@@ -299,58 +307,85 @@ fun MapboxMiniMapView(
                 .withPoint(operatorLocation)
                 .withCircleRadius(
                     ((operatorAccuracyMeters ?: 8f) / 4f)
-                        .coerceIn(if (operatorIsStationary) 7.5f else 6.5f, 12f)
+                        .coerceIn(if (operatorIsStationary) 6.0f else 5.0f, 9f)
                         .toDouble()
                 )
-                .withCircleColor(colorScheme.primary.toArgb())
-                .withCircleStrokeColor(colorScheme.onPrimary.toArgb())
-                .withCircleStrokeWidth(2.0)
+                .withCircleColor(android.graphics.Color.parseColor("#E0E0E0"))
+                .withCircleStrokeColor(android.graphics.Color.WHITE)
+                .withCircleStrokeWidth(1.5)
             circleAnnotationManager?.create(circleOptions)
         }
 
-        // 2. Marcador da aeronave (quando houver telemetria)
+        // 2. Marcador da aeronave (verde operacional confirmado #32D74B com heading)
         if (droneLocation != null) {
             val droneAnnotationOptions = PointAnnotationOptions()
                 .withPoint(droneLocation)
                 .withIconImage("marker-15")
                 .withIconSize(1.3)
                 .withTextField("DRONE" + (droneHeadingDegrees?.let { " ${it.toInt()}°" } ?: ""))
-                .withTextSize(10.0)
-                .withTextColor(android.graphics.Color.parseColor("#34D399"))
+                .withTextSize(9.5)
+                .withTextColor(android.graphics.Color.parseColor("#32D74B"))
 
             pointAnnotationManager?.create(droneAnnotationOptions)
             circleAnnotationManager?.create(CircleAnnotationOptions()
                 .withPoint(droneLocation)
                 .withCircleRadius(7.0)
-                .withCircleColor("#34D399")
+                .withCircleColor("#32D74B")
                 .withCircleStrokeColor("#FFFFFF")
                 .withCircleStrokeWidth(2.0))
         }
 
-        // 3. Centralização da câmera
+        // 3. Centralização da câmera respeitando regras operacionais
         miniMapboxMap?.let { map ->
-            val targetLocation = droneLocation ?: operatorLocation
-            if (routePoints.isNotEmpty() && (framedRoute != routePoints || framedRevision != frameRevision)) {
-                map.setCamera(map.cameraForCoordinates(
-                    routePoints + listOfNotNull(droneLocation),
-                    EdgeInsets(28.0, 28.0, 28.0, 28.0), null, null
-                ))
-                framedRoute = routePoints
-                framedRevision = frameRevision
-            } else if (routePoints.isNotEmpty()) {
-                // A rota permanece enquadrada; atualizações GPS não deslocam o mapa.
-            } else if (targetLocation != null) {
+            if (userManuallyPanned) {
+                // Usuário movimentou manualmente o minimapa: suspender acompanhamento automático
+                return@let
+            }
+
+            // Regra A: Drone conectado com GPS válido -> centraliza preferencialmente na aeronave
+            if (droneLocation != null) {
                 val shouldCenterCamera = lastCameraCenter == null ||
-                    distanceMeters(lastCameraCenter, targetLocation) >= MINI_MAP_CAMERA_RECENTER_THRESHOLD_METERS
+                    distanceMeters(lastCameraCenter, droneLocation) >= MINI_MAP_CAMERA_RECENTER_THRESHOLD_METERS
 
                 if (shouldCenterCamera) {
                     map.setCamera(
                         CameraOptions.Builder()
-                            .center(targetLocation)
+                            .center(droneLocation)
                             .zoom(zoom)
                             .build()
                     )
-                    lastCameraCenter = targetLocation
+                    lastCameraCenter = droneLocation
+                }
+            }
+            // Regra B: Drone desconectado ou sem posição válida -> centraliza no operador
+            else if (operatorLocation != null) {
+                val shouldCenterCamera = lastCameraCenter == null ||
+                    distanceMeters(lastCameraCenter, operatorLocation) >= MINI_MAP_CAMERA_RECENTER_THRESHOLD_METERS
+
+                if (shouldCenterCamera) {
+                    map.setCamera(
+                        CameraOptions.Builder()
+                            .center(operatorLocation)
+                            .zoom(zoom)
+                            .build()
+                    )
+                    lastCameraCenter = operatorLocation
+                }
+            }
+            // Regra C: Sem posição válida de nenhum dos dois -> enquadramento inicial da rota da missão
+            else if (routePoints.isNotEmpty()) {
+                if (framedRoute != routePoints || framedRevision != frameRevision || lastCameraCenter == null) {
+                    map.setCamera(
+                        map.cameraForCoordinates(
+                            routePoints,
+                            EdgeInsets(24.0, 24.0, 24.0, 24.0),
+                            null,
+                            null
+                        )
+                    )
+                    framedRoute = routePoints
+                    framedRevision = frameRevision
+                    lastCameraCenter = routePoints.firstOrNull()
                 }
             } else if (lastCameraCenter == null) {
                 map.setCamera(
@@ -382,28 +417,36 @@ fun MapboxMiniMapView(
         }
     }
 
-    AndroidView(
-        factory = {
-            mapView.apply {
-                this.mapboxMap.loadStyle(styleUri) {
-                    polylineAnnotationManager = annotations.createPolylineAnnotationManager()
-                    circleAnnotationManager = annotations.createCircleAnnotationManager()
-                    pointAnnotationManager = annotations.createPointAnnotationManager()
-                    miniMapboxMap = this.mapboxMap
-
-                    gestures.rotateEnabled = false
-                    gestures.pitchEnabled = false
-                    gestures.scrollEnabled = false
-                    gestures.doubleTapToZoomInEnabled = false
-                    gestures.quickZoomEnabled = false
-                }
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            detectDragGestures { _, _ ->
+                onUserPanned()
             }
-        },
-        modifier = modifier
-    )
+        }
+    ) {
+        AndroidView(
+            factory = {
+                mapView.apply {
+                    this.mapboxMap.loadStyle(styleUri) {
+                        polylineAnnotationManager = annotations.createPolylineAnnotationManager()
+                        circleAnnotationManager = annotations.createCircleAnnotationManager()
+                        pointAnnotationManager = annotations.createPointAnnotationManager()
+                        miniMapboxMap = this.mapboxMap
+
+                        gestures.rotateEnabled = false
+                        gestures.pitchEnabled = false
+                        gestures.scrollEnabled = true // Permite movimentação manual pelo usuário
+                        gestures.doubleTapToZoomInEnabled = false
+                        gestures.quickZoomEnabled = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
-private const val MINI_MAP_CAMERA_RECENTER_THRESHOLD_METERS = 12.0
+private const val MINI_MAP_CAMERA_RECENTER_THRESHOLD_METERS = 5.0
 
 private fun distanceMeters(from: Point?, to: Point): Double {
     if (from == null) return Double.MAX_VALUE

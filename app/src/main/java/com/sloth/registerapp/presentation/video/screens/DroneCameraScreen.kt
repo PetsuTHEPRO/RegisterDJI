@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.draw.scale
 import androidx.activity.compose.BackHandler
 import android.app.Application
@@ -83,6 +85,7 @@ import com.sloth.registerapp.features.streaming.data.DjiRtmpStreamer
 import com.sloth.registerapp.features.streaming.domain.StreamState
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneCommandManager
 import com.sloth.registerapp.features.mission.data.drone.manager.DroneMissionManager
+import com.sloth.registerapp.features.mission.data.drone.manager.MissionState
 import com.sloth.registerapp.features.mission.domain.model.DroneState
 import com.sloth.registerapp.features.report.data.manager.MissionMediaManager
 import com.sloth.registerapp.features.report.domain.model.MissionMediaSource
@@ -104,6 +107,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.sentry.SentryLevel
+import com.sloth.registerapp.core.auth.TokenRepository
+import com.sloth.registerapp.core.network.RetrofitClient
+import com.sloth.registerapp.features.mission.data.repository.MissionRepositoryImpl
 import com.sloth.registerapp.presentation.app.theme.NeuralColors
 
 private sealed class ToolsMenuScreen {
@@ -161,8 +167,8 @@ private fun buildDetectionModelOptions(
 fun DroneCameraScreen(
     droneController: DroneCommandManager,
     onCellCameraClick: () -> Unit,
-    onSurfaceTextureAvailable: (SurfaceTexture, Int, Int) -> Unit,
-    onSurfaceTextureDestroyed: () -> Boolean,
+    onSurfaceTextureAvailable: (SurfaceTexture, Int, Int) -> Unit = { _, _, _ -> },
+    onSurfaceTextureDestroyed: () -> Boolean = { true },
     onBackClick: () -> Unit = {}
 ) {
     val tag = "DroneCameraScreen"
@@ -178,6 +184,7 @@ fun DroneCameraScreen(
 
     val colorScheme = MaterialTheme.colorScheme
     val missionManager = remember { DroneMissionManager(DJIConnectionHelper) }
+    val sdkMissionState by missionManager.missionState.collectAsStateWithLifecycle()
     val connectivityMonitor = remember { ConnectivityMonitor.getInstance(context) }
 
     // Estados
@@ -187,6 +194,7 @@ fun DroneCameraScreen(
     var isToolsDrawerOpen by rememberSaveable { mutableStateOf(false) }
     var toolsInitialCategory by remember { mutableStateOf<ToolsMenuScreen>(ToolsMenuScreen.Home) }
     var isMapExpanded by rememberSaveable { mutableStateOf(false) }
+    var missionPanelExpanded by rememberSaveable { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
     var showMissionOverlay by rememberSaveable { mutableStateOf(true) }
     var detectionEnabled by rememberSaveable { mutableStateOf(false) }
@@ -194,24 +202,45 @@ fun DroneCameraScreen(
         mutableStateOf(ObjectDetectionPreferencesRepository.DEFAULT_MODEL_ID)
     }
     var previewCaptureError by remember { mutableStateOf<String?>(null) }
+    var userManuallyPanned by remember { mutableStateOf(false) }
+    var isUploadingMission by remember { mutableStateOf(false) }
+    val missionRepository = remember {
+        MissionRepositoryImpl(
+            context,
+            RetrofitClient.getInstance(context),
+            TokenRepository.getInstance(context)
+        )
+    }
 
     val droneState by droneController.droneState.collectAsStateWithLifecycle()
     val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
     val product by DJIConnectionHelper.product.collectAsStateWithLifecycle()
-    val isFeedAvailable = product?.isConnected == true && (product as? dji.sdk.products.Aircraft)?.camera != null
-    val isVideoActive = isFeedAvailable && cameraResumed && lastVideoFrameAt > 0L &&
-        positionClock - lastVideoFrameAt <= 3000L
+    val isDroneConnected = product?.isConnected == true &&
+        (product as? dji.sdk.products.Aircraft)?.flightController != null
+    val isFeedAvailable = isDroneConnected &&
+        (product as? dji.sdk.products.Aircraft)?.camera != null
+    val isVideoActive = cameraResumed && lastVideoFrameAt > 0L &&
+        (positionClock - lastVideoFrameAt <= 4000L)
     val mlDetectionViewModel: MLDetectionViewModel = viewModel()
     val missionListViewModel: MissionListViewModel = viewModel(
         factory = MissionListViewModelFactory(context.applicationContext as Application)
     )
     val missionListUiState by missionListViewModel.uiState.collectAsStateWithLifecycle()
+    val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
+    val activeMissionSession by ActiveMissionSessionManager.session.collectAsStateWithLifecycle()
     val loadedMission = (missionListUiState as? MissionListUiState.Success)?.missions
-        ?.firstOrNull { it.id.toString() == ActiveMissionSessionManager.activeMissionId.value }
-    val missionRoute = remember(loadedMission?.previewPoints) {
-        loadedMission?.previewPoints.orEmpty().filter {
+        ?.firstOrNull { it.id.toString() == activeMissionId }
+    val missionRoute = remember(loadedMission) {
+        val points = loadedMission?.previewPoints.orEmpty().filter {
             isValidCoordinate(it.latitude, it.longitude)
         }.map { Point.fromLngLat(it.longitude, it.latitude) }
+        if (points.isNotEmpty()) {
+            points
+        } else if (loadedMission != null && isValidCoordinate(loadedMission.latitude, loadedMission.longitude)) {
+            listOf(Point.fromLngLat(loadedMission.longitude, loadedMission.latitude))
+        } else {
+            emptyList()
+        }
     }
     val remoteCatalog by mlDetectionViewModel.remoteCatalog.collectAsStateWithLifecycle()
     val remoteCatalogLoading by mlDetectionViewModel.remoteCatalogLoading.collectAsStateWithLifecycle()
@@ -222,8 +251,6 @@ fun DroneCameraScreen(
     val objectDetectionRepo = remember { ObjectDetectionPreferencesRepository.getInstance(context) }
     val mediaManager = remember { MissionMediaManager.getInstance(context) }
     val weatherModule = remember { WeatherModule.getInstance(context) }
-    val activeMissionId by ActiveMissionSessionManager.activeMissionId.collectAsStateWithLifecycle()
-    val activeMissionSession by ActiveMissionSessionManager.session.collectAsStateWithLifecycle()
     val hasValidatedInternet by connectivityMonitor.isConnected.collectAsStateWithLifecycle()
     val rtmpUrl by rtmpRepo.rtmpUrl.collectAsStateWithLifecycle(initialValue = RtmpSettingsRepository.DEFAULT_URL)
     val mediaStorageTarget by mediaStorageRepo.mediaStorageTarget.collectAsStateWithLifecycle(
@@ -275,26 +302,61 @@ fun DroneCameraScreen(
     val videoDataListener = remember {
         VideoFeeder.VideoDataListener { videoBuffer, size ->
             val now = SystemClock.elapsedRealtime()
-            if (now - lastVideoFrameAt >= 1000L) lastVideoFrameAt = now
-            codecManager.value?.sendDataToDecoder(videoBuffer, size)
+            if (now - lastVideoFrameAt >= 500L) {
+                lastVideoFrameAt = now
+            }
+            val codec = codecManager.value
+            if (codec != null && codec.isDecoderOK) {
+                codec.sendDataToDecoder(videoBuffer, size)
+            }
         }
     }
 
     fun attachPreview() {
-        val surface = surfaceRef.value ?: return
+        val surface = surfaceRef.value ?: textureViewRef.value?.let { tv ->
+            if (tv.isAvailable && tv.surfaceTexture != null && tv.width > 0 && tv.height > 0) {
+                surfaceRef.value = tv.surfaceTexture
+                surfaceSize.value = Pair(tv.width, tv.height)
+                tv.surfaceTexture
+            } else null
+        } ?: return
+
         val (width, height) = surfaceSize.value
         if (width <= 0 || height <= 0) return
         if (codecManager.value != null || !cameraResumed || !previewEnabled) return
-        codecManager.value = DJICodecManager(context, surface, width, height)
-        VideoFeeder.getInstance().primaryVideoFeed?.addVideoDataListener(videoDataListener)
-        Log.d(tag, "Preview attached")
+
+        runCatching {
+            val codec = DJICodecManager(context.applicationContext, surface, width, height)
+            codecManager.value = codec
+            val primaryFeed = VideoFeeder.getInstance().primaryVideoFeed
+            primaryFeed?.removeVideoDataListener(videoDataListener)
+            primaryFeed?.addVideoDataListener(videoDataListener)
+            Log.d(tag, "DJI Video Preview attached: ${width}x${height}")
+        }.onFailure { error ->
+            Log.e(tag, "Failed to attach DJI Video Preview", error)
+            AppObservability.captureException(
+                throwable = error,
+                area = "video",
+                operation = "attach_dji_preview"
+            )
+        }
     }
 
     fun detachPreview() {
-        VideoFeeder.getInstance().primaryVideoFeed?.removeVideoDataListener(videoDataListener)
-        codecManager.value?.cleanSurface()
+        runCatching {
+            VideoFeeder.getInstance().primaryVideoFeed?.removeVideoDataListener(videoDataListener)
+        }
+        val codec = codecManager.value
         codecManager.value = null
-        Log.d(tag, "Preview detached")
+        if (codec != null) {
+            runCatching {
+                codec.cleanSurface()
+                codec.destroyCodec()
+            }.onFailure { error ->
+                Log.w(tag, "Error destroying DJICodecManager", error)
+            }
+        }
+        Log.d(tag, "DJI Video Preview detached & codec destroyed")
     }
 
     // Oculta barras do sistema (status/navigation) durante o video feed
@@ -372,7 +434,12 @@ fun DroneCameraScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> cameraResumed = true
+                Lifecycle.Event.ON_RESUME -> {
+                    cameraResumed = true
+                    if (previewEnabled) {
+                        attachPreview()
+                    }
+                }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
                     cameraResumed = false
                     detachPreview()
@@ -382,13 +449,16 @@ fun DroneCameraScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         cameraResumed = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); detachPreview() }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            detachPreview()
+        }
     }
 
-    LaunchedEffect(previewEnabled, cameraResumed, isFeedAvailable) {
-        if (previewEnabled && cameraResumed && isFeedAvailable) {
+    LaunchedEffect(previewEnabled, cameraResumed, isDroneConnected) {
+        if (previewEnabled && cameraResumed && isDroneConnected) {
             attachPreview()
-        } else {
+        } else if (!cameraResumed || !previewEnabled) {
             detachPreview()
         }
     }
@@ -575,6 +645,99 @@ fun DroneCameraScreen(
         }
     }
 
+    val onUploadMission: () -> Unit = {
+        if (!isDroneConnected) {
+            Toast.makeText(context, "Conecte a aeronave para enviar a missão", Toast.LENGTH_SHORT).show()
+        } else {
+            val missionId = activeMissionId?.toIntOrNull() ?: loadedMission?.id
+            if (missionId == null) {
+                Toast.makeText(context, "Nenhuma missão selecionada", Toast.LENGTH_SHORT).show()
+            } else {
+                isUploadingMission = true
+                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.UPLOADING)
+                scope.launch {
+                    try {
+                        val missionDto = withContext(Dispatchers.IO) {
+                            missionRepository.getMission(missionId).getOrNull()
+                        }
+                        if (missionDto == null || missionDto.waypoints.isEmpty()) {
+                            throw IllegalStateException("Missão sem waypoints válidos para envio.")
+                        }
+                        missionManager.prepareAndUploadMission(missionDto)
+                        check(missionManager.missionState.value == MissionState.READY_TO_EXECUTE) {
+                            "O SDK ainda não confirmou a missão como pronta."
+                        }
+                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.READY)
+                        Toast.makeText(context, "Missão enviada ao drone com sucesso!", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(tag, "Erro ao enviar missão ao drone", e)
+                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.LOADED)
+                        Toast.makeText(context, "Erro ao enviar missão: ${e.message ?: "desconhecido"}", Toast.LENGTH_LONG).show()
+                    } finally {
+                        isUploadingMission = false
+                    }
+                }
+            }
+        }
+    }
+
+    val onPlayMission: () -> Unit = {
+        if (isDroneConnected && activeMissionSession.hasMission &&
+            ((activeMissionSession.status == ActiveMissionStatus.READY && sdkMissionState == MissionState.READY_TO_EXECUTE) ||
+                (activeMissionSession.status == ActiveMissionStatus.PAUSED && sdkMissionState == MissionState.EXECUTION_PAUSED))) {
+            scope.launch {
+                val isPaused = activeMissionSession.status == ActiveMissionStatus.PAUSED
+                val action = if (isPaused) {
+                    runCatching { missionManager.resumeMission() }
+                } else {
+                    runCatching { missionManager.startMission() }
+                }
+                action.onSuccess {
+                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
+                    Toast.makeText(context, if (isPaused) "Missão retomada" else "Missão iniciada", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                    Toast.makeText(context, "Erro na missão: ${it.message ?: "desconhecido"}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val onPauseMission: () -> Unit = {
+        if (isDroneConnected && activeMissionSession.hasMission &&
+            activeMissionSession.status == ActiveMissionStatus.EXECUTING && sdkMissionState == MissionState.EXECUTING) {
+            scope.launch {
+                runCatching { missionManager.pauseMission() }
+                    .onSuccess {
+                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
+                        Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
+                    }
+                    .onFailure {
+                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                        Toast.makeText(context, "Erro ao pausar missão: ${it.message ?: "desconhecido"}", Toast.LENGTH_SHORT).show()
+                    }
+            }
+        }
+    }
+
+    val onStopMission: () -> Unit = {
+        if (isDroneConnected && activeMissionSession.hasMission &&
+            activeMissionSession.status in listOf(ActiveMissionStatus.EXECUTING, ActiveMissionStatus.PAUSED) &&
+            sdkMissionState in listOf(MissionState.EXECUTING, MissionState.EXECUTION_PAUSED)) {
+            scope.launch {
+                runCatching { missionManager.stopMission() }
+                    .onSuccess {
+                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
+                        Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
+                    }
+                    .onFailure {
+                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
+                        Toast.makeText(context, "Erro ao parar missão: ${it.message ?: "desconhecido"}", Toast.LENGTH_SHORT).show()
+                    }
+            }
+        }
+    }
+
     val mapWidth by animateDpAsState(
         targetValue = if (isMapExpanded) 260.dp else 140.dp,
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
@@ -589,7 +752,7 @@ fun DroneCameraScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(NeuralColors.DashboardBg)
+            .background(NeuralColors.Bg)
     ) {
         val compactLandscape = maxWidth < 740.dp
         VideoFeedView(
@@ -604,12 +767,18 @@ fun DroneCameraScreen(
                 }
                 onSurfaceTextureAvailable(surface, width, height)
             },
+            onSurfaceTextureSizeChanged = { _, width, height ->
+                Log.d(tag, "Surface size changed: ${width}x${height}")
+                surfaceSize.value = Pair(width, height)
+                codecManager.value?.onSurfaceSizeChanged(width, height, 0)
+            },
             onSurfaceTextureDestroyed = {
                 Log.d(tag, "Surface destroyed")
                 detachPreview()
                 surfaceRef.value = null
                 surfaceSize.value = Pair(0, 0)
                 onSurfaceTextureDestroyed()
+                true
             }
         )
 
@@ -624,38 +793,39 @@ fun DroneCameraScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(colorScheme.background.copy(alpha = 0.9f)),
+                    .background(NeuralColors.Bg.copy(alpha = 0.85f)),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = NeuralColors.DashboardCard.copy(alpha = 0.90f),
+                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(100.dp),
-                        shape = CircleShape,
-                        color = colorScheme.primary.copy(alpha = 0.2f)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.VideocamOff,
-                                contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(48.dp)
+                        Icon(
+                            imageVector = Icons.Default.VideocamOff,
+                            contentDescription = null,
+                            tint = NeuralColors.DashboardTextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Transmissão DJI Indisponível",
+                                color = NeuralColors.TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (isFeedAvailable) "Aguardando sinal de vídeo da câmera..." else "Conecte a aeronave para receber vídeo ao vivo",
+                                color = NeuralColors.DashboardTextSecondary,
+                                fontSize = 10.sp
                             )
                         }
                     }
-                    Text(
-                        "Vídeo Feed Indisponível",
-                        color = colorScheme.onSurface,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        if (isFeedAvailable) "Aguardando vídeo da aeronave" else "Conecte-se ao drone para visualizar",
-                        color = colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp
-                    )
                 }
             }
         }
@@ -702,25 +872,54 @@ fun DroneCameraScreen(
             )
         }
 
-        Column(Modifier.align(Alignment.CenterEnd).padding(end = 14.dp),
+        // Controles de câmera e gravação ancorados de forma independente na lateral direita
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Surface(onClick = onTakePhoto, enabled = isFeedAvailable,
-                shape = CircleShape, color = NeuralColors.DashboardCard.copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Surface(
+                onClick = onTakePhoto,
+                enabled = isFeedAvailable,
+                shape = CircleShape,
+                color = NeuralColors.DashboardOverlay,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
+            ) {
                 Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.CameraAlt, "Capturar fotografia", modifier = Modifier.size(19.dp),
-                        tint = if (isFeedAvailable) Color.White else NeuralColors.DashboardTextSecondary)
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = "Capturar fotografia",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isFeedAvailable) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled
+                    )
                 }
             }
-            Surface(onClick = onToggleRecord, enabled = isFeedAvailable,
-                shape = CircleShape, color = NeuralColors.DashboardCard.copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
-                Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(15.dp).background(
-                        if (isRecording) NeuralColors.Danger else if (isFeedAvailable) Color(0xFFFF344A)
-                        else NeuralColors.DashboardTextSecondary,
-                        if (isRecording) RoundedCornerShape(3.dp) else CircleShape))
+            Surface(
+                onClick = onToggleRecord,
+                enabled = isFeedAvailable,
+                shape = CircleShape,
+                color = NeuralColors.DashboardOverlay,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
+            ) {
+                Box(Modifier.size(38.dp).semantics {
+                    contentDescription = when {
+                        !isFeedAvailable -> "Gravação indisponível"
+                        isRecording -> "Parar gravação de vídeo"
+                        else -> "Iniciar gravação de vídeo"
+                    }
+                }, contentAlignment = Alignment.Center) {
+                    if (isRecording && isFeedAvailable) Text("REC", color = NeuralColors.Danger, fontSize = 7.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopCenter))
+                    Box(
+                        Modifier
+                            .size(if (isRecording && isFeedAvailable) 11.dp else 15.dp)
+                            .background(
+                                if (isFeedAvailable) NeuralColors.Danger else NeuralColors.TextDisabled,
+                                if (isRecording && isFeedAvailable) RoundedCornerShape(3.dp) else CircleShape
+                            )
+                    )
                 }
             }
         }
@@ -741,9 +940,9 @@ fun DroneCameraScreen(
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    val dronePoint = if (isFeedAvailable &&
+                    val dronePoint = if (isDroneConnected &&
                         telemetry.positionUpdatedAtElapsedMs > 0L &&
-                        positionClock - telemetry.positionUpdatedAtElapsedMs <= 5000L &&
+                        positionClock - telemetry.positionUpdatedAtElapsedMs <= 10000L &&
                         isValidCoordinate(telemetry.latitude, telemetry.longitude)) {
                         Point.fromLngLat(telemetry.longitude, telemetry.latitude)
                     } else null
@@ -757,6 +956,8 @@ fun DroneCameraScreen(
                         frameRevision = isMapExpanded,
                         operatorAccuracyMeters = locationUiState.accuracyMeters,
                         operatorIsStationary = locationUiState.isStationary,
+                        userManuallyPanned = userManuallyPanned,
+                        onUserPanned = { userManuallyPanned = true },
                         styleUri = Style.DARK
                     )
 
@@ -773,6 +974,26 @@ fun DroneCameraScreen(
                                 fontSize = 9.sp,
                                 color = Color.White.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    // Botão para recentralizar o mapa caso o operador tenha arrastado
+                    if (userManuallyPanned) {
+                        IconButton(
+                            onClick = { userManuallyPanned = false },
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(4.dp)
+                                .size(26.dp)
+                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                .border(1.dp, NeuralColors.DashboardBlue.copy(alpha = 0.35f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MyLocation,
+                                contentDescription = "Recentralizar mapa",
+                                tint = NeuralColors.DashboardBlue,
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
@@ -799,7 +1020,6 @@ fun DroneCameraScreen(
         }
 
         // 2. HUD de telemetria linear estilo DJI (posicionado no centro inferior)
-        val isDroneConnected = isFeedAvailable || (droneState != DroneState.DISCONNECTED && product != null)
         AnimatedVisibility(
             visible = showControls && visible,
             enter = fadeIn() + slideInVertically { it },
@@ -817,7 +1037,7 @@ fun DroneCameraScreen(
             )
         }
 
-        // 3. Controles minimalistas de missão (Play, Pause, Stop) no canto inferior direito
+        // 3. Painel de controle de missão no canto inferior direito
         AnimatedVisibility(
             visible = visible,
             enter = fadeIn() + slideInHorizontally { it / 3 },
@@ -825,67 +1045,22 @@ fun DroneCameraScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(end = 16.dp, bottom = 14.dp)
+                .padding(end = 14.dp, bottom = 14.dp)
         ) {
-            MinimalistMissionControls(
+            MissionControlPanel(
                 hasMission = activeMissionSession.hasMission,
+                missionName = activeMissionSession.missionName,
                 missionStatus = activeMissionSession.status,
+                sdkMissionState = sdkMissionState,
                 isDroneConnected = isDroneConnected,
-                onPlayClick = {
-                    scope.launch {
-                        val action = if (activeMissionSession.status == ActiveMissionStatus.PAUSED) {
-                            runCatching { missionManager.resumeMission() }
-                        } else {
-                            runCatching { missionManager.startMission() }
-                        }
-                        action.onSuccess {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
-                            val msg = if (activeMissionSession.status == ActiveMissionStatus.PAUSED) "Missão retomada" else "Missão iniciada"
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        }.onFailure {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                            Toast.makeText(
-                                context,
-                                "Erro na missão: ${it.message ?: "desconhecido"}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                },
-                onPauseClick = {
-                    scope.launch {
-                        runCatching { missionManager.pauseMission() }
-                            .onSuccess {
-                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
-                                Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
-                            }
-                            .onFailure {
-                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                                Toast.makeText(
-                                    context,
-                                    "Erro ao pausar missão: ${it.message ?: "desconhecido"}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                    }
-                },
-                onStopClick = {
-                    scope.launch {
-                        runCatching { missionManager.stopMission() }
-                            .onSuccess {
-                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
-                                Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
-                            }
-                            .onFailure {
-                                ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                                Toast.makeText(
-                                    context,
-                                    "Erro ao parar missão: ${it.message ?: "desconhecido"}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                    }
-                }
+                isUploading = isUploadingMission,
+                expanded = missionPanelExpanded,
+                onExpandedChange = { missionPanelExpanded = it },
+                compact = compactLandscape,
+                onUploadClick = onUploadMission,
+                onPlayClick = onPlayMission,
+                onPauseClick = onPauseMission,
+                onStopClick = onStopMission
             )
         }
 
@@ -894,12 +1069,13 @@ fun DroneCameraScreen(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(12.dp)
-                    .background(colorScheme.surfaceVariant.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                    .background(NeuralColors.DashboardOverlay, RoundedCornerShape(8.dp))
+                    .border(1.dp, NeuralColors.DashboardBorder, RoundedCornerShape(8.dp))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = "Preview desativado durante transmissão",
-                    color = colorScheme.onSurface,
+                    color = NeuralColors.TextPrimary,
                     fontSize = 12.sp
                 )
             }
@@ -916,60 +1092,9 @@ fun DroneCameraScreen(
             onRefreshMissions = { missionListViewModel.fetchMissions() },
             showMissionOverlay = showMissionOverlay,
             onToggleMissionOverlay = { showMissionOverlay = !showMissionOverlay },
-            onStartMission = {
-                if (isDroneConnected && activeMissionSession.hasMission &&
-                    activeMissionSession.status == ActiveMissionStatus.READY) scope.launch {
-                    runCatching { missionManager.startMission() }
-                        .onSuccess {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.EXECUTING)
-                            Toast.makeText(context, "Missão iniciada", Toast.LENGTH_SHORT).show()
-                        }
-                        .onFailure {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                            Toast.makeText(
-                                context,
-                                "Erro ao iniciar missão: ${it.message ?: "desconhecido"}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                }
-            },
-            onPauseMission = {
-                if (isDroneConnected && activeMissionSession.hasMission &&
-                    activeMissionSession.status == ActiveMissionStatus.EXECUTING) scope.launch {
-                    runCatching { missionManager.pauseMission() }
-                        .onSuccess {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.PAUSED)
-                            Toast.makeText(context, "Missão pausada", Toast.LENGTH_SHORT).show()
-                        }
-                        .onFailure {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                            Toast.makeText(
-                                context,
-                                "Erro ao pausar missão: ${it.message ?: "desconhecido"}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                }
-            },
-            onStopMission = {
-                if (isDroneConnected && activeMissionSession.hasMission &&
-                    activeMissionSession.status in listOf(ActiveMissionStatus.EXECUTING, ActiveMissionStatus.PAUSED)) scope.launch {
-                    runCatching { missionManager.stopMission() }
-                        .onSuccess {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.STOPPED)
-                            Toast.makeText(context, "Missão parada", Toast.LENGTH_SHORT).show()
-                        }
-                        .onFailure {
-                            ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.ERROR)
-                            Toast.makeText(
-                                context,
-                                "Erro ao parar missão: ${it.message ?: "desconhecido"}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                }
-            },
+            onStartMission = onPlayMission,
+            onPauseMission = onPauseMission,
+            onStopMission = onStopMission,
             detectionEnabled = detectionEnabled,
             onToggleDetection = { enabled ->
                 detectionEnabled = enabled
@@ -1017,7 +1142,7 @@ fun DroneCameraScreen(
         onDispose {
             rtmpStreamer.release()
             droneController.stop()
-            missionManager.destroy()
+            missionManager.destroy(stopActiveMission = false)
         }
     }
 }
@@ -1276,7 +1401,7 @@ private fun CameraToolsDrawer(
                                     activeMissionId = activeMissionId,
                                     onLoadedSession = {
                                         ActiveMissionSessionManager.startMissionSession(screen.mission.id.toString(), screen.mission.name)
-                                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.READY)
+                                        ActiveMissionSessionManager.updateMissionStatus(ActiveMissionStatus.LOADED)
                                     }
                                 )
                                 ToolsMenuScreen.Capture -> ToolsCaptureScreen(
@@ -1427,8 +1552,8 @@ private fun ToolsAiScreen(
         // Switch Ativar / Desativar detecção
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, if (detectionEnabled) NeuralColors.Success.copy(alpha = 0.4f) else NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, if (detectionEnabled) NeuralColors.Success.copy(alpha = 0.4f) else NeuralColors.DashboardBorder)
         ) {
             Row(
                 modifier = Modifier
@@ -1472,8 +1597,8 @@ private fun ToolsAiScreen(
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.SurfaceAlt,
-                border = BorderStroke(1.dp, NeuralColors.Border)
+                color = NeuralColors.DashboardInner,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Latência", color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp)
@@ -1495,8 +1620,8 @@ private fun ToolsAiScreen(
             Surface(
                 modifier = Modifier.weight(1.4f),
                 shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.SurfaceAlt,
-                border = BorderStroke(1.dp, NeuralColors.Border)
+                color = NeuralColors.DashboardInner,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Modelo Ativo", color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp)
@@ -1545,7 +1670,7 @@ private fun ToolsAiScreen(
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = Color.White.copy(alpha = 0.04f),
-                border = BorderStroke(1.dp, NeuralColors.Border)
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Text(
                     text = "Nenhum modelo YOLO instalado localmente. Baixe um modelo abaixo.",
@@ -1560,8 +1685,8 @@ private fun ToolsAiScreen(
                 Surface(
                     onClick = { onSelectModel(model.id) },
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isSelected) Color.White.copy(alpha = 0.08f) else NeuralColors.SurfaceAlt,
-                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.4f) else NeuralColors.Border)
+                    color = if (isSelected) Color.White.copy(alpha = 0.08f) else NeuralColors.DashboardInner,
+                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.4f) else NeuralColors.DashboardBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -1626,8 +1751,8 @@ private fun ToolsAiScreen(
         if (downloadProgress != null) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.SurfaceAlt,
-                border = BorderStroke(1.dp, NeuralColors.Border)
+                color = NeuralColors.DashboardInner,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(
@@ -1676,8 +1801,8 @@ private fun ToolsAiScreen(
                 uninstalled.forEach { entry ->
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = NeuralColors.SurfaceAlt,
-                        border = BorderStroke(1.dp, NeuralColors.Border)
+                        color = NeuralColors.DashboardInner,
+                        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1738,7 +1863,7 @@ private fun ToolsMissionsScreen(
         if (activeMissionSession.hasMission) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = NeuralColors.SurfaceAlt,
+                color = NeuralColors.DashboardInner,
                 border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.35f))
             ) {
                 Column(
@@ -1765,14 +1890,16 @@ private fun ToolsMissionsScreen(
                         }
 
                         val (statusText, statusColor) = when (activeMissionSession.status) {
+                            ActiveMissionStatus.LOADED -> "Carregada" to NeuralColors.Secondary
+                            ActiveMissionStatus.UPLOADING -> "Enviando..." to NeuralColors.Warning
                             ActiveMissionStatus.LOADING -> "Carregando" to NeuralColors.Warning
-                            ActiveMissionStatus.READY -> "Pronta" to NeuralColors.Success
-                            ActiveMissionStatus.EXECUTING -> "Executando" to Color(0xFF00C2FF)
+                            ActiveMissionStatus.READY -> "Pronta no Drone" to NeuralColors.Success
+                            ActiveMissionStatus.EXECUTING -> "Executando" to NeuralColors.Success
                             ActiveMissionStatus.PAUSED -> "Pausada" to NeuralColors.Warning
                             ActiveMissionStatus.STOPPED -> "Parada" to NeuralColors.Danger
                             ActiveMissionStatus.COMPLETED -> "Concluída" to NeuralColors.Success
                             ActiveMissionStatus.ERROR -> "Erro" to NeuralColors.Danger
-                            ActiveMissionStatus.IDLE -> "Inativa" to Color.White.copy(alpha = 0.5f)
+                            ActiveMissionStatus.IDLE -> "Inativa" to NeuralColors.TextDisabled
                         }
 
                         Surface(
@@ -1856,8 +1983,8 @@ private fun ToolsMissionsScreen(
         // Campo de busca
         Surface(
             shape = RoundedCornerShape(10.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Row(
                 modifier = Modifier
@@ -1902,7 +2029,7 @@ private fun ToolsMissionsScreen(
                     onClick = { selectedFilter = filter },
                     shape = RoundedCornerShape(16.dp),
                     color = if (isSelected) Color.White.copy(alpha = 0.15f) else Color.Transparent,
-                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.4f) else NeuralColors.Border)
+                    border = BorderStroke(1.dp, if (isSelected) Color.White.copy(alpha = 0.4f) else NeuralColors.DashboardBorder)
                 ) {
                     Text(
                         text = filter.label,
@@ -1992,8 +2119,8 @@ private fun ToolsMissionsScreen(
                         Surface(
                             onClick = { onSelectMission(mission) },
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isCurrentActive) NeuralColors.Success.copy(alpha = 0.08f) else NeuralColors.SurfaceAlt,
-                            border = BorderStroke(1.dp, if (isCurrentActive) NeuralColors.Success.copy(alpha = 0.35f) else NeuralColors.Border)
+                            color = if (isCurrentActive) NeuralColors.Success.copy(alpha = 0.08f) else NeuralColors.DashboardInner,
+                            border = BorderStroke(1.dp, if (isCurrentActive) NeuralColors.Success.copy(alpha = 0.35f) else NeuralColors.DashboardBorder)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -2061,8 +2188,8 @@ private fun ToolsMissionDetailsScreen(
         // Card de Informações da Missão
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Column(
                 modifier = Modifier
@@ -2117,19 +2244,19 @@ private fun ToolsMissionDetailsScreen(
                 context.startActivity(intent)
             },
             shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Primary),
+            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.DashboardBlue),
             contentPadding = PaddingValues(vertical = 12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(Icons.Default.Map, contentDescription = null, tint = NeuralColors.OnPrimary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Abrir Mapa da Missão", color = NeuralColors.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Abrir Mapa da Missão", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         OutlinedButton(
             onClick = {
                 onLoadedSession()
-                Toast.makeText(context, "Missão '${mission.name}' preparada para o drone", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Missão '${mission.name}' carregada na sessão", Toast.LENGTH_SHORT).show()
             },
             shape = RoundedCornerShape(10.dp),
             border = BorderStroke(1.dp, if (isAlreadyLoaded) NeuralColors.Success.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.25f)),
@@ -2137,14 +2264,14 @@ private fun ToolsMissionDetailsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                if (isAlreadyLoaded) Icons.Default.CheckCircle else Icons.Default.FlightTakeoff,
+                if (isAlreadyLoaded) Icons.Default.CheckCircle else Icons.Default.Route,
                 contentDescription = null,
                 tint = if (isAlreadyLoaded) NeuralColors.Success else Color.White,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (isAlreadyLoaded) "Missão Pronta na Sessão" else "Carregar / Preparar no Drone",
+                text = if (isAlreadyLoaded) "Missão Carregada na Sessão" else "Carregar Missão",
                 color = if (isAlreadyLoaded) NeuralColors.Success else Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
@@ -2193,8 +2320,8 @@ private fun ToolsCaptureScreen(
         Surface(
             onClick = onTakePhotoClick,
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Row(
                 modifier = Modifier
@@ -2223,8 +2350,8 @@ private fun ToolsCaptureScreen(
         Surface(
             onClick = onRecordClick,
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, if (isRecording) NeuralColors.Danger.copy(alpha = 0.5f) else NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, if (isRecording) NeuralColors.Danger.copy(alpha = 0.5f) else NeuralColors.DashboardBorder)
         ) {
             Row(
                 modifier = Modifier
@@ -2278,8 +2405,8 @@ private fun ToolsCaptureScreen(
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoRow(
@@ -2332,8 +2459,8 @@ private fun ToolsStreamingScreen(
         // Status Card
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, if (isStreaming) NeuralColors.Danger.copy(alpha = 0.4f) else NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, if (isStreaming) NeuralColors.Danger.copy(alpha = 0.4f) else NeuralColors.DashboardBorder)
         ) {
             Column(
                 modifier = Modifier
@@ -2371,7 +2498,7 @@ private fun ToolsStreamingScreen(
                     enabled = !isConnecting,
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isStreaming) NeuralColors.Danger else NeuralColors.Primary
+                        containerColor = if (isStreaming) NeuralColors.Danger else NeuralColors.DashboardBlue
                     ),
                     contentPadding = PaddingValues(vertical = 12.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -2379,7 +2506,7 @@ private fun ToolsStreamingScreen(
                     Icon(
                         if (isStreaming) Icons.Default.StopCircle else Icons.Default.WifiTethering,
                         contentDescription = null,
-                        tint = if (isStreaming) Color.White else NeuralColors.OnPrimary,
+                        tint = if (isStreaming) Color.White else Color.White,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -2389,7 +2516,7 @@ private fun ToolsStreamingScreen(
                             isConnecting -> "Conectando..."
                             else -> "Iniciar Transmissão RTMP"
                         },
-                        color = if (isStreaming) Color.White else NeuralColors.OnPrimary,
+                        color = if (isStreaming) Color.White else Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -2401,8 +2528,8 @@ private fun ToolsStreamingScreen(
 
         Surface(
             shape = RoundedCornerShape(10.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Servidor RTMP", color = Color.White.copy(alpha = 0.45f), fontSize = 10.sp)
@@ -2453,8 +2580,8 @@ private fun ToolsPhoneCameraScreen(
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Column(
                 modifier = Modifier
@@ -2492,13 +2619,13 @@ private fun ToolsPhoneCameraScreen(
         Button(
             onClick = onCellCameraClick,
             shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Primary),
+            colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.DashboardBlue),
             contentPadding = PaddingValues(vertical = 12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(Icons.Default.Camera, contentDescription = null, tint = NeuralColors.OnPrimary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Camera, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Alternar para Câmera do Celular", color = NeuralColors.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Alternar para Câmera do Celular", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         Surface(
@@ -2544,8 +2671,8 @@ private fun ToolsSettingsScreen(
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoRow(label = "Modelo", value = productName ?: "Não conectada")
@@ -2559,8 +2686,8 @@ private fun ToolsSettingsScreen(
 
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = NeuralColors.SurfaceAlt,
-            border = BorderStroke(1.dp, NeuralColors.Border)
+            color = NeuralColors.DashboardInner,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoRow(
@@ -2578,8 +2705,8 @@ private fun ToolsSettingsScreen(
             DrawerSectionHeader(title = "CONDIÇÃO CLIMÁTICA")
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = NeuralColors.SurfaceAlt,
-                border = BorderStroke(1.dp, NeuralColors.Border)
+                color = NeuralColors.DashboardInner,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val statusText = when (summary.decision.level) {
@@ -2629,8 +2756,8 @@ private fun ToolsCategoryRow(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = NeuralColors.SurfaceAlt,
-        border = BorderStroke(1.dp, NeuralColors.Border)
+        color = NeuralColors.DashboardInner,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
         Row(
             modifier = Modifier
@@ -2779,134 +2906,284 @@ private fun MissionPanelToggleButton(
         icon = if (expanded && hasMission) Icons.Default.VisibilityOff else Icons.Default.Route,
         onClick = onClick,
         enabled = true,
-        color = if (hasMission) Color(0xFF00E5A0) else Color.White.copy(alpha = 0.70f),
+        color = if (hasMission) NeuralColors.Success else Color.White.copy(alpha = 0.70f),
         size = 38.dp
     )
 }
 
 @Composable
-private fun MinimalistMissionControls(
+private fun MissionControlPanel(
     hasMission: Boolean,
+    missionName: String?,
     missionStatus: ActiveMissionStatus,
+    sdkMissionState: MissionState,
     isDroneConnected: Boolean,
+    isUploading: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    compact: Boolean,
+    onUploadClick: () -> Unit,
     onPlayClick: () -> Unit,
     onPauseClick: () -> Unit,
     onStopClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val canPlay = isDroneConnected && hasMission && (missionStatus == ActiveMissionStatus.READY || missionStatus == ActiveMissionStatus.PAUSED)
-    val canPause = isDroneConnected && hasMission && (missionStatus == ActiveMissionStatus.EXECUTING)
-    val canStop = isDroneConnected && hasMission && (missionStatus == ActiveMissionStatus.EXECUTING || missionStatus == ActiveMissionStatus.PAUSED || missionStatus == ActiveMissionStatus.LOADING)
-
-    val isExecuting = missionStatus == ActiveMissionStatus.EXECUTING
-    val isPaused = missionStatus == ActiveMissionStatus.PAUSED
+    val active = missionStatus == ActiveMissionStatus.EXECUTING || missionStatus == ActiveMissionStatus.PAUSED
+    val (statusIcon, statusLabel, statusColor) = when {
+        !isDroneConnected -> Triple(Icons.Default.LinkOff, "Aeronave desconectada", NeuralColors.Warning)
+        isUploading || missionStatus == ActiveMissionStatus.UPLOADING -> Triple(Icons.Default.CloudUpload, "Enviando missão", NeuralColors.Warning)
+        missionStatus == ActiveMissionStatus.EXECUTING -> Triple(Icons.Default.PlayArrow, "Missão em execução", NeuralColors.Success)
+        missionStatus == ActiveMissionStatus.PAUSED -> Triple(Icons.Default.Pause, "Missão pausada", NeuralColors.Warning)
+        missionStatus == ActiveMissionStatus.ERROR -> Triple(Icons.Default.ErrorOutline, "Erro na missão", NeuralColors.Danger)
+        missionStatus == ActiveMissionStatus.READY -> Triple(Icons.Default.CheckCircle, "Missão enviada e pronta", NeuralColors.Success)
+        missionStatus == ActiveMissionStatus.COMPLETED -> Triple(Icons.Default.CheckCircle, "Missão concluída", NeuralColors.Success)
+        else -> Triple(Icons.Default.CheckCircle, "Aeronave conectada; missão aguardando envio", NeuralColors.DashboardBlueLight)
+    }
+    val canUpload = isDroneConnected && hasMission && !isUploading &&
+        missionStatus in listOf(ActiveMissionStatus.LOADED, ActiveMissionStatus.STOPPED, ActiveMissionStatus.ERROR)
+    val canPlay = isDroneConnected && hasMission && !isUploading &&
+        ((missionStatus == ActiveMissionStatus.READY && sdkMissionState == MissionState.READY_TO_EXECUTE) ||
+            (missionStatus == ActiveMissionStatus.PAUSED && sdkMissionState == MissionState.EXECUTION_PAUSED))
+    val canPause = isDroneConnected && hasMission && !isUploading &&
+        missionStatus == ActiveMissionStatus.EXECUTING && sdkMissionState == MissionState.EXECUTING
+    val canStop = isDroneConnected && hasMission && !isUploading && active &&
+        sdkMissionState in listOf(MissionState.EXECUTING, MissionState.EXECUTION_PAUSED)
 
     Column(
-        modifier = modifier,
+        modifier = modifier.wrapContentSize(),
         horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Indicação sutil se houver missão mas o drone estiver desconectado ou em execução
-        if (hasMission && !isDroneConnected) {
+        // Expansão compacta (aparece acima da barra horizontal)
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(tween(150)) + expandVertically(animationSpec = tween(150), expandFrom = Alignment.Bottom),
+            exit = fadeOut(tween(120)) + shrinkVertically(animationSpec = tween(120), shrinkTowards = Alignment.Bottom)
+        ) {
             Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = Color.Black.copy(alpha = 0.55f)
+                modifier = Modifier.width(if (compact) 210.dp else 236.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = NeuralColors.DashboardOverlay,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
-                Text(
-                    text = "Aguardando conexão",
-                    color = NeuralColors.Warning.copy(alpha = 0.9f),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        } else if (hasMission && isExecuting) {
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = Color.Black.copy(alpha = 0.55f)
-            ) {
-                Text(
-                    text = "Missão em execução",
-                    color = NeuralColors.Success,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        } else if (hasMission && isPaused) {
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = Color.Black.copy(alpha = 0.55f)
-            ) {
-                Text(
-                    text = "Missão pausada",
-                    color = NeuralColors.Warning,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Nome real da missão carregada (no máximo uma linha, com reticências)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Route,
+                            contentDescription = null,
+                            tint = if (hasMission && !missionName.isNullOrBlank()) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = missionName?.takeIf { hasMission && it.isNotBlank() } ?: "Nenhuma missão",
+                            color = if (hasMission && !missionName.isNullOrBlank()) NeuralColors.TextPrimary else NeuralColors.DashboardTextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Botão "Enviar Missão"
+                    Surface(
+                        onClick = onUploadClick,
+                        enabled = canUpload,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (canUpload) NeuralColors.DashboardBlue.copy(alpha = 0.20f) else NeuralColors.DashboardInner,
+                        border = BorderStroke(
+                            1.dp,
+                            if (canUpload) NeuralColors.DashboardBlue.copy(alpha = 0.50f) else NeuralColors.DashboardBorder
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .height(32.dp)
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (isDroneConnected && (isUploading || missionStatus == ActiveMissionStatus.UPLOADING)) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(13.dp),
+                                    strokeWidth = 2.dp,
+                                    color = NeuralColors.Warning
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Enviando...",
+                                    color = NeuralColors.Warning,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = null,
+                                    tint = if (canUpload) NeuralColors.DashboardBlueLight else NeuralColors.TextDisabled,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Enviar Missão",
+                                    color = if (canUpload) NeuralColors.TextPrimary else NeuralColors.TextDisabled,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Barra horizontal de UMA ÚNICA LINHA (Controle de Missão compacto)
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = NeuralColors.DashboardOverlay,
+            border = BorderStroke(1.dp, NeuralColors.DashboardBorder),
+            modifier = Modifier.wrapContentSize()
         ) {
-            // Play (Iniciar / Retomar)
-            MissionActionButton(
-                icon = Icons.Default.PlayArrow,
-                contentDescription = if (isPaused) "Retomar missão" else "Iniciar missão",
-                enabled = canPlay,
-                activeColor = NeuralColors.Success,
-                onClick = onPlayClick
-            )
+            Row(
+                modifier = Modifier
+                    .height(46.dp)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                // Ícone pequeno de missão
+                Box(
+                    modifier = Modifier.size(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Route,
+                        contentDescription = "Missão",
+                        tint = NeuralColors.DashboardBlueLight,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
 
-            // Pause
-            MissionActionButton(
-                icon = Icons.Default.Pause,
-                contentDescription = "Pausar missão",
-                enabled = canPause,
-                activeColor = NeuralColors.Warning,
-                onClick = onPauseClick
-            )
+                // Ícone compacto de estado
+                Box(
+                    modifier = Modifier.size(28.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isDroneConnected && (isUploading || missionStatus == ActiveMissionStatus.UPLOADING)) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp).semantics { contentDescription = statusLabel },
+                            strokeWidth = 2.dp,
+                            color = statusColor
+                        )
+                    } else {
+                        Icon(
+                            imageVector = statusIcon,
+                            contentDescription = statusLabel,
+                            tint = statusColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
 
-            // Stop
-            MissionActionButton(
-                icon = Icons.Default.Stop,
-                contentDescription = "Parar missão",
-                enabled = canStop,
-                activeColor = NeuralColors.Danger,
-                onClick = onStopClick
-            )
+                // Divisor vertical
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(18.dp)
+                        .background(NeuralColors.DashboardBorder)
+                )
+
+                // Botão Iniciar (Play)
+                MissionExecutionIconButton(
+                    icon = Icons.Default.PlayArrow,
+                    description = if (missionStatus == ActiveMissionStatus.PAUSED) "Retomar missão" else "Iniciar missão",
+                    enabled = canPlay,
+                    activeColor = NeuralColors.Success,
+                    onClick = onPlayClick
+                )
+
+                // Botão Pausar (Pause)
+                MissionExecutionIconButton(
+                    icon = Icons.Default.Pause,
+                    description = "Pausar missão",
+                    enabled = canPause,
+                    activeColor = NeuralColors.Warning,
+                    onClick = onPauseClick
+                )
+
+                // Botão Parar (Stop)
+                MissionExecutionIconButton(
+                    icon = Icons.Default.Stop,
+                    description = "Parar missão",
+                    enabled = canStop,
+                    activeColor = NeuralColors.Danger,
+                    onClick = onStopClick
+                )
+
+                // Divisor vertical
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(18.dp)
+                        .background(NeuralColors.DashboardBorder)
+                )
+
+                // Botão de expandir
+                Surface(
+                    onClick = { onExpandedChange(!expanded) },
+                    shape = RoundedCornerShape(6.dp),
+                    color = NeuralColors.DashboardInner,
+                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder),
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                            contentDescription = if (expanded) "Recolher opções da missão" else "Expandir opções da missão",
+                            tint = NeuralColors.TextPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MissionActionButton(
+private fun MissionExecutionIconButton(
     icon: ImageVector,
-    contentDescription: String,
+    description: String,
     enabled: Boolean,
     activeColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val tint = if (enabled) activeColor else Color.White.copy(alpha = 0.25f)
-    val bgColor = if (enabled) Color.Black.copy(alpha = 0.65f) else Color.Black.copy(alpha = 0.35f)
-    val borderColor = if (enabled) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f)
-
     Surface(
-        onClick = { if (enabled) onClick() },
+        onClick = onClick,
         enabled = enabled,
-        shape = CircleShape,
-        color = bgColor,
-        border = BorderStroke(1.dp, borderColor),
-        modifier = Modifier.size(38.dp)
+        modifier = modifier.size(34.dp),
+        shape = RoundedCornerShape(6.dp),
+        color = if (enabled) activeColor.copy(alpha = 0.15f) else NeuralColors.DashboardInner,
+        border = BorderStroke(
+            1.dp,
+            if (enabled) activeColor.copy(alpha = 0.45f) else NeuralColors.DashboardBorder
+        )
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = icon,
-                contentDescription = contentDescription,
-                tint = tint,
+                contentDescription = description,
+                tint = if (enabled) activeColor else NeuralColors.TextDisabled,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -2925,70 +3202,147 @@ fun CompactHeader(
     onToggleControls: () -> Unit,
     isFeedAvailable: Boolean = true
 ) {
-    BoxWithConstraints(Modifier.fillMaxWidth().statusBarsPadding()
-        .padding(horizontal = 10.dp, vertical = 7.dp)) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
         val compact = maxWidth < 700.dp
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Surface(onClick = onBackClick, shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.DashboardCard.copy(alpha = 0.92f),
-                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
-                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = Color.White,
-                        modifier = Modifier.size(18.dp))
-                }
-            }
-            if (!missionName.isNullOrBlank()) {
-                HudChip {
-                    Icon(Icons.Default.Route, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
-                    Text("Missão: $missionName", color = Color.White, fontSize = 11.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = if (compact) 105.dp else 155.dp))
-                }
-            }
-            if (!compact && weatherSummary != null) {
-                HudChip {
-                    Icon(Icons.Default.WbSunny, null, tint = when (weatherSummary.decision.level) {
-                        WeatherSafetyLevel.SAFE -> NeuralColors.Success
-                        WeatherSafetyLevel.CAUTION -> NeuralColors.Warning
-                        WeatherSafetyLevel.NO_FLY -> NeuralColors.Danger
-                    }, modifier = Modifier.size(14.dp))
-                    weatherSummary.snapshot.windSpeedMs?.let { speed ->
-                        Text(MeasurementConverter.formatSpeed(speed.toFloat(), measurementSystem),
-                            color = Color.White, fontSize = 11.sp)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Grupo 1 (Esquerda): Voltar, Missão Carregada (apenas se houver), Clima Contextual
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Surface(
+                    onClick = onBackClick,
+                    shape = RoundedCornerShape(9.dp),
+                    color = NeuralColors.DashboardOverlay,
+                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
+                ) {
+                    Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Voltar",
+                            tint = NeuralColors.TextPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
-                    Text(weatherSummary.decision.shortMessage,
-                        color = NeuralColors.DashboardTextSecondary, fontSize = 10.sp,
-                        maxLines = 1, modifier = Modifier.widthIn(max = 130.dp))
+                }
+
+                if (!missionName.isNullOrBlank()) {
+                    HudChip {
+                        Icon(
+                            Icons.Default.Route,
+                            contentDescription = null,
+                            tint = NeuralColors.TextPrimary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = missionName,
+                            color = NeuralColors.TextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = if (compact) 90.dp else 140.dp)
+                        )
+                    }
+                }
+
+                if (!compact && weatherSummary != null) {
+                    CompactWeatherChip(
+                        weatherSummary = weatherSummary,
+                        measurementSystem = measurementSystem
+                    )
                 }
             }
-            Spacer(Modifier.weight(1f))
+
+            // Grupo 2 (Centro): Status de Conexão da Aeronave
             HudChip {
-                Box(Modifier.size(7.dp).background(
-                    if (isFeedAvailable) NeuralColors.Success else NeuralColors.Warning, CircleShape))
-                Text(if (isFeedAvailable) "Conectado" else "Desconectado", color = Color.White,
-                    fontSize = 11.sp, maxLines = 1)
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .background(
+                            if (isFeedAvailable) NeuralColors.Success else NeuralColors.Warning,
+                            CircleShape
+                        )
+                )
+                Text(
+                    text = if (isFeedAvailable) "Conectado" else "Desconectado",
+                    color = NeuralColors.TextPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
             }
-            Spacer(Modifier.weight(1f))
-            HudChip {
-                Icon(Icons.Default.BatteryFull, null, tint = NeuralColors.DashboardTextSecondary,
-                    modifier = Modifier.size(14.dp))
-                Text(if (isFeedAvailable && batteryLevel > 0) "$batteryLevel%" else "--%",
-                    color = Color.White, fontSize = 11.sp)
-            }
-            if (!compact && !selectedModelName.isNullOrBlank()) {
+
+            // Grupo 3 (Direita): Bateria real %, Modelo IA selecionado (apenas se houver), Ferramentas
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 HudChip {
-                    Icon(Icons.Default.Memory, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(14.dp))
-                    Text(selectedModelName, color = Color.White, fontSize = 11.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 118.dp))
+                    val batteryColor = when {
+                        !isFeedAvailable || batteryLevel <= 0 -> NeuralColors.DashboardTextSecondary
+                        batteryLevel <= 20 -> NeuralColors.Danger
+                        batteryLevel <= 30 -> NeuralColors.Warning
+                        else -> NeuralColors.Success
+                    }
+                    val batteryIcon = if (batteryLevel in 1..20) Icons.Default.BatteryAlert else Icons.Default.BatteryFull
+                    Icon(
+                        imageVector = batteryIcon,
+                        contentDescription = null,
+                        tint = batteryColor,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = if (isFeedAvailable && batteryLevel > 0) "$batteryLevel%" else "--%",
+                        color = NeuralColors.TextPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
-            }
-            Surface(onClick = onToggleControls, shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.DashboardCard.copy(alpha = 0.92f),
-                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
-                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Tune, "Ferramentas", tint = Color.White, modifier = Modifier.size(18.dp))
+
+                if (!compact && !selectedModelName.isNullOrBlank()) {
+                    HudChip {
+                        Icon(
+                            Icons.Default.Memory,
+                            contentDescription = null,
+                            tint = NeuralColors.TextPrimary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = selectedModelName,
+                            color = NeuralColors.TextPrimary,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 110.dp)
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = onToggleControls,
+                    shape = RoundedCornerShape(9.dp),
+                    color = NeuralColors.DashboardOverlay,
+                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
+                ) {
+                    Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = "Ferramentas",
+                            tint = NeuralColors.TextPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -2996,12 +3350,64 @@ fun CompactHeader(
 }
 
 @Composable
+private fun CompactWeatherChip(
+    weatherSummary: WeatherSummary,
+    measurementSystem: String
+) {
+    val snapshot = weatherSummary.snapshot
+    val isRain = (snapshot.rainMm ?: 0.0) > 0.1 || (snapshot.precipitationProbabilityPercent ?: 0.0) > 50.0
+    val isLightning = (snapshot.lightningRisk ?: 0.0) > 0.3
+    val isWindy = (snapshot.windSpeedMs ?: 0.0) >= 8.0
+
+    val (weatherIcon, weatherTint) = when {
+        isLightning -> Icons.Default.Thunderstorm to NeuralColors.Danger
+        isRain -> Icons.Default.Thunderstorm to NeuralColors.Warning
+        isWindy -> Icons.Default.Speed to NeuralColors.Warning
+        weatherSummary.decision.level == WeatherSafetyLevel.NO_FLY -> Icons.Default.Cloud to NeuralColors.Danger
+        weatherSummary.decision.level == WeatherSafetyLevel.CAUTION -> Icons.Default.Cloud to NeuralColors.Warning
+        else -> Icons.Default.WbSunny to NeuralColors.Success
+    }
+
+    HudChip {
+        Icon(
+            imageVector = weatherIcon,
+            contentDescription = null,
+            tint = weatherTint,
+            modifier = Modifier.size(13.dp)
+        )
+        val windText = snapshot.windSpeedMs?.let {
+            MeasurementConverter.formatSpeed(it.toFloat(), measurementSystem)
+        }
+        val tempText = snapshot.temperatureC?.let {
+            "${it.toInt()}°C"
+        }
+        val label = listOfNotNull(windText, tempText).joinToString(" · ")
+        if (label.isNotEmpty()) {
+            Text(
+                text = label,
+                color = NeuralColors.TextPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
 private fun HudChip(content: @Composable RowScope.() -> Unit) {
-    Surface(shape = RoundedCornerShape(9.dp), color = NeuralColors.DashboardCard.copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)) {
-        Row(Modifier.heightIn(min = 36.dp).padding(horizontal = 9.dp),
+    Surface(
+        shape = RoundedCornerShape(9.dp),
+        color = NeuralColors.DashboardOverlay,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 34.dp)
+                .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp), content = content)
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            content = content
+        )
     }
 }
 
@@ -3105,7 +3511,7 @@ private fun AiPanelButton(
         icon = Icons.Default.Psychology,
         onClick = onClick,
         enabled = true,
-        color = if (enabled) Color(0xFF00C2FF) else Color.White.copy(alpha = 0.70f),
+        color = if (enabled) NeuralColors.DashboardBlue else Color.White.copy(alpha = 0.70f),
         size = 38.dp
     )
 }
@@ -3117,7 +3523,7 @@ private fun PersonDetectionOverlay(
 ) {
     if (detections.isEmpty()) return
 
-    val boxColor = Color(0xFF00E5A0)
+    val boxColor = NeuralColors.Success
     val labelPaint = remember {
         Paint().apply {
             isAntiAlias = true
@@ -3129,7 +3535,7 @@ private fun PersonDetectionOverlay(
     val badgePaint = remember {
         Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.argb(210, 0, 194, 255)
+            color = android.graphics.Color.argb(210, 20, 20, 20)
         }
     }
 
@@ -3179,8 +3585,8 @@ fun TelemetryHudStrip(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        color = Color.Black.copy(alpha = 0.60f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+        color = NeuralColors.DashboardOverlay,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = if (compact) 8.dp else 14.dp, vertical = 6.dp),
@@ -3214,9 +3620,9 @@ fun WeatherCompactBadge(
     modifier: Modifier = Modifier
 ) {
     val tint = when (summary.decision.level) {
-        WeatherSafetyLevel.SAFE -> Color(0xFF22C55E)
-        WeatherSafetyLevel.CAUTION -> Color(0xFFF59E0B)
-        WeatherSafetyLevel.NO_FLY -> Color(0xFFEF4444)
+        WeatherSafetyLevel.SAFE -> NeuralColors.Success
+        WeatherSafetyLevel.CAUTION -> NeuralColors.Warning
+        WeatherSafetyLevel.NO_FLY -> NeuralColors.Danger
     }
 
     val icon = when (summary.decision.level) {

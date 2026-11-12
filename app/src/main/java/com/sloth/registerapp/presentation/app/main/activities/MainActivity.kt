@@ -184,6 +184,7 @@ class MainActivity : ComponentActivity() {
                                     context.startActivity(intent)
                                 },
                                 onReportsClick = { navController.navigate("report") },
+                                onReportClick = { reportId -> navController.navigate("report_detail/$reportId") },
                                 onRefreshStatusClick = {
                                     AppObservability.breadcrumb(
                                         category = "drone",

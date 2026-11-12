@@ -90,105 +90,63 @@ fun SettingsScreen(
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(NeuralColors.Bg)
+            .background(NeuralColors.DashboardBg)
     ) {
-        // Subtle grid background
-        Box(
+        // Header padrão do sistema (alinhado a DashboardScreen e AiCenterScreen)
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            NeuralColors.Bg,
-                            Color(0xFF091836),
-                            NeuralColors.Bg
-                        )
-                    )
-                )
-        )
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .background(NeuralColors.DashboardBg)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                onClick = onBackClick,
+                shape = RoundedCornerShape(8.dp),
+                color = NeuralColors.DashboardCard,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
-                Surface(
-                    onClick = onBackClick,
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = NeuralColors.Surface,
-                    border = BorderStroke(1.dp, NeuralColors.Border)
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = NeuralColors.Primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Configurações",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Voltar",
+                        tint = Color(0xFFCBD5E1),
+                        modifier = Modifier.size(18.dp)
                     )
-                    Text(
-                        text = "Personalize o sistema",
-                        fontSize = 11.sp,
-                        color = NeuralColors.Muted
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = NeuralColors.Primary.copy(alpha = 0.10f),
-                    border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.28f))
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = null,
-                            tint = NeuralColors.Primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
             }
 
-            // Thin separator line
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color.Transparent, NeuralColors.BorderStrong, Color.Transparent)
-                        )
-                    )
-            )
+            Spacer(modifier = Modifier.width(12.dp))
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Configurações",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NeuralColors.TextPrimary
+                )
+                Text(
+                    text = "Personalize o sistema",
+                    fontSize = 11.sp,
+                    color = NeuralColors.DashboardTextSecondary
+                )
+            }
+        }
+
+        HorizontalDivider(color = NeuralColors.DashboardBorder)
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
+        ) {
                 if (isLoggedIn) {
                     item {
                         NeuralProfileCard(
@@ -345,27 +303,27 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = rtmpUrlInput,
                                 onValueChange = { rtmpUrlInput = it },
-                                label = { Text("URL RTMP", color = NeuralColors.Muted) },
+                                label = { Text("URL RTMP", color = NeuralColors.DashboardTextSecondary) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = NeuralColors.Primary,
-                                    unfocusedBorderColor = NeuralColors.Border,
-                                    focusedContainerColor = Color.Black.copy(alpha = 0.18f),
-                                    unfocusedContainerColor = Color.Black.copy(alpha = 0.18f),
-                                    cursorColor = NeuralColors.Primary
+                                    focusedTextColor = NeuralColors.TextPrimary,
+                                    unfocusedTextColor = NeuralColors.TextPrimary,
+                                    focusedBorderColor = NeuralColors.DashboardBlueLight,
+                                    unfocusedBorderColor = NeuralColors.DashboardBorder,
+                                    focusedContainerColor = NeuralColors.DashboardInner,
+                                    unfocusedContainerColor = NeuralColors.DashboardInner,
+                                    cursorColor = NeuralColors.DashboardBlueLight
                                 )
                             )
                             Button(
                                 onClick = { scope.launch { rtmpRepo.setRtmpUrl(rtmpUrlInput.trim()) } },
                                 modifier = Modifier.align(Alignment.End),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Primary)
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.DashboardBlue)
                             ) {
-                                Text("Salvar", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Salvar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                             NeuralInfoText("Atual: $rtmpUrl")
                         }
@@ -390,37 +348,32 @@ fun SettingsScreen(
                         onClick = { if (isLoggedIn) onLogout() else onLoginClick() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        contentPadding = PaddingValues(0.dp)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isLoggedIn) NeuralColors.Danger.copy(alpha = 0.15f) else NeuralColors.DashboardBlue
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isLoggedIn) NeuralColors.Danger.copy(alpha = 0.40f) else NeuralColors.DashboardBlueLight.copy(alpha = 0.50f)
+                        )
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        if (isLoggedIn)
-                                            listOf(NeuralColors.Danger, Color(0xFF8B0000))
-                                        else
-                                            listOf(NeuralColors.Primary, NeuralColors.Secondary)
-                                    )
-                                ),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 imageVector = if (isLoggedIn) Icons.AutoMirrored.Filled.Logout else Icons.AutoMirrored.Filled.Login,
                                 contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isLoggedIn) NeuralColors.Danger else Color.White,
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = if (isLoggedIn) "Sair da Conta" else "Realizar Login",
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = if (isLoggedIn) NeuralColors.Danger else Color.White
                             )
                         }
                     }
@@ -429,23 +382,23 @@ fun SettingsScreen(
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
-    }
 
     if (showClearCacheDialog) {
         AlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
-            containerColor = NeuralColors.Surface,
+            containerColor = NeuralColors.DashboardCard,
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Warning, contentDescription = null, tint = NeuralColors.Warning)
                     Spacer(Modifier.width(8.dp))
-                    Text("Limpar missões locais", color = Color.White)
+                    Text("Limpar missões locais", color = NeuralColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             },
             text = {
                 Text(
                     "Remove as missões salvas neste dispositivo (${cacheSizeBytes.toReadableBytes()}). Esta ação não pode ser desfeita.",
-                    color = NeuralColors.Muted
+                    color = NeuralColors.DashboardTextSecondary,
+                    fontSize = 13.sp
                 )
             },
             confirmButton = {
@@ -457,12 +410,13 @@ fun SettingsScreen(
                             showClearCacheDialog = false
                         }
                     },
+                    shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = NeuralColors.Danger)
-                ) { Text("Limpar", color = Color.White) }
+                ) { Text("Limpar", color = Color.White, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showClearCacheDialog = false }) {
-                    Text("Cancelar", color = NeuralColors.Muted)
+                    Text("Cancelar", color = NeuralColors.DashboardTextSecondary)
                 }
             }
         )
@@ -477,57 +431,56 @@ private fun NeuralProfileCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = NeuralColors.Surface,
-        border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(12.dp),
+        color = NeuralColors.DashboardCard,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(NeuralColors.Primary.copy(alpha = 0.08f), NeuralColors.Surface)
-                    )
-                )
-                .padding(20.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 onClick = onChangeProfilePhoto,
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(56.dp),
                 shape = CircleShape,
-                color = NeuralColors.Primary.copy(alpha = 0.15f),
-                border = BorderStroke(2.dp, NeuralColors.Primary.copy(alpha = 0.50f))
+                color = NeuralColors.DashboardInner,
+                border = BorderStroke(1.5.dp, NeuralColors.DashboardBlueLight.copy(alpha = 0.50f))
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Text(
                         text = userName.take(1).uppercase(),
-                        fontSize = 30.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = NeuralColors.Primary
+                        color = NeuralColors.DashboardBlueLight
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = userName,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = NeuralColors.TextPrimary
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(text = userEmail, fontSize = 13.sp, color = NeuralColors.Muted)
+                Text(
+                    text = userEmail,
+                    fontSize = 12.sp,
+                    color = NeuralColors.DashboardTextSecondary
+                )
                 Spacer(Modifier.height(6.dp))
                 Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = NeuralColors.Success.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.30f))
+                    shape = RoundedCornerShape(4.dp),
+                    color = NeuralColors.Success.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, NeuralColors.Success.copy(alpha = 0.35f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -537,10 +490,11 @@ private fun NeuralProfileCard(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = "Autenticado",
+                            text = "AUTENTICADO",
                             color = NeuralColors.Success,
                             fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.4.sp
                         )
                     }
                 }
@@ -559,37 +513,37 @@ fun ExpandableSection(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = NeuralColors.Surface,
+        shape = RoundedCornerShape(12.dp),
+        color = NeuralColors.DashboardCard,
         border = BorderStroke(
             1.dp,
-            if (isExpanded) NeuralColors.Primary.copy(alpha = 0.35f) else NeuralColors.Border
+            if (isExpanded) NeuralColors.DashboardBlueLight.copy(alpha = 0.40f) else NeuralColors.DashboardBorder
         )
     ) {
         Column {
             Surface(
                 onClick = onToggle,
                 color = Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 14.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = NeuralColors.Primary.copy(alpha = 0.10f),
-                        border = BorderStroke(1.dp, NeuralColors.Primary.copy(alpha = 0.20f))
+                        modifier = Modifier.size(34.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = NeuralColors.DashboardInner,
+                        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = icon,
                                 contentDescription = null,
-                                tint = NeuralColors.Primary,
-                                modifier = Modifier.size(20.dp)
+                                tint = NeuralColors.DashboardBlueLight,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -598,16 +552,16 @@ fun ExpandableSection(
 
                     Text(
                         text = title,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
+                        color = NeuralColors.TextPrimary,
                         modifier = Modifier.weight(1f)
                     )
 
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
-                        tint = NeuralColors.Primary,
+                        tint = NeuralColors.DashboardTextSecondary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -619,18 +573,9 @@ fun ExpandableSection(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 Column {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color.Transparent, NeuralColors.BorderStrong, Color.Transparent)
-                                )
-                            )
-                    )
+                    HorizontalDivider(color = NeuralColors.DashboardBorder)
                     Column(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         content()
@@ -650,42 +595,53 @@ fun SettingsItem(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = NeuralColors.SurfaceAlt
+        shape = RoundedCornerShape(8.dp),
+        color = NeuralColors.DashboardInner,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(36.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.Primary.copy(alpha = 0.10f)
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = NeuralColors.DashboardCard,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = NeuralColors.Primary,
-                        modifier = Modifier.size(18.dp)
+                        tint = NeuralColors.DashboardBlueLight,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                Text(text = subtitle, fontSize = 12.sp, color = NeuralColors.Muted)
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NeuralColors.TextPrimary
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = NeuralColors.DashboardTextSecondary
+                )
             }
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = NeuralColors.Muted.copy(alpha = 0.6f),
-                modifier = Modifier.size(18.dp)
+                tint = NeuralColors.DashboardTextSecondary,
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -700,35 +656,46 @@ fun SettingsSwitchItem(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = NeuralColors.SurfaceAlt
+        shape = RoundedCornerShape(8.dp),
+        color = NeuralColors.DashboardInner,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.size(36.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = NeuralColors.Primary.copy(alpha = 0.10f)
+                modifier = Modifier.size(32.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = NeuralColors.DashboardCard,
+                border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = NeuralColors.Primary,
-                        modifier = Modifier.size(18.dp)
+                        tint = NeuralColors.DashboardBlueLight,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                Text(text = subtitle, fontSize = 12.sp, color = NeuralColors.Muted)
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NeuralColors.TextPrimary
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = NeuralColors.DashboardTextSecondary
+                )
             }
 
             Switch(
@@ -736,9 +703,10 @@ fun SettingsSwitchItem(
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = NeuralColors.Primary,
-                    uncheckedThumbColor = NeuralColors.Muted,
-                    uncheckedTrackColor = NeuralColors.Border
+                    checkedTrackColor = NeuralColors.DashboardBlue,
+                    uncheckedThumbColor = NeuralColors.DashboardTextSecondary,
+                    uncheckedTrackColor = NeuralColors.DashboardCard,
+                    uncheckedBorderColor = NeuralColors.DashboardBorder
                 )
             )
         }
@@ -757,57 +725,73 @@ fun SettingsDropdownItem(
 
     Surface(
         onClick = { expanded = true },
-        shape = RoundedCornerShape(12.dp),
-        color = NeuralColors.SurfaceAlt
+        shape = RoundedCornerShape(8.dp),
+        color = NeuralColors.DashboardInner,
+        border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
     ) {
         Box {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(horizontal = 12.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    modifier = Modifier.size(36.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    color = NeuralColors.Primary.copy(alpha = 0.10f)
+                    modifier = Modifier.size(32.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    color = NeuralColors.DashboardCard,
+                    border = BorderStroke(1.dp, NeuralColors.DashboardBorder)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = NeuralColors.Primary,
-                            modifier = Modifier.size(18.dp)
+                            tint = NeuralColors.DashboardBlueLight,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Text(text = selectedOption, fontSize = 12.sp, color = NeuralColors.Primary)
+                    Text(
+                        text = title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NeuralColors.TextPrimary
+                    )
+                    Text(
+                        text = selectedOption,
+                        fontSize = 11.sp,
+                        color = NeuralColors.DashboardBlueLight,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
 
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
                     contentDescription = null,
-                    tint = NeuralColors.Muted,
-                    modifier = Modifier.size(22.dp)
+                    tint = NeuralColors.DashboardTextSecondary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.background(NeuralColors.Surface)
+                modifier = Modifier
+                    .background(NeuralColors.DashboardCard)
+                    .border(BorderStroke(1.dp, NeuralColors.DashboardBorder), RoundedCornerShape(8.dp))
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 text = option,
-                                color = if (option == selectedOption) NeuralColors.Primary else Color.White
+                                color = if (option == selectedOption) NeuralColors.DashboardBlueLight else NeuralColors.TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = if (option == selectedOption) FontWeight.Bold else FontWeight.Normal
                             )
                         },
                         onClick = {
@@ -826,11 +810,12 @@ private fun NeuralInfoText(text: String) {
     Text(
         text = text,
         fontSize = 11.sp,
-        color = NeuralColors.Muted,
+        color = NeuralColors.DashboardTextSecondary,
         modifier = Modifier
             .fillMaxWidth()
-            .background(NeuralColors.Bg.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .background(NeuralColors.DashboardInner, RoundedCornerShape(8.dp))
+            .border(BorderStroke(1.dp, NeuralColors.DashboardBorder), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp)
     )
 }
 

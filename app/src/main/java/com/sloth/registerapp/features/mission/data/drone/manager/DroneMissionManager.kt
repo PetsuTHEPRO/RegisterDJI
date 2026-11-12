@@ -1222,13 +1222,13 @@ class DroneMissionManager(
      * a limpeza seja concluída, garantindo que todos os recursos sejam
      * liberados antes que a Activity seja destruída.
      */
-    fun destroy() {
+    fun destroy(stopActiveMission: Boolean = true) {
         try {
             Log.d(TAG, "🛑 Iniciando limpeza de recursos...")
 
             // 1. Parar missão em execução de forma não bloqueante (best-effort)
-            if (_missionState.value == MissionState.EXECUTING ||
-                _missionState.value == MissionState.EXECUTION_PAUSED
+            if (stopActiveMission && (_missionState.value == MissionState.EXECUTING ||
+                _missionState.value == MissionState.EXECUTION_PAUSED)
             ) {
                 try {
                     Log.d(TAG, "⏹️ Solicitando parada da missão (assíncrono)...")

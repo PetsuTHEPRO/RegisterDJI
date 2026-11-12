@@ -119,7 +119,7 @@ class MissionControlActivity : ComponentActivity() {
                 val telemetry by droneController.telemetry.collectAsStateWithLifecycle()
                 val missionOutcome by viewModel.missionOutcome.collectAsStateWithLifecycle()
 
-                androidx.compose.runtime.LaunchedEffect(missionState, missionData?.id) {
+                androidx.compose.runtime.LaunchedEffect(missionState, missionData?.id, missionOutcome) {
                     val mission = missionData ?: return@LaunchedEffect
                     when (missionState) {
                         MissionState.EXECUTING -> {
@@ -134,12 +134,15 @@ class MissionControlActivity : ComponentActivity() {
 
                         MissionState.FINISHED,
                         MissionState.EXECUTION_STOPPED,
-                        MissionState.ERROR -> finishMissionReport(
-                            telemetry = telemetry,
-                            missionOutcomeStatus = missionOutcome?.status?.name,
-                            missionOutcomeMessage = missionOutcome?.message,
-                            executionMode = missionOutcome?.executionMode?.name
-                        )
+                        MissionState.ERROR -> {
+                            val outcome = missionOutcome ?: return@LaunchedEffect
+                            finishMissionReport(
+                                telemetry = telemetry,
+                                missionOutcomeStatus = outcome.status.name,
+                                missionOutcomeMessage = outcome.message,
+                                executionMode = outcome.executionMode.name
+                            )
+                        }
 
                         else -> Unit
                     }
@@ -202,7 +205,7 @@ class MissionControlActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        finishMissionReport()
+        if (reportStarted) flightReportManager.cancelCurrentReport()
         droneController.stop()
         super.onDestroy()
     }
@@ -279,7 +282,7 @@ class MissionControlActivity : ComponentActivity() {
 
     private fun finishMissionReport(
         telemetry: DroneTelemetry? = null,
-        missionOutcomeStatus: String? = null,
+        missionOutcomeStatus: String,
         missionOutcomeMessage: String? = null,
         executionMode: String? = null
     ) {
@@ -307,7 +310,7 @@ class MissionControlActivity : ComponentActivity() {
 
             flightReportManager.updateExtraData(
                 buildMap {
-                    put("status", missionOutcomeStatus ?: "COMPLETED")
+                    put("status", missionOutcomeStatus)
                     put("executionMode", executionMode ?: "UNKNOWN")
                     put("finalObservation", missionOutcomeMessage ?: "N/A")
                     put("batteryFinal", finalBattery?.toString() ?: "N/A")

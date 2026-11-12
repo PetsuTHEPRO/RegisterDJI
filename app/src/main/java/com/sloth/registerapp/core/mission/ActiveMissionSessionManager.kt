@@ -7,13 +7,15 @@ import kotlinx.coroutines.flow.update
 
 enum class ActiveMissionStatus {
     IDLE,
-    LOADING,
-    READY,
-    EXECUTING,
-    PAUSED,
-    STOPPED,
-    COMPLETED,
-    ERROR
+    LOADED,     // Carregada no app e visível no minimapa (ainda não enviada ao drone)
+    UPLOADING,  // Em processo de envio ao drone
+    LOADING,    // Compatibilidade histórica
+    READY,      // Confirmada pelo SDK e pronta para iniciar execução
+    EXECUTING,  // Em voo/execução
+    PAUSED,     // Em pausa
+    STOPPED,    // Interrompida
+    COMPLETED,  // Finalizada
+    ERROR       // Erro
 }
 
 data class ActiveMissionSession(
@@ -31,12 +33,16 @@ object ActiveMissionSessionManager {
     private val _activeMissionId = MutableStateFlow<String?>(null)
     val activeMissionId: StateFlow<String?> = _activeMissionId.asStateFlow()
 
-    fun startMissionSession(missionId: String, missionName: String? = null) {
+    fun startMissionSession(
+        missionId: String,
+        missionName: String? = null,
+        initialStatus: ActiveMissionStatus = ActiveMissionStatus.LOADED
+    ) {
         _activeMissionId.value = missionId
         _session.value = ActiveMissionSession(
             missionId = missionId,
             missionName = missionName,
-            status = ActiveMissionStatus.LOADING
+            status = initialStatus
         )
     }
 
